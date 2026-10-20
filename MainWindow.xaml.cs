@@ -288,7 +288,8 @@ public partial class MainWindow : FluentWindow
                 var knob = _config.Knobs.FirstOrDefault(k => k.Idx == i);
                 if (knob != null)
                 {
-                    float peak = Math.Min(_mixer.GetPeakLevel(knob) * 2.3f, 1f);
+                    if (!App.TryGetObsMixerLevels(knob, 0f, out _, out float peak))
+                        peak = Math.Min(_mixer.GetPeakLevel(knob) * 2.3f, 1f);
                     HwPreview.SetVuLevel(i, peak);
                 }
             }

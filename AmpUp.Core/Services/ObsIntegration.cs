@@ -33,7 +33,14 @@ public class ObsIntegration : IDisposable
     private IReadOnlyList<string> _audioSources = Array.Empty<string>();
     private IReadOnlyList<string> _scenes = Array.Empty<string>();
     private readonly Dictionary<string, bool> _muted = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, float> _faders = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (float Level, long Tick)> _meters = new(StringComparer.Ordinal);
+    private IReadOnlyList<string> _sceneItems = Array.Empty<string>();
+    private IReadOnlyList<string> _filters = Array.Empty<string>();
     private int _listRefreshQueued;
+
+    // EventSubscription::All (bits 0-11) plus the high-volume InputVolumeMeters (1 << 16)
+    private const int EventSubscriptions = 0xFFF | (1 << 16);
 
     // Knob volume coalescing — latest value wins per source
     private readonly Dictionary<string, float> _pendingVolume = new(StringComparer.Ordinal);
@@ -50,6 +57,27 @@ public class ObsIntegration : IDisposable
     /// <summary>True while OBS is actively streaming.</summary>
     public bool IsStreaming { get; private set; }
 
+    /// <summary>True while a recording is paused.</summary>
+    public bool IsRecordingPaused { get; private set; }
+
+    /// <summary>True while the OBS virtual camera is on.</summary>
+    public bool IsVirtualCamActive { get; private set; }
+
+    /// <summary>True while the replay buffer is running (needed to save replays).</summary>
+    public bool IsReplayBufferActive { get; private set; }
+
+    /// <summary>"On air": streaming or recording.</summary>
+    public bool IsLive => IsStreaming || IsRecording;
+
+    /// <summary>The scene currently on program (live).</summary>
+    public string CurrentScene { get; private set; } = "";
+
+    /// <summary>Sources in each scene, as "Scene|Source" (for show / hide source actions).</summary>
+    public IReadOnlyList<string> SceneItems => _sceneItems;
+
+    /// <summary>Filters on every source and scene, as "Source|Filter" (for filter on / off actions).</summary>
+    public IReadOnlyList<string> Filters => _filters;
+
     /// <summary>OBS inputs that have audio (mic, desktop audio, media, browser sources…), in OBS order.</summary>
     public IReadOnlyList<string> AudioSources => _audioSources;
 
@@ -64,6 +92,15 @@ public class ObsIntegration : IDisposable
 
     /// <summary>A source was muted or unmuted (source name, muted).</summary>
     public event Action<string, bool>? MuteChanged;
+
+    /// <summary>Streaming, recording, record pause, virtual camera or replay buffer started / stopped.</summary>
+    public event Action? OutputStateChanged;
+
+    /// <summary>A replay was saved (file path).</summary>
+    public event Action<string>? ReplaySaved;
+
+    /// <summary>The program scene changed (scene name).</summary>
+    public event Action<string>? SceneChanged;
 
     public ObsIntegration(ObsConfig config)
     {
@@ -82,6 +119,37 @@ public class ObsIntegration : IDisposable
         if (normalized <= 0f) return -100f;
         double db = -(rangeDb + offsetDb) * Math.Pow((rangeDb + offsetDb) / offsetDb, -normalized) + offsetDb;
         return (float)Math.Max(db, -100.0);
+    }
+
+    /// <summary>Inverse of <see cref="NormalizedToDb"/>: OBS dB to fader position 0-1.</summary>
+    public static float DbToNormalized(double db)
+    {
+        const double offsetDb = 6.0, rangeDb = 96.0;
+        if (db >= 0) return 1f;
+        if (double.IsNaN(db) || db <= -100) return 0f;
+        double def = -Math.Log((offsetDb - db) / (rangeDb + offsetDb)) / Math.Log((rangeDb + offsetDb) / offsetDb);
+        return (float)Math.Clamp(def, 0.0, 1.0);
+    }
+
+    /// <summary>A source's fader position (0-1), as last reported by OBS or set by AmpUp.</summary>
+    public bool TryGetVolume(string source, out float normalized)
+    {
+        lock (_lock)
+            return _faders.TryGetValue(source, out normalized);
+    }
+
+    /// <summary>
+    /// Live post-fader level of a source on OBS's meter scale (-60 dB = 0, 0 dB = 1).
+    /// 0 when the source is silent, inactive, or meters stopped arriving.
+    /// </summary>
+    public float GetMeterLevel(string source)
+    {
+        lock (_lock)
+        {
+            if (_meters.TryGetValue(source, out var m) && Environment.TickCount64 - m.Tick < 300)
+                return m.Level;
+        }
+        return 0f;
     }
 
     public bool TryGetMuted(string source, out bool muted)
@@ -169,6 +237,9 @@ public class ObsIntegration : IDisposable
         IsAvailable = false;
         IsRecording = false;
         IsStreaming = false;
+        IsRecordingPaused = false;
+        IsVirtualCamActive = false;
+        IsReplayBufferActive = false;
         _cts?.Cancel();
         _identified?.TrySetResult(false);
 
@@ -319,12 +390,56 @@ public class ObsIntegration : IDisposable
                 MuteChanged?.Invoke(name, muted);
                 break;
             }
-            case "RecordStateChanged":
-                IsRecording = data?["outputActive"]?.Value<bool>() ?? IsRecording;
+            case "InputVolumeMeters":
+                UpdateMeters(data?["inputs"] as JArray);
                 break;
+            case "InputVolumeChanged":
+            {
+                var name = data?["inputName"]?.Value<string>();
+                var db = data?["inputVolumeDb"]?.Value<double>();
+                if (name != null && db.HasValue)
+                    lock (_lock) _faders[name] = DbToNormalized(db.Value);
+                break;
+            }
+            case "RecordStateChanged":
+            {
+                IsRecording = data?["outputActive"]?.Value<bool>() ?? IsRecording;
+                var state = data?["outputState"]?.Value<string>();
+                if (state == "OBS_WEBSOCKET_OUTPUT_PAUSED") IsRecordingPaused = true;
+                else if (state == "OBS_WEBSOCKET_OUTPUT_RESUMED" || !IsRecording) IsRecordingPaused = false;
+                OutputStateChanged?.Invoke();
+                break;
+            }
             case "StreamStateChanged":
                 IsStreaming = data?["outputActive"]?.Value<bool>() ?? IsStreaming;
+                OutputStateChanged?.Invoke();
                 break;
+            case "VirtualcamStateChanged":
+                IsVirtualCamActive = data?["outputActive"]?.Value<bool>() ?? IsVirtualCamActive;
+                OutputStateChanged?.Invoke();
+                break;
+            case "ReplayBufferStateChanged":
+                IsReplayBufferActive = data?["outputActive"]?.Value<bool>() ?? IsReplayBufferActive;
+                OutputStateChanged?.Invoke();
+                break;
+            case "ReplayBufferSaved":
+                ReplaySaved?.Invoke(data?["savedReplayPath"]?.Value<string>() ?? "");
+                break;
+            case "CurrentProgramSceneChanged":
+            {
+                var scene = data?["sceneName"]?.Value<string>();
+                if (scene != null)
+                {
+                    CurrentScene = scene;
+                    SceneChanged?.Invoke(scene);
+                }
+                break;
+            }
+            case "SceneItemCreated":
+            case "SceneItemRemoved":
+            case "SourceFilterCreated":
+            case "SourceFilterRemoved":
+            case "SourceFilterNameChanged":
             case "InputCreated":
             case "InputRemoved":
             case "InputNameChanged":
@@ -335,6 +450,28 @@ public class ObsIntegration : IDisposable
             case "CurrentSceneCollectionChanged":
                 QueueListRefresh();
                 break;
+        }
+    }
+
+    private void UpdateMeters(JArray? inputs)
+    {
+        if (inputs == null) return;
+        long now = Environment.TickCount64;
+        lock (_lock)
+        {
+            foreach (var input in inputs)
+            {
+                var name = input["inputName"]?.Value<string>();
+                if (name == null) continue;
+                // inputLevelsMul: one [magnitude, peak, inputPeak] triple per channel; peak is post-fader
+                double peak = 0;
+                if (input["inputLevelsMul"] is JArray channels)
+                    foreach (var ch in channels)
+                        if (ch is JArray levels && levels.Count > 1)
+                            peak = Math.Max(peak, levels[1].Value<double>());
+                float level = peak <= 0.001 ? 0f : (float)Math.Clamp((20 * Math.Log10(peak) + 60) / 60, 0, 1);
+                _meters[name] = (level, now);
+            }
         }
     }
 
@@ -369,7 +506,13 @@ public class ObsIntegration : IDisposable
                 var r = await SendRequestAsync("GetInputMute", new JObject { ["inputName"] = n }, timeoutMs: 2000);
                 bool ok = r?["requestStatus"]?["result"]?.Value<bool>() ?? false;
                 bool muted = r?["responseData"]?["inputMuted"]?.Value<bool>() ?? false;
-                return (Name: n, IsAudio: ok, Muted: muted);
+                double? db = null;
+                if (ok)
+                {
+                    var v = await SendRequestAsync("GetInputVolume", new JObject { ["inputName"] = n }, timeoutMs: 2000);
+                    db = v?["responseData"]?["inputVolumeDb"]?.Value<double>();
+                }
+                return (Name: n, IsAudio: ok, Muted: muted, Db: db);
             }));
 
             var scenesResp = await SendRequestAsync("GetSceneList");
@@ -382,6 +525,33 @@ public class ObsIntegration : IDisposable
 
             if (inputsResp == null) return; // dropped mid-refresh; keep last-known lists
 
+            var current = await SendRequestAsync("GetCurrentProgramScene", timeoutMs: 2000);
+            var currentScene = current?["responseData"]?["sceneName"]?.Value<string>()
+                ?? current?["responseData"]?["currentProgramSceneName"]?.Value<string>();
+            if (currentScene != null) CurrentScene = currentScene;
+
+            // Sources per scene and filters per source, for the show/hide and filter pickers
+            var itemLists = await Task.WhenAll(scenes.Select(async sc =>
+            {
+                var r = await SendRequestAsync("GetSceneItemList", new JObject { ["sceneName"] = sc }, timeoutMs: 2000);
+                return ((r?["responseData"]?["sceneItems"] as JArray) ?? new JArray())
+                    .Select(i => i["sourceName"]?.Value<string>())
+                    .Where(n => !string.IsNullOrEmpty(n))
+                    .Select(n => $"{sc}|{n}")
+                    .ToList();
+            }));
+            var filterLists = await Task.WhenAll(names.Concat(scenes).Distinct().Select(async src =>
+            {
+                var r = await SendRequestAsync("GetSourceFilterList", new JObject { ["sourceName"] = src }, timeoutMs: 2000);
+                return ((r?["responseData"]?["filters"] as JArray) ?? new JArray())
+                    .Select(f => f["filterName"]?.Value<string>())
+                    .Where(n => !string.IsNullOrEmpty(n))
+                    .Select(n => $"{src}|{n}")
+                    .ToList();
+            }));
+            _sceneItems = itemLists.SelectMany(x => x).ToList();
+            _filters = filterLists.SelectMany(x => x).ToList();
+
             var audio = new List<string>();
             var changedMutes = new List<(string, bool)>();
             lock (_lock)
@@ -392,6 +562,7 @@ public class ObsIntegration : IDisposable
                     if (!_muted.TryGetValue(m.Name, out var prev) || prev != m.Muted)
                         changedMutes.Add((m.Name, m.Muted));
                     _muted[m.Name] = m.Muted;
+                    if (m.Db.HasValue) _faders[m.Name] = DbToNormalized(m.Db.Value);
                 }
             }
             _audioSources = audio;
@@ -415,13 +586,30 @@ public class ObsIntegration : IDisposable
 
         try
         {
+            var before = (IsRecording, IsStreaming, IsRecordingPaused, IsVirtualCamActive, IsReplayBufferActive);
+
             var rec = await SendRequestAsync("GetRecordStatus", timeoutMs: 2000);
             if (rec != null)
+            {
                 IsRecording = rec["responseData"]?["outputActive"]?.Value<bool>() ?? false;
+                IsRecordingPaused = rec["responseData"]?["outputPaused"]?.Value<bool>() ?? false;
+            }
 
             var stream = await SendRequestAsync("GetStreamStatus", timeoutMs: 2000);
             if (stream != null)
                 IsStreaming = stream["responseData"]?["outputActive"]?.Value<bool>() ?? false;
+
+            var vcam = await SendRequestAsync("GetVirtualCamStatus", timeoutMs: 2000);
+            if (vcam != null)
+                IsVirtualCamActive = vcam["responseData"]?["outputActive"]?.Value<bool>() ?? false;
+
+            // Fails (no responseData) when the replay buffer isn't enabled in OBS's output settings
+            var replay = await SendRequestAsync("GetReplayBufferStatus", timeoutMs: 2000);
+            if (replay != null)
+                IsReplayBufferActive = replay["responseData"]?["outputActive"]?.Value<bool>() ?? false;
+
+            if (before != (IsRecording, IsStreaming, IsRecordingPaused, IsVirtualCamActive, IsReplayBufferActive))
+                OutputStateChanged?.Invoke();
         }
         catch
         {
@@ -432,7 +620,7 @@ public class ObsIntegration : IDisposable
     private async Task SendIdentifyAsync(JObject? hello, ClientWebSocket ws, CancellationToken ct)
     {
         var auth = hello?["authentication"];
-        var d = new JObject { ["rpcVersion"] = 1 };
+        var d = new JObject { ["rpcVersion"] = 1, ["eventSubscriptions"] = EventSubscriptions };
 
         if (auth != null)
         {
@@ -573,6 +761,76 @@ public class ObsIntegration : IDisposable
     public Task SetSceneAsync(string sceneName) =>
         SendRequestAsync("SetCurrentProgramScene", new JObject { ["sceneName"] = sceneName });
 
+    public Task ToggleVirtualCamAsync() => SendRequestAsync("ToggleVirtualCam");
+    public Task ToggleReplayBufferAsync() => SendRequestAsync("ToggleReplayBuffer");
+    public Task ToggleRecordPauseAsync() => SendRequestAsync("ToggleRecordPause");
+    public Task TriggerStudioTransitionAsync() => SendRequestAsync("TriggerStudioModeTransition");
+
+    /// <summary>Adds a chapter marker to the recording (OBS 30.2+, Hybrid MP4 recordings only).</summary>
+    public async Task<bool> AddRecordChapterAsync()
+    {
+        var r = await SendRequestAsync("CreateRecordChapter");
+        bool ok = r?["requestStatus"]?["result"]?.Value<bool>() ?? false;
+        if (!ok && r != null)
+            Logger.Log($"OBS chapter marker failed: {r["requestStatus"]?["comment"]} (needs OBS 30.2+ recording to Hybrid MP4)");
+        return ok;
+    }
+
+    /// <summary>Saves the replay buffer. When the buffer isn't running there's nothing to save yet,
+    /// so this starts it instead and the next press saves.</summary>
+    public async Task<bool> SaveReplayAsync()
+    {
+        if (!IsReplayBufferActive)
+        {
+            var status = await SendRequestAsync("GetReplayBufferStatus", timeoutMs: 2000);
+            IsReplayBufferActive = status?["responseData"]?["outputActive"]?.Value<bool>() ?? false;
+        }
+        if (!IsReplayBufferActive)
+        {
+            Logger.Log("OBS replay buffer isn't running, starting it");
+            await SendRequestAsync("StartReplayBuffer");
+            return false;
+        }
+        var r = await SendRequestAsync("SaveReplayBuffer");
+        return r?["requestStatus"]?["result"]?.Value<bool>() ?? false;
+    }
+
+    /// <summary>Shows or hides a source in a scene. <paramref name="sceneName"/> empty = the live scene.</summary>
+    public async Task ToggleSceneItemAsync(string sceneName, string sourceName)
+    {
+        if (string.IsNullOrEmpty(sceneName)) sceneName = CurrentScene;
+        if (string.IsNullOrEmpty(sceneName) || string.IsNullOrEmpty(sourceName)) return;
+
+        var idResp = await SendRequestAsync("GetSceneItemId", new JObject { ["sceneName"] = sceneName, ["sourceName"] = sourceName });
+        var id = idResp?["responseData"]?["sceneItemId"]?.Value<int>();
+        if (id == null)
+        {
+            Logger.Log($"OBS: '{sourceName}' isn't in scene '{sceneName}'");
+            return;
+        }
+        var item = new JObject { ["sceneName"] = sceneName, ["sceneItemId"] = id.Value };
+        var en = await SendRequestAsync("GetSceneItemEnabled", item);
+        bool enabled = en?["responseData"]?["sceneItemEnabled"]?.Value<bool>() ?? false;
+        item["sceneItemEnabled"] = !enabled;
+        await SendRequestAsync("SetSceneItemEnabled", item);
+    }
+
+    /// <summary>Turns a filter on a source (or scene) on or off.</summary>
+    public async Task ToggleFilterAsync(string sourceName, string filterName)
+    {
+        if (string.IsNullOrEmpty(sourceName) || string.IsNullOrEmpty(filterName)) return;
+        var key = new JObject { ["sourceName"] = sourceName, ["filterName"] = filterName };
+        var f = await SendRequestAsync("GetSourceFilter", key);
+        if (f?["responseData"] == null)
+        {
+            Logger.Log($"OBS: no filter '{filterName}' on '{sourceName}'");
+            return;
+        }
+        bool enabled = f["responseData"]?["filterEnabled"]?.Value<bool>() ?? false;
+        key["filterEnabled"] = !enabled;
+        await SendRequestAsync("SetSourceFilterEnabled", key);
+    }
+
     public Task ToggleMuteAsync(string sourceName) =>
         SendRequestAsync("ToggleInputMute", new JObject { ["inputName"] = sourceName });
 
@@ -586,6 +844,7 @@ public class ObsIntegration : IDisposable
 
         lock (_lock)
         {
+            _faders[sourceName] = Math.Clamp(normalized, 0f, 1f);
             _pendingVolume[sourceName] = Math.Clamp(normalized, 0f, 1f);
             if (!_volumeInFlight.Add(sourceName)) return;
         }

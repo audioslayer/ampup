@@ -138,7 +138,7 @@ public partial class ButtonsView
     private static readonly HashSet<string> MultiActionStepPathActions = new()
     {
         "launch_exe", "close_program", "mute_program", "open_url", "sc_go_to_page",
-        "ha_service", "ha_color", "ha_color_temp", "govee_color", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus",
+        "ha_service", "ha_color", "ha_color_temp", "govee_color", "obs_scene", "obs_mute", "obs_source_toggle", "obs_filter_toggle", "vm_mute_strip", "vm_mute_bus",
         "signalrgb_effect", "signalrgb_effect_cycle"
     };
 
@@ -1433,7 +1433,7 @@ public partial class ButtonsView
         Button pick = null!;
         pick = MakeEditorButton("Pick from OBS", (_, _) =>
         {
-            if (pick.Tag is string a && a is "obs_scene" or "obs_mute")
+            if (pick.Tag is string a && a is "obs_scene" or "obs_mute" or "obs_source_toggle" or "obs_filter_toggle")
                 ShowProcessPicker(pick, box, a);
         });
         pick.Visibility = Visibility.Collapsed;
@@ -2252,7 +2252,7 @@ public partial class ButtonsView
 
     // Actions that require a path textbox inside Toggle A/B (same set as main picker)
     private static bool ToggleSubActionNeedsPath(string action) =>
-        (PathActions.Contains(action) && action != "signalrgb_effect") || action is "ha_service" or "ha_color" or "ha_color_temp" or "govee_color" or "obs_scene" or "obs_mute" or "vm_mute_strip" or "vm_mute_bus";
+        (PathActions.Contains(action) && action != "signalrgb_effect") || action is "ha_service" or "ha_color" or "ha_color_temp" or "govee_color" or "obs_scene" or "obs_mute" or "obs_source_toggle" or "obs_filter_toggle" or "vm_mute_strip" or "vm_mute_bus";
 
     private ActionPicker MakeFilteredActionCombo(HashSet<string> blocklist)
     {
@@ -2404,6 +2404,8 @@ public partial class ButtonsView
         "signalrgb_effect" => "EFFECT NAME",
         "signalrgb_effect_cycle" => "EFFECT LIST",
         "obs_mute" => "SOURCE NAME",
+        "obs_source_toggle" => "SCENE | SOURCE",
+        "obs_filter_toggle" => "SOURCE | FILTER",
         "vm_mute_strip" => "STRIP INDEX",
         "vm_mute_bus" => "BUS INDEX",
         _ => "PATH",
@@ -2820,7 +2822,7 @@ public partial class ButtonsView
 
         var action = GetComboActionValue(_scActionPicker);
         bool needsPath = (PathActions.Contains(action) && action is not "signalrgb_effect" and not "signalrgb_effect_cycle")
-            || action is "ha_service" or "ha_color" or "ha_color_temp" or "govee_color" or "obs_scene" or "obs_mute" or "vm_mute_strip" or "vm_mute_bus";
+            || action is "ha_service" or "ha_color" or "ha_color_temp" or "govee_color" or "obs_scene" or "obs_mute" or "obs_source_toggle" or "obs_filter_toggle" or "vm_mute_strip" or "vm_mute_bus";
         _scPathPanel.Visibility = needsPath ? Visibility.Visible : Visibility.Collapsed;
         _scMacroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
         if (_scTextSnippetPanel != null)
@@ -2907,7 +2909,7 @@ public partial class ButtonsView
             else
             {
                 ApplyPathLabelAndButtons(_scPathLabel, _scPathBox, _scBrowsePathButton, _scPickPathButton, action, _scAppChip);
-                _scPickPathButton.Visibility = action is "obs_scene" or "obs_mute" ? Visibility.Visible : Visibility.Collapsed;
+                _scPickPathButton.Visibility = action is "obs_scene" or "obs_mute" or "obs_source_toggle" or "obs_filter_toggle" ? Visibility.Visible : Visibility.Collapsed;
             }
         }
 
@@ -4576,6 +4578,8 @@ public partial class ButtonsView
                 "signalrgb_effect" => "EFFECT NAME",
                 "signalrgb_effect_cycle" => "EFFECT LIST",
                 "obs_mute" => "SOURCE NAME",
+                "obs_source_toggle" => "SCENE | SOURCE",
+                "obs_filter_toggle" => "SOURCE | FILTER",
                 "vm_mute_strip" or "vm_mute_bus" => "INDEX",
                 _ => "PATH"
             };

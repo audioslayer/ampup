@@ -161,6 +161,8 @@ public partial class SettingsView : UserControl
         TxtObsHost.TextChanged += OnValueChanged;
         TxtObsPort.TextChanged += OnValueChanged;
         TxtObsPassword.PasswordChanged += OnPasswordChanged;
+        ChkObsReplayFlash.Checked += OnValueChanged;
+        ChkObsReplayFlash.Unchecked += OnValueChanged;
         BtnObsTest.Click += OnObsTest;
 
         // VoiceMeeter
@@ -383,6 +385,7 @@ public partial class SettingsView : UserControl
         TxtObsHost.Text = config.Obs.Host;
         TxtObsPort.Text = config.Obs.Port.ToString();
         TxtObsPassword.Password = config.Obs.Password;
+        ChkObsReplayFlash.IsChecked = config.Obs.FlashOnReplaySave;
         RefreshObsHeaderStatus();
 
         // Integrations — VoiceMeeter
@@ -997,6 +1000,7 @@ public partial class SettingsView : UserControl
         if (int.TryParse(TxtObsPort.Text.Trim(), out var obsPort))
             _config.Obs.Port = obsPort;
         _config.Obs.Password = TxtObsPassword.Password;
+        _config.Obs.FlashOnReplaySave = ChkObsReplayFlash.IsChecked == true;
 
         // Govee
         _config.Ambience.GoveeEnabled = ChkGoveeEnabled.IsChecked == true;

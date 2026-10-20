@@ -401,6 +401,7 @@ public enum LightEffect
     RgbOverdrive, LaserGrid, Hyperdrive, PrismPulse, ColorJuggle, SpectrumSurge,
     BlackHole, LavaLamp, Bubbles, FractalMotion, NoiseMap,
     MovingPanes, Sunrise, Shimmer, SpotsFade, StreamDual,
+    ObsLive,
 }
 
 public class N3Config
@@ -582,6 +583,8 @@ public enum DeviceSurface
 public enum ReactiveMode
 {
     BeatPulse, SpectrumBands, ColorShift,
+    /// <summary>Each knob's LEDs fill with the live OBS meter of the OBS source it controls.</summary>
+    ObsMeter,
 }
 
 public enum VuFillMode
@@ -686,6 +689,8 @@ public class QuickWheelConfig
     public List<string> OutputDeviceIds { get; set; } = new();
     public List<string> InputDeviceIds { get; set; } = new();
     public List<string> SignalRgbEffects { get; set; } = new();
+    /// <summary>OBS scene wheel: picked scenes in wheel order. Empty = the first scenes in OBS.</summary>
+    public List<string> ObsScenes { get; set; } = new();
     /// <summary>Media wheel: picked media actions in wheel order. Empty = all of them.</summary>
     public List<string> MediaActions { get; set; } = new();
     /// <summary>Profile wheel: picked profile names in wheel order. Empty = every profile.</summary>
@@ -719,6 +724,7 @@ public enum QuickWheelMode
     Custom,
     InputDevice,
     SignalRgbEffect,
+    ObsScene,
 }
 
 public class CustomWheelSlot
@@ -917,6 +923,8 @@ public class ObsConfig
     public string Host { get; set; } = "localhost";
     public int Port { get; set; } = 4455;
     public string Password { get; set; } = "";
+    /// <summary>Flash the knob lights when OBS saves a replay.</summary>
+    public bool FlashOnReplaySave { get; set; } = true;
 }
 
 public class VoiceMeeterConfig

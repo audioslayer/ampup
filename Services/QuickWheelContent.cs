@@ -34,6 +34,7 @@ public sealed class QuickWheelContent
     private static readonly Color DeviceColor = Color.FromRgb(0xAB, 0x47, 0xBC);
     private static readonly Color InputColor = Color.FromRgb(0xFF, 0xB8, 0x00);
     private static readonly Color EffectColor = Color.FromRgb(0xAB, 0x47, 0xBC);
+    private static readonly Color ObsColor = Color.FromRgb(0x7C, 0x4D, 0xFF);
 
     public static readonly (string id, string label, string symbol, Color color)[] MediaControls =
     {
@@ -68,6 +69,9 @@ public sealed class QuickWheelContent
                 break;
             case QuickWheelMode.SignalRgbEffect:
                 AddSignalRgbEffects(c, wheel.SignalRgbEffects, runAction);
+                break;
+            case QuickWheelMode.ObsScene:
+                AddObsScenes(c, wheel.ObsScenes, runAction);
                 break;
             case QuickWheelMode.MediaControls:
                 c.Kind = "Media control";
@@ -130,6 +134,7 @@ public sealed class QuickWheelContent
             case QuickWheelMode.OutputDevice: return ("VolumeHigh", DeviceColor);
             case QuickWheelMode.InputDevice: return ("Microphone", InputColor);
             case QuickWheelMode.SignalRgbEffect: return ("Palette", EffectColor);
+            case QuickWheelMode.ObsScene: return ("MovieOpen", ObsColor);
             case QuickWheelMode.MediaControls:
             {
                 var m = MediaControls.FirstOrDefault(x => x.id == id);
@@ -249,6 +254,28 @@ public sealed class QuickWheelContent
     }
 
     /// <summary>
+    /// OBS scenes: the picked ones (in the user's order, skipping any that no longer exist) or
+    /// the first ones in OBS. The scene that's live is marked active.
+    /// </summary>
+    private static void AddObsScenes(QuickWheelContent c, List<string> picked,
+        Action<string, ButtonConfig?> runAction)
+    {
+        c.Kind = "OBS scene";
+        var obs = App.Obs;
+        var live = obs?.IsAvailable == true ? obs.Scenes : Array.Empty<string>();
+        c.MinItems = picked.Count > 0 ? 1 : 2;
+        var names = picked.Count > 0 ? picked.Where(live.Contains) : live;
+        foreach (var name in names.Take(MaxItems))
+        {
+            var n = name;
+            c.Items.Add(new QuickWheelItem(n, n, "MovieOpen", ObsColor,
+                () => runAction("obs_scene", new ButtonConfig { Path = n })));
+        }
+        c.ActiveIndex = c.Items.FindIndex(i => i.Id == obs?.CurrentScene);
+        c.CurrentIndex = Math.Max(0, c.ActiveIndex);
+    }
+
+    /// <summary>
     /// What a custom slot looks like on the wheel: the user's picked icon / color when set,
     /// otherwise the launched app's own icon (launch_exe) or the action's default icon.
     /// </summary>
@@ -351,6 +378,10 @@ public sealed class QuickWheelContent
         "mute_device" => ("VolumeOff", Color.FromRgb(0xFF, 0x44, 0x44)),
         "mute_input_device" => ("MicrophoneOff", Color.FromRgb(0xFF, 0x44, 0x44)),
         "screenshot" => ("MonitorScreenshot", Color.FromRgb(0x26, 0xC6, 0xDA)),
+        "obs_scene" => ("MovieOpen", ObsColor),
+        "obs_record" => ("RecordRec", Color.FromRgb(0xFF, 0x44, 0x44)),
+        "obs_stream" => ("Broadcast", ObsColor),
+        "obs_replay_save" => ("Replay", Color.FromRgb(0x00, 0xE6, 0x76)),
         _ => ("CircleOutline", Color.FromRgb(0x9E, 0x9E, 0x9E)),
     };
 }

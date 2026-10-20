@@ -31,6 +31,16 @@ sealed class FakeObsServer : IDisposable
     public List<string> Scenes { get; } = new();
 
     public List<(string Input, double? Db, double? Mul)> VolumeSets { get; } = new();
+
+    /// <summary>Input name → volume in dB.</summary>
+    public Dictionary<string, double> VolumesDb { get; } = new();
+    /// <summary>Scene → its sources and whether each is visible.</summary>
+    public Dictionary<string, Dictionary<string, bool>> SceneItems { get; } = new();
+    /// <summary>Source → its filters and whether each is on.</summary>
+    public Dictionary<string, Dictionary<string, bool>> SourceFilters { get; } = new();
+    public string CurrentScene { get; set; } = "";
+    public bool ReplayBufferActive { get; set; }
+    public List<string> RequestLog { get; } = new();
     public int VolumeDelayMs { get; set; }
 
     public FakeObsServer()
@@ -39,6 +49,11 @@ sealed class FakeObsServer : IDisposable
         _listener.Start();
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
         _ = AcceptLoopAsync();
+    }
+
+    public List<string> SnapshotRequests()
+    {
+        lock (_gate) return RequestLog.ToList();
     }
 
     public List<(string Input, double? Db, double? Mul)> SnapshotVolumeSets()
@@ -136,9 +151,71 @@ sealed class FakeObsServer : IDisposable
         var data = d["requestData"] as JObject ?? new JObject();
         bool ok = true;
         JObject? responseData = null;
+        lock (_gate) RequestLog.Add(type);
 
         switch (type)
         {
+            case "GetInputVolume":
+            {
+                var name = data["inputName"]!.Value<string>()!;
+                double db = VolumesDb.TryGetValue(name, out var v) ? v : 0;
+                responseData = new JObject { ["inputVolumeDb"] = db, ["inputVolumeMul"] = Math.Pow(10, db / 20) };
+                break;
+            }
+            case "GetCurrentProgramScene":
+                responseData = new JObject { ["sceneName"] = CurrentScene, ["currentProgramSceneName"] = CurrentScene };
+                break;
+            case "GetSceneItemList":
+            {
+                var scene = data["sceneName"]!.Value<string>()!;
+                var items = SceneItems.TryGetValue(scene, out var si) ? si.Keys : Enumerable.Empty<string>();
+                responseData = new JObject { ["sceneItems"] = new JArray(items.Select((n, i) => new JObject { ["sourceName"] = n, ["sceneItemId"] = i + 1 })) };
+                break;
+            }
+            case "GetSourceFilterList":
+            {
+                var src = data["sourceName"]!.Value<string>()!;
+                var filters = SourceFilters.TryGetValue(src, out var f) ? f.Keys : Enumerable.Empty<string>();
+                responseData = new JObject { ["filters"] = new JArray(filters.Select(n => new JObject { ["filterName"] = n })) };
+                break;
+            }
+            case "GetSceneItemId":
+            {
+                var scene = data["sceneName"]!.Value<string>()!;
+                var src = data["sourceName"]!.Value<string>()!;
+                var idx = SceneItems.TryGetValue(scene, out var si) ? si.Keys.ToList().IndexOf(src) : -1;
+                if (idx < 0) ok = false;
+                else responseData = new JObject { ["sceneItemId"] = idx + 1 };
+                break;
+            }
+            case "GetSceneItemEnabled":
+            case "SetSceneItemEnabled":
+            {
+                var si = SceneItems[data["sceneName"]!.Value<string>()!];
+                var src = si.Keys.ElementAt(data["sceneItemId"]!.Value<int>() - 1);
+                if (type == "SetSceneItemEnabled") si[src] = data["sceneItemEnabled"]!.Value<bool>();
+                else responseData = new JObject { ["sceneItemEnabled"] = si[src] };
+                break;
+            }
+            case "GetSourceFilter":
+            case "SetSourceFilterEnabled":
+            {
+                var src = data["sourceName"]!.Value<string>()!;
+                var name = data["filterName"]!.Value<string>()!;
+                if (!SourceFilters.TryGetValue(src, out var f) || !f.ContainsKey(name)) { ok = false; break; }
+                if (type == "SetSourceFilterEnabled") f[name] = data["filterEnabled"]!.Value<bool>();
+                else responseData = new JObject { ["filterEnabled"] = f[name] };
+                break;
+            }
+            case "GetReplayBufferStatus":
+                responseData = new JObject { ["outputActive"] = ReplayBufferActive };
+                break;
+            case "StartReplayBuffer":
+                ReplayBufferActive = true;
+                break;
+            case "GetVirtualCamStatus":
+                responseData = new JObject { ["outputActive"] = false };
+                break;
             case "GetInputList":
                 responseData = new JObject { ["inputs"] = new JArray(Inputs.Keys.Select(n => new JObject { ["inputName"] = n, ["inputKind"] = "x" })) };
                 break;

@@ -922,7 +922,9 @@ public partial class ButtonsView
         var discordChildren = DiscordActionValues;
         var haChildren      = new[] { "ha_toggle", "ha_scene", "ha_color", "ha_color_temp", "ha_service" };
         var goveeChildren   = new[] { "govee_toggle", "govee_color", "govee_white_toggle" };
-        var foldedChildren = new HashSet<string>(spotifyChildren.Concat(pocketCastsChildren).Concat(discordChildren).Concat(haChildren).Concat(goveeChildren));
+        var obsChildren     = new[] { "obs_scene", "obs_mute", "obs_record", "obs_stream", "obs_record_pause", "obs_record_chapter",
+            "obs_replay_save", "obs_replay_buffer", "obs_virtualcam", "obs_studio_transition", "obs_source_toggle", "obs_filter_toggle" };
+        var foldedChildren = new HashSet<string>(spotifyChildren.Concat(pocketCastsChildren).Concat(discordChildren).Concat(haChildren).Concat(goveeChildren).Concat(obsChildren));
 
         foreach (var (category, values) in ActionCategories)
         {
@@ -986,6 +988,11 @@ public partial class ButtonsView
             Color.FromRgb(0x66, 0xBB, 0x6A), "Integrations",
             "Toggle a Govee device, set a specific color, or flip a single device between white + last color",
             goveeChildren, enabled: goveeEnabled || anyGoveeConfigured);
+
+        AddIntegrationGroup("group_obs", "OBS Studio", "●",
+            Color.FromRgb(0x7C, 0x4D, 0xFF), "Integrations",
+            "Scenes, source mute and visibility, filters, recording, streaming, replays, virtual camera",
+            obsChildren, enabled: obsEnabled || anyObsConfigured);
 
         AddV2SignalRgbAction("signalrgb_effect_cycle", "SignalRGB: Cycle Effects",
             "Cycle through the selected SignalRGB effects in order");

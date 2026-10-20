@@ -177,6 +177,7 @@ namespace AmpUp.Controls
             { LightEffect.RainbowCycle, Color.FromRgb(0x66, 0xBB, 0x6A) }, // green
             { LightEffect.MicStatus,    Color.FromRgb(0x42, 0xA5, 0xF5) }, // blue
             { LightEffect.DeviceMute,   Color.FromRgb(0xEF, 0x53, 0x50) }, // red
+            { LightEffect.ObsLive,      Color.FromRgb(0xFF, 0x17, 0x44) }, // on-air red
             { LightEffect.AudioReactive,ThemeManager.Accent }, // accent green
             { LightEffect.AudioPositionBlend, Color.FromRgb(0x00, 0xBF, 0xA5) }, // teal
 
@@ -375,6 +376,7 @@ namespace AmpUp.Controls
             {
                 (LightEffect.MicStatus,     "⏦",   "Mic",      false),
                 (LightEffect.DeviceMute,    "⊘",   "Mute",     false),
+                (LightEffect.ObsLive,       "●",   "On Air",   false),
                 (LightEffect.AudioReactive, "♫",   "Audio",    false),
                 (LightEffect.AudioPositionBlend, "♫⬍", "Audio+Pos", false),
                 (LightEffect.ProgramMute,   "⊗",   "App Mute", false),

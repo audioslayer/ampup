@@ -60,6 +60,10 @@ public partial class ButtonsView : UserControl
         ("Discord: Leave Voice", "discord_leave_voice"), ("Discord: Toggle Noise Suppression", "discord_toggle_noise_suppression"),
         ("OBS: Record", "obs_record"), ("OBS: Stream", "obs_stream"),
         ("OBS: Scene", "obs_scene"), ("OBS: Mute", "obs_mute"),
+        ("OBS: Save Replay", "obs_replay_save"), ("OBS: Replay Buffer", "obs_replay_buffer"),
+        ("OBS: Virtual Camera", "obs_virtualcam"), ("OBS: Pause Recording", "obs_record_pause"),
+        ("OBS: Chapter Marker", "obs_record_chapter"), ("OBS: Studio Transition", "obs_studio_transition"),
+        ("OBS: Show/Hide Source", "obs_source_toggle"), ("OBS: Filter On/Off", "obs_filter_toggle"),
         ("VM: Mute Strip", "vm_mute_strip"), ("VM: Mute Bus", "vm_mute_bus"),
         ("SignalRGB: Effect", "signalrgb_effect"), ("SignalRGB: Cycle Effects", "signalrgb_effect_cycle"),
         ("SignalRGB: Blackout", "signalrgb_blackout"), ("SignalRGB: Restore", "signalrgb_restore"),
@@ -106,6 +110,9 @@ public partial class ButtonsView : UserControl
         { "govee_toggle", "◈" }, { "govee_color", "◉" }, { "govee_white_toggle", "◇" },
         { "obs_record", "●" }, { "obs_stream", "◉" },
         { "obs_scene", "🎬" }, { "obs_mute", "🔇" },
+        { "obs_replay_save", "⟲" }, { "obs_replay_buffer", "◔" }, { "obs_virtualcam", "◙" },
+        { "obs_record_pause", "⏸" }, { "obs_record_chapter", "⚑" }, { "obs_studio_transition", "⇄" },
+        { "obs_source_toggle", "◧" }, { "obs_filter_toggle", "✧" },
         { "vm_mute_strip", "🔇" }, { "vm_mute_bus", "🔇" },
         { "sc_page_next", "▶" }, { "sc_page_prev", "◀" },
         { "sc_page_home", "⌂" }, { "sc_go_to_page", "▦" },
@@ -171,6 +178,14 @@ public partial class ButtonsView : UserControl
         { "obs_stream",         Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "obs_scene",          Color.FromRgb(0x29, 0xB6, 0xF6) },
         { "obs_mute",           Color.FromRgb(0xEF, 0x53, 0x50) },
+        { "obs_replay_save",    Color.FromRgb(0x00, 0xE6, 0x76) },
+        { "obs_replay_buffer",  Color.FromRgb(0x00, 0xBF, 0xA5) },
+        { "obs_virtualcam",     Color.FromRgb(0x7C, 0x4D, 0xFF) },
+        { "obs_record_pause",   Color.FromRgb(0xFF, 0xB8, 0x00) },
+        { "obs_record_chapter", Color.FromRgb(0xFF, 0xB8, 0x00) },
+        { "obs_studio_transition", Color.FromRgb(0x29, 0xB6, 0xF6) },
+        { "obs_source_toggle",  Color.FromRgb(0x29, 0xB6, 0xF6) },
+        { "obs_filter_toggle",  Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "vm_mute_strip",      Color.FromRgb(0xFF, 0x8F, 0x00) },
         { "vm_mute_bus",        Color.FromRgb(0xFF, 0x8F, 0x00) },
         { "pocketcasts_open",         Color.FromRgb(0xF4, 0x3E, 0x37) },
@@ -1084,7 +1099,7 @@ public partial class ButtonsView : UserControl
     private void UpdateTapVisibility(int idx, string action)
     {
         bool isHaServiceAction = action is "ha_service" or "ha_color" or "ha_color_temp";
-        bool isObsPathAction = action is "obs_scene" or "obs_mute";
+        bool isObsPathAction = action is "obs_scene" or "obs_mute" or "obs_source_toggle" or "obs_filter_toggle";
         bool isVmPathAction = action is "vm_mute_strip" or "vm_mute_bus";
         _tapPathPanels[idx].Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction || isVmPathAction ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(_tapPathLabels[idx], _tapPathBoxes[idx], _tapBrowseButtons[idx], _tapPickButtons[idx], action, _tapAppChips[idx]);
@@ -1105,7 +1120,7 @@ public partial class ButtonsView : UserControl
         System.Windows.Controls.Border? chip = null, TextBox? box = null)
     {
         bool isHaServiceAction = action is "ha_service" or "ha_color" or "ha_color_temp";
-        bool isObsPathAction = action is "obs_scene" or "obs_mute";
+        bool isObsPathAction = action is "obs_scene" or "obs_mute" or "obs_source_toggle" or "obs_filter_toggle";
         bool isVmPathAction = action is "vm_mute_strip" or "vm_mute_bus";
         pathPanel.Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction || isVmPathAction ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(pathLabel, box, browseBtn, pickBtn, action, chip);
@@ -1221,6 +1236,20 @@ public partial class ButtonsView : UserControl
                 label.Text = "SCENE NAME";
                 SetPlaceholderText("Gaming");
                 if (box != null) box.ToolTip = "OBS scene to switch to — pick from the list or type the name";
+                browseBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Visible;
+                break;
+            case "obs_source_toggle":
+                label.Text = "SCENE | SOURCE";
+                SetPlaceholderText("Gaming|Webcam");
+                if (box != null) box.ToolTip = "Scene|Source to show or hide. Leave out the scene (just Webcam) to use whichever scene is live.";
+                browseBtn.Visibility = Visibility.Collapsed;
+                pickBtn.Visibility = Visibility.Visible;
+                break;
+            case "obs_filter_toggle":
+                label.Text = "SOURCE | FILTER";
+                SetPlaceholderText("Mic/Aux|Noise Suppression");
+                if (box != null) box.ToolTip = "Source|Filter to turn on or off — pick from the list or type it";
                 browseBtn.Visibility = Visibility.Collapsed;
                 pickBtn.Visibility = Visibility.Visible;
                 break;
@@ -1474,6 +1503,14 @@ public partial class ButtonsView : UserControl
         { "obs_stream",         "Toggle OBS Studio streaming on/off" },
         { "obs_scene",          "Switch to an OBS scene (enter scene name in path)" },
         { "obs_mute",           "Toggle mute on an OBS audio source (enter source name in path)" },
+        { "obs_replay_save",    "Save the last moments as a replay clip (starts the replay buffer if it isn't running)" },
+        { "obs_replay_buffer",  "Start or stop OBS's replay buffer" },
+        { "obs_virtualcam",     "Turn the OBS virtual camera on or off" },
+        { "obs_record_pause",   "Pause or resume the current recording" },
+        { "obs_record_chapter", "Add a chapter marker to the recording (OBS 30.2+, Hybrid MP4)" },
+        { "obs_studio_transition", "Studio Mode: send the preview scene live" },
+        { "obs_source_toggle",  "Show or hide a source in a scene, e.g. your webcam" },
+        { "obs_filter_toggle",  "Turn a filter on or off, e.g. noise suppression on your mic" },
         { "vm_mute_strip",      "Toggle mute on a VoiceMeeter strip (Potato indices: 0-7)" },
         { "vm_mute_bus",        "Toggle mute on a VoiceMeeter bus (Potato indices: 0-7)" },
         { "spotify_play_pause", "Play / pause Spotify playback (requires Spotify connected in Settings)" },
@@ -1588,7 +1625,7 @@ public partial class ButtonsView : UserControl
         => action is "govee_toggle" or "govee_color" or "govee_white_toggle";
 
     private static bool IsObsAction(string? action)
-        => action is "obs_record" or "obs_stream" or "obs_scene" or "obs_mute";
+        => action != null && action.StartsWith("obs_", StringComparison.Ordinal);
 
     private static bool IsVmAction(string? action)
         => action is "vm_mute_strip" or "vm_mute_bus";
@@ -1610,7 +1647,7 @@ public partial class ButtonsView : UserControl
         ("Advanced",        new[] { "multi_action", "toggle_action", "open_folder" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Room",            new[] { "room_toggle", "room_effect" }),
-        ("Integrations",    new[] { "group_toggle", "ha_toggle", "ha_scene", "ha_color", "ha_color_temp", "ha_service", "corsair_toggle", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "vm_mute_strip", "vm_mute_bus", "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like", "pocketcasts_open", "pocketcasts_play_pause", "pocketcasts_skip_back", "pocketcasts_skip_forward", "discord_toggle_mute", "discord_toggle_deafen", "discord_mute_on", "discord_mute_off", "discord_deafen_on", "discord_deafen_off", "discord_leave_voice", "discord_toggle_noise_suppression", "signalrgb_effect", "signalrgb_effect_cycle", "signalrgb_blackout", "signalrgb_restore" }),
+        ("Integrations",    new[] { "group_toggle", "ha_toggle", "ha_scene", "ha_color", "ha_color_temp", "ha_service", "corsair_toggle", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "obs_replay_save", "obs_replay_buffer", "obs_virtualcam", "obs_record_pause", "obs_record_chapter", "obs_studio_transition", "obs_source_toggle", "obs_filter_toggle", "vm_mute_strip", "vm_mute_bus", "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like", "pocketcasts_open", "pocketcasts_play_pause", "pocketcasts_skip_back", "pocketcasts_skip_forward", "discord_toggle_mute", "discord_toggle_deafen", "discord_mute_on", "discord_mute_off", "discord_deafen_on", "discord_deafen_off", "discord_leave_voice", "discord_toggle_noise_suppression", "signalrgb_effect", "signalrgb_effect_cycle", "signalrgb_blackout", "signalrgb_restore" }),
         ("Stream Controller", new[] { "sc_page_next", "sc_page_prev", "sc_page_home", "sc_go_to_page" }),
     };
 
@@ -1989,14 +2026,24 @@ public partial class ButtonsView : UserControl
     {
         List<string> processes;
         string emptyMessage = "No processes found";
-        if (action is "obs_scene" or "obs_mute")
+        if (action is "obs_scene" or "obs_mute" or "obs_source_toggle" or "obs_filter_toggle")
         {
             var obs = App.Obs;
             bool connected = obs?.IsAvailable == true;
-            processes = !connected ? new List<string>()
-                : action == "obs_scene" ? obs!.Scenes.ToList() : obs!.AudioSources.ToList();
-            emptyMessage = !connected ? "OBS isn't connected (Settings → Integrations)"
-                : action == "obs_scene" ? "No scenes in OBS" : "No audio sources in OBS";
+            processes = !connected ? new List<string>() : (action switch
+            {
+                "obs_scene" => obs!.Scenes,
+                "obs_mute" => obs!.AudioSources,
+                "obs_source_toggle" => obs!.SceneItems,
+                _ => obs!.Filters,
+            }).ToList();
+            emptyMessage = !connected ? "OBS isn't connected (Settings → Integrations)" : action switch
+            {
+                "obs_scene" => "No scenes in OBS",
+                "obs_mute" => "No audio sources in OBS",
+                "obs_source_toggle" => "No sources in your OBS scenes",
+                _ => "No filters in OBS yet",
+            };
         }
         else if (_mixer == null)
         {

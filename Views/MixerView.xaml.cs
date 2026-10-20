@@ -548,7 +548,11 @@ public partial class MixerView : UserControl
 
                 float vol;
                 float peak;
-                if (isNonAudio)
+                if (App.TryGetObsMixerLevels(knob, App.KnobPositions[i], out vol, out peak))
+                {
+                    // OBS source: slider position + live meter come from OBS
+                }
+                else if (isNonAudio)
                 {
                     vol = App.KnobPositions[i];
                     peak = 0f;

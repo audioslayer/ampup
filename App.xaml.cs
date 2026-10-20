@@ -274,6 +274,7 @@ public partial class App : Application
         _audioAnalyzer = new AudioAnalyzer();
         AudioAnalyzer = _audioAnalyzer;
         _rgb.SetAudioBandsProvider(() => _audioAnalyzer.SmoothedBands);
+        _rgb.SetKnobLevelProvider(GetKnobObsMeterLevel);
 
         // Ambience sync (Govee LAN)
         _ambienceSync = new AmbienceSync(_config.Ambience);
@@ -411,8 +412,18 @@ public partial class App : Application
         // Start OBS Studio integration
         _obs = new ObsIntegration(_config.Obs);
         _obs.MuteChanged += (source, muted) => SetDirectTargetMuteState($"obs:{source}", muted);
-        _obs.StateChanged += () => Dispatcher.BeginInvoke(() =>
-            _mainWindow?.SetObsStatus(_config.Obs.Enabled ? _obs.IsAvailable : null, _obs.LastError));
+        _obs.StateChanged += () =>
+        {
+            _rgb.SetObsLive(_obs.IsLive);
+            Dispatcher.BeginInvoke(() =>
+                _mainWindow?.SetObsStatus(_config.Obs.Enabled ? _obs.IsAvailable : null, _obs.LastError));
+        };
+        _obs.OutputStateChanged += () => _rgb.SetObsLive(_obs.IsLive);
+        _obs.ReplaySaved += _ =>
+        {
+            if (_config.Obs.FlashOnReplaySave)
+                _rgb.PlayTransition(ProfileTransition.Flash, 0x00, 0xE6, 0x76);
+        };
         _buttons.SetObsIntegration(_obs);
         if (_config.Obs.Enabled)
             _ = _obs.ConnectAsync();
@@ -2407,7 +2418,13 @@ public partial class App : Application
         }
 
         int current;
-        if (CanReadN3TargetVolume(knob.Target))
+        if (knob.Target.StartsWith("obs:", StringComparison.OrdinalIgnoreCase)
+            && _obs != null && _obs.TryGetVolume(knob.Target.Substring(4), out float obsFader))
+        {
+            // Continue from OBS's real slider position, so a change made in OBS isn't undone
+            current = VolumePipeline.ComputeRawValue(obsFader, knob);
+        }
+        else if (CanReadN3TargetVolume(knob.Target))
         {
             float liveVolume = _mixer.GetVolume(knob);
             current = VolumePipeline.ComputeRawValue(liveVolume, knob);
@@ -5220,6 +5237,35 @@ public partial class App : Application
         }
     }
 
+    /// <summary>OBS meter level for a Turn Up knob's OBS source target (LED thread; 0 for other targets).</summary>
+    private float GetKnobObsMeterLevel(int knobIdx)
+    {
+        var obs = _obs;
+        if (obs == null || !obs.IsAvailable) return 0f;
+        var target = _config.Knobs.FirstOrDefault(k => k.Idx == knobIdx)?.Target;
+        return target != null && target.StartsWith("obs:", StringComparison.OrdinalIgnoreCase)
+            ? obs.GetMeterLevel(target.Substring(4))
+            : 0f;
+    }
+
+    /// <summary>
+    /// Mixer readout for a knob on an OBS source: OBS's slider position (so changes made in OBS
+    /// show up) and its live meter. False when the knob isn't on an OBS source.
+    /// </summary>
+    internal static bool TryGetObsMixerLevels(KnobConfig knob, float fallbackVolume, out float volume, out float peak)
+    {
+        volume = fallbackVolume;
+        peak = 0f;
+        var target = knob.Target;
+        if (target == null || !target.StartsWith("obs:", StringComparison.OrdinalIgnoreCase)) return false;
+        var obs = Obs;
+        if (obs == null || !obs.IsAvailable) return true;
+        var source = target.Substring(4);
+        if (obs.TryGetVolume(source, out var fader)) volume = fader;
+        peak = obs.TryGetMuted(source, out var muted) && muted ? 0f : obs.GetMeterLevel(source);
+        return true;
+    }
+
     private static bool TryParseVoiceMeeterTarget(string target, out bool isStrip, out int index)
     {
         isStrip = false;
@@ -5541,8 +5587,12 @@ public partial class App : Application
     /// </summary>
     private void UpdateAudioAnalyzer()
     {
-        bool needsAudio = _config.Lights.Any(l => l.Effect == LightEffect.AudioReactive || l.Effect == LightEffect.AudioPositionBlend)
-            || (_config.GlobalLight.Enabled && (_config.GlobalLight.Effect == LightEffect.AudioReactive || _config.GlobalLight.Effect == LightEffect.AudioPositionBlend));
+        // The OBS Meter mode reads OBS's own meters, so it doesn't need loopback capture
+        static bool UsesAnalyzer(LightEffect effect, ReactiveMode mode) =>
+            (effect == LightEffect.AudioReactive && mode != ReactiveMode.ObsMeter)
+            || effect == LightEffect.AudioPositionBlend;
+        bool needsAudio = _config.Lights.Any(l => UsesAnalyzer(l.Effect, l.ReactiveMode))
+            || (_config.GlobalLight.Enabled && UsesAnalyzer(_config.GlobalLight.Effect, _config.GlobalLight.ReactiveMode));
         if (_mainWindow?.GetRoomView()?.IsMusicReactiveActive == true)
             needsAudio = true;
         if (needsAudio)

@@ -377,6 +377,44 @@ public class ButtonHandler : IDisposable
                     if (_obs != null && _obs.IsAvailable && !string.IsNullOrEmpty(path))
                         _ = _obs.ToggleMuteAsync(path);
                     break;
+                case "obs_replay_save":
+                    if (_obs != null && _obs.IsAvailable)
+                        _ = _obs.SaveReplayAsync();
+                    break;
+                case "obs_replay_buffer":
+                    if (_obs != null && _obs.IsAvailable)
+                        _ = _obs.ToggleReplayBufferAsync();
+                    break;
+                case "obs_virtualcam":
+                    if (_obs != null && _obs.IsAvailable)
+                        _ = _obs.ToggleVirtualCamAsync();
+                    break;
+                case "obs_record_pause":
+                    if (_obs != null && _obs.IsAvailable)
+                        _ = _obs.ToggleRecordPauseAsync();
+                    break;
+                case "obs_record_chapter":
+                    if (_obs != null && _obs.IsAvailable)
+                        _ = _obs.AddRecordChapterAsync();
+                    break;
+                case "obs_studio_transition":
+                    if (_obs != null && _obs.IsAvailable)
+                        _ = _obs.TriggerStudioTransitionAsync();
+                    break;
+                case "obs_source_toggle":
+                    // path = "Scene|Source", or just "Source" for whichever scene is live
+                    if (_obs != null && _obs.IsAvailable && !string.IsNullOrEmpty(path))
+                    {
+                        var parts = path.Split('|', 2);
+                        if (parts.Length == 2) _ = _obs.ToggleSceneItemAsync(parts[0].Trim(), parts[1].Trim());
+                        else _ = _obs.ToggleSceneItemAsync("", path.Trim());
+                    }
+                    break;
+                case "obs_filter_toggle":
+                    // path = "Source|Filter"
+                    if (_obs != null && _obs.IsAvailable && path?.Split('|', 2) is [var filterSource, var filterName])
+                        _ = _obs.ToggleFilterAsync(filterSource.Trim(), filterName.Trim());
+                    break;
                 case "vm_mute_strip":
                     if (_vm != null && _vm.IsAvailable && int.TryParse(path, out int vmStripIdx))
                         _vm.ToggleStripMute(vmStripIdx);

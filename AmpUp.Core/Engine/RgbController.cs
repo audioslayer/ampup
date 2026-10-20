@@ -37,6 +37,8 @@ public partial class RgbController : IDisposable
     private readonly float[] _knobPositions = new float[5];
     private bool _micMuted;
     private bool _masterMuted;
+    private volatile bool _obsLive;
+    private Func<int, float>? _knobLevelProvider;
     private readonly bool[] _targetMuted = new bool[5];
     private int _brightness = 100; // 0-100 global brightness
     private readonly int[] _knobBrightness = { 100, 100, 100, 100, 100 }; // per-knob 0-100
@@ -338,6 +340,13 @@ public partial class RgbController : IDisposable
     /// Update master muted state for the DeviceMute effect.
     /// </summary>
     public void SetMasterMuted(bool muted) => _masterMuted = muted;
+
+    /// <summary>OBS is streaming or recording, for the ObsLive ("On Air") effect.</summary>
+    public void SetObsLive(bool live) => _obsLive = live;
+
+    /// <summary>Live level (0-1) of the thing each knob controls, for the ObsMeter reactive mode.
+    /// Called on the LED thread every frame, so it must be cheap and thread-safe.</summary>
+    public void SetKnobLevelProvider(Func<int, float>? provider) => _knobLevelProvider = provider;
 
     /// <summary>
     /// Update the mute state of the audio target linked to a physical knob.
@@ -1009,6 +1018,10 @@ public partial class RgbController : IDisposable
                 EffectDeviceMute(k, light, rawPos);
                 break;
 
+            case LightEffect.ObsLive:
+                ApplyTwoStateStatus(k, light, _obsLive, rawPos);
+                break;
+
             case LightEffect.AudioReactive:
                 EffectAudioReactive(k, light);
                 break;
@@ -1359,6 +1372,14 @@ public partial class RgbController : IDisposable
     /// </summary>
     private void EffectAudioReactive(int k, LightConfig light)
     {
+        if (light.ReactiveMode == ReactiveMode.ObsMeter)
+        {
+            float meter = 0f;
+            try { meter = _knobLevelProvider?.Invoke(k) ?? 0f; } catch { }
+            RenderVuFill(k, light, Math.Clamp(meter * light.EffectSpeed / 50f, 0f, 1f));
+            return;
+        }
+
         var bands = _getAudioBands?.Invoke();
         if (bands == null || bands.Length < 5)
         {
@@ -1405,23 +1426,28 @@ public partial class RgbController : IDisposable
         // SpectrumBands: 3 LEDs show progressive fill (VU-meter style)
         if (light.ReactiveMode == ReactiveMode.SpectrumBands)
         {
-            // VU-meter fill: LED 0 lights first, LED 1 at 33%, LED 2 at 66%
-            float[] ledBright = {
-                Math.Clamp(level * 3f, 0f, 1f),
-                Math.Clamp((level - 0.33f) * 3f, 0f, 1f),
-                Math.Clamp((level - 0.66f) * 3f, 0f, 1f),
-            };
-            for (int led = 0; led < 3; led++)
-            {
-                float lb = ledBright[led];
-                var (cr, cg, cb) = GetKnobPaletteColor(light, lb);
-                SetColor(k, led, (int)(cr * lb), (int)(cg * lb), (int)(cb * lb));
-            }
+            RenderVuFill(k, light, level);
         }
         else
         {
             var (r, g, b2) = GetKnobPaletteColor(light, level);
             SetColor(k, r, g, b2);
+        }
+    }
+
+    /// <summary>VU-meter fill across a knob's 3 LEDs: LED 0 lights first, LED 1 at 33%, LED 2 at 66%.</summary>
+    private void RenderVuFill(int k, LightConfig light, float level)
+    {
+        float[] ledBright = {
+            Math.Clamp(level * 3f, 0f, 1f),
+            Math.Clamp((level - 0.33f) * 3f, 0f, 1f),
+            Math.Clamp((level - 0.66f) * 3f, 0f, 1f),
+        };
+        for (int led = 0; led < 3; led++)
+        {
+            float lb = ledBright[led];
+            var (cr, cg, cb) = GetKnobPaletteColor(light, lb);
+            SetColor(k, led, (int)(cr * lb), (int)(cg * lb), (int)(cb * lb));
         }
     }
 
@@ -2022,7 +2048,7 @@ public partial class RgbController : IDisposable
         // dead-zone-remapped position, fill-style effects get the raw position.
         float pos = rawPos < 0.15f ? 0f : (rawPos - 0.15f) / 0.85f;
         if (effect is LightEffect.ProgramStatus or LightEffect.ProgramMute or LightEffect.AppGroupMute
-            or LightEffect.MicStatus or LightEffect.DeviceMute or LightEffect.DeviceSelect
+            or LightEffect.MicStatus or LightEffect.DeviceMute or LightEffect.ObsLive or LightEffect.DeviceSelect
             or LightEffect.DevicePositionFill or LightEffect.AudioReactive or LightEffect.AudioPositionBlend)
         {
             effect = LightEffect.SingleColor;

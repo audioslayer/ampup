@@ -175,7 +175,7 @@ public partial class LightsView : UserControl
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
 
     private static readonly LightEffect[] EffectsNeedingColor2 =
-        { LightEffect.ColorBlend, LightEffect.ColorBlendMute, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments, LightEffect.PositionBlend, LightEffect.ProgramMute, LightEffect.ProgramStatus, LightEffect.AppGroupMute, LightEffect.CycleFill, LightEffect.PositionBlendMute };
+        { LightEffect.ColorBlend, LightEffect.ColorBlendMute, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.ObsLive, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments, LightEffect.PositionBlend, LightEffect.ProgramMute, LightEffect.ProgramStatus, LightEffect.AppGroupMute, LightEffect.CycleFill, LightEffect.PositionBlendMute };
     private static readonly LightEffect[] EffectsNeedingSpeed =
         { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.AudioPositionBlend, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments, LightEffect.Wheel, LightEffect.RainbowWheel, LightEffect.CycleFill, LightEffect.RainbowFill, LightEffect.Fire, LightEffect.Heartbeat, LightEffect.Plasma, LightEffect.Drip, LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave, LightEffect.NebulaDrift, LightEffect.Vortex, LightEffect.Shockwave, LightEffect.Tidal, LightEffect.Prism, LightEffect.EmberDrift, LightEffect.Glitch, LightEffect.OpalWave, LightEffect.Bloom, LightEffect.ColorTwinkle };
     private static readonly LightEffect[] EffectsNeedingProgramName =
@@ -857,6 +857,7 @@ public partial class LightsView : UserControl
         modePicker.AddItem("Beat Pulse", "BeatPulse", "MusicNote", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
         modePicker.AddItem("Spectrum Bands", "SpectrumBands", "Equalizer", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
         modePicker.AddItem("Color Shift", "ColorShift", "PaletteOutline", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
+        modePicker.AddItem("OBS Meter", "ObsMeter", "Broadcast", Color.FromRgb(0x7C, 0x4D, 0xFF), "Each knob shows the live OBS level of the OBS source it controls");
         modePicker.Select("SpectrumBands");
         modePicker.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
         _globalReactiveModeCombo = modePicker;
@@ -1788,6 +1789,7 @@ public partial class LightsView : UserControl
             modeCombo.AddItem("Beat Pulse", "BeatPulse", "MusicNote", Color.FromRgb(0xFF, 0x80, 0xAB), "Bass drives all knob brightness simultaneously");
             modeCombo.AddItem("Spectrum Bands", "SpectrumBands", "Equalizer", Color.FromRgb(0x64, 0xB5, 0xF6), "Each knob = its own frequency band");
             modeCombo.AddItem("Color Shift", "ColorShift", "PaletteOutline", Color.FromRgb(0xBA, 0x68, 0xC8), "Hue shifts across spectrum based on audio energy");
+            modeCombo.AddItem("OBS Meter", "ObsMeter", "Broadcast", Color.FromRgb(0x7C, 0x4D, 0xFF), "LEDs show the live OBS level of the OBS source this knob controls");
             modeCombo.Select("SpectrumBands");
             modeCombo.SelectionChanged += (_, _) => { if (!_loading) QueueSave(); };
             _reactiveModeComboBoxes[idx] = modeCombo;
@@ -2595,6 +2597,7 @@ public partial class LightsView : UserControl
     private static readonly Dictionary<LightEffect, (Color c1, Color c2)> EffectPresetColors = new()
     {
         { LightEffect.ProgramMute,  (Color.FromRgb(0x00, 0xE6, 0x76), Color.FromRgb(0xFF, 0x40, 0x40)) }, // unmuted green + muted red
+        { LightEffect.ObsLive,      (Color.FromRgb(0x30, 0x30, 0x40), Color.FromRgb(0xFF, 0x10, 0x20)) }, // dim off air + on-air red
         { LightEffect.Fire,         (Color.FromRgb(0xFF, 0x6A, 0x00), Color.FromRgb(0xFF, 0x20, 0x00)) }, // orange + deep red
         { LightEffect.Candle,       (Color.FromRgb(0xFF, 0xB3, 0x00), Color.FromRgb(0xFF, 0x57, 0x00)) }, // warm yellow + orange
         { LightEffect.Ocean,        (Color.FromRgb(0x00, 0x6E, 0xCC), Color.FromRgb(0x00, 0xCC, 0xBB)) }, // deep blue + teal
@@ -2658,7 +2661,7 @@ public partial class LightsView : UserControl
     /// <summary>Effects whose states can each render a configurable sub-effect.</summary>
     private static bool IsMuteStatusEffect(LightEffect effect) =>
         effect is LightEffect.MicStatus or LightEffect.DeviceMute
-            or LightEffect.ProgramMute or LightEffect.AppGroupMute;
+            or LightEffect.ProgramMute or LightEffect.AppGroupMute or LightEffect.ObsLive;
 
     /// <summary>True when the picked state sub-effect blends with a second color.</summary>
     private static bool StateEffectNeedsColor2(EffectGridPicker? picker)
@@ -2694,7 +2697,14 @@ public partial class LightsView : UserControl
         _muteStatusEffectPanels[idx].Visibility = isMuteStatus ? Visibility.Visible : Visibility.Collapsed;
 
         // Pill labels follow what the colors mean for the selected effect
-        if (isMuteStatus)
+        if (effect == LightEffect.ObsLive)
+        {
+            SetSwatchLabel(_color1Swatches[idx], "OFF AIR", "Color while OBS isn't streaming or recording");
+            SetSwatchLabel(_color2Swatches[idx], "LIVE", "Color while OBS is streaming or recording");
+            SetSwatchLabel(_color3Swatches[idx], "OFF AIR 2", "Second color for the off-air state effect");
+            SetSwatchLabel(_color4Swatches[idx], "LIVE 2", "Second color for the live state effect");
+        }
+        else if (isMuteStatus)
         {
             SetSwatchLabel(_color1Swatches[idx], "UNMUTED", "Color while unmuted (primary for the unmuted state effect)");
             SetSwatchLabel(_color2Swatches[idx], "MUTED", "Color while muted (primary for the muted state effect)");

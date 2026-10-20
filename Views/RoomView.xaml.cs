@@ -1917,7 +1917,7 @@ public partial class RoomView : UserControl
                 or LightEffect.Wheel or LightEffect.RainbowWheel or LightEffect.Heartbeat
                 or LightEffect.Plasma or LightEffect.Drip => 1,
 
-            LightEffect.MicStatus or LightEffect.DeviceMute or LightEffect.AudioReactive
+            LightEffect.MicStatus or LightEffect.DeviceMute or LightEffect.ObsLive or LightEffect.AudioReactive
                 or LightEffect.AudioPositionBlend or LightEffect.ProgramMute or LightEffect.ProgramStatus or LightEffect.AppGroupMute
                 or LightEffect.DeviceSelect => 2,
 

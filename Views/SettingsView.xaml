@@ -805,6 +805,9 @@
                                                 Margin="0,0,0,12" PlaceholderText="4455" />
                                     <TextBlock Text="Password" Style="{StaticResource SField}" />
                                     <PasswordBox x:Name="TxtObsPassword" Style="{StaticResource SPassword}" Margin="0,0,0,14" />
+                                    <local:SettingsSwitch x:Name="ChkObsReplayFlash" Text="Flash lights on replay save"
+                                                          Description="Flash the knob lights when OBS saves a replay clip."
+                                                          Margin="0,0,0,14" ToolTip="Flash the knob lights when OBS saves a replay" />
                                     <WrapPanel Orientation="Horizontal">
                                         <ui:Button x:Name="BtnObsTest" Content="Test connection" Style="{StaticResource SButton}" />
                                         <StackPanel Orientation="Horizontal" Margin="4,0,0,8" VerticalAlignment="Center">

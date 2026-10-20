@@ -66,6 +66,7 @@ public partial class OsdView : UserControl
         public List<string> OutputDeviceIds = new();
         public List<string> InputDeviceIds = new();
         public List<string> SignalRgbEffects = new();
+        public List<string> ObsScenes = new();
         public List<string> MediaActions = new();
         public List<string> ProfileNames = new();
         public Dictionary<string, WheelItemIcon> ItemIcons = new();
@@ -1105,6 +1106,7 @@ public partial class OsdView : UserControl
         (QuickWheelMode.InputDevice, "Input devices"),
         (QuickWheelMode.MediaControls, "Media controls"),
         (QuickWheelMode.SignalRgbEffect, "SignalRGB effects"),
+        (QuickWheelMode.ObsScene, "OBS scenes"),
         (QuickWheelMode.Custom, "Custom"),
     };
     private const int WheelMaxItems = RadialWheelOverlay.MaxSlots;
@@ -1129,6 +1131,7 @@ public partial class OsdView : UserControl
             OutputDeviceIds = new List<string>(qw.OutputDeviceIds),
             InputDeviceIds = new List<string>(qw.InputDeviceIds),
             SignalRgbEffects = new List<string>(qw.SignalRgbEffects),
+            ObsScenes = new List<string>(qw.ObsScenes ?? new()),
             MediaActions = new List<string>(qw.MediaActions ?? new()),
             ProfileNames = new List<string>(qw.ProfileNames ?? new()),
             ItemIcons = new Dictionary<string, WheelItemIcon>(qw.ItemIcons ?? new()),
@@ -1557,6 +1560,7 @@ public partial class OsdView : UserControl
         QuickWheelMode.InputDevice => MaterialIconKind.Microphone,
         QuickWheelMode.MediaControls => MaterialIconKind.PlayPause,
         QuickWheelMode.SignalRgbEffect => MaterialIconKind.Palette,
+        QuickWheelMode.ObsScene => MaterialIconKind.MovieOpen,
         _ => MaterialIconKind.ViewGridPlusOutline,
     };
 
@@ -1721,6 +1725,24 @@ public partial class OsdView : UserControl
                     AmpUp.Services.SignalRgbEffectCatalog.LastAppliedEffectName, "effects");
                 break;
             }
+            case QuickWheelMode.ObsScene:
+            {
+                var obs = App.Obs;
+                var scenes = obs?.IsAvailable == true ? obs.Scenes.ToList() : new List<string>();
+                if (scenes.Count == 0)
+                {
+                    st.ItemsPanel.Children.Add(MakeWarning(obs?.IsAvailable == true
+                        ? "OBS has no scenes yet."
+                        : "Connect OBS in Settings → Integrations to pick its scenes. Until then the wheel shows the first scenes OBS reports."));
+                    if (st.ObsScenes.Count == 0) break;
+                }
+                // Keep picked scenes visible even while OBS is closed
+                foreach (var picked in st.ObsScenes.Where(p => !scenes.Contains(p)))
+                    scenes.Add(picked);
+                BuildWheelItemChecklist(st, st.ObsScenes, scenes.Select(n => (n, n)).ToList(),
+                    obs?.CurrentScene ?? "", "scenes");
+                break;
+            }
             case QuickWheelMode.MediaControls:
                 BuildWheelItemChecklist(st, st.MediaActions,
                     Services.QuickWheelContent.MediaControls.Select(m => (m.id, m.label)).ToList(), "", "media controls");
@@ -1738,6 +1760,7 @@ public partial class OsdView : UserControl
     {
         QuickWheelMode.OutputDevice => $"Tick the output devices to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.\n\nClick an icon to change it.",
         QuickWheelMode.InputDevice => $"Tick the mics to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.\n\nClick an icon to change it.",
+        QuickWheelMode.ObsScene => $"Tick the OBS scenes to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}. The live scene is marked on the wheel.\n\nClick an icon to change it.",
         QuickWheelMode.SignalRgbEffect => $"Tick the SignalRGB effects to show (up to {WheelMaxItems}). The number is their order on the wheel. Tick none to show the first {WheelMaxItems}.\n\nClick an icon to change it.",
         QuickWheelMode.MediaControls => "Tick the media controls to show. The number is their order on the wheel. Tick none to show all of them.\n\nClick an icon to change it.",
         QuickWheelMode.Custom => $"Each slot is one item on the wheel (up to {WheelMaxItems}). Pick an action, fill in its setting if it has one, and type the name to show on the wheel.",
@@ -2293,6 +2316,7 @@ public partial class OsdView : UserControl
             OutputDeviceIds = new List<string>(st.OutputDeviceIds),
             InputDeviceIds = new List<string>(st.InputDeviceIds),
             SignalRgbEffects = new List<string>(st.SignalRgbEffects),
+            ObsScenes = new List<string>(st.ObsScenes),
             MediaActions = new List<string>(st.MediaActions),
             ProfileNames = new List<string>(st.ProfileNames),
         };

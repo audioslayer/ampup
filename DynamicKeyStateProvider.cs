@@ -42,6 +42,15 @@ internal static class DynamicKeyStateProvider
                 case "obs_streaming":
                     return obs?.IsStreaming == true;
 
+                case "obs_virtualcam":
+                    return obs?.IsVirtualCamActive == true;
+
+                case "obs_replay_buffer":
+                    return obs?.IsReplayBufferActive == true;
+
+                case "obs_record_paused":
+                    return obs?.IsRecordingPaused == true;
+
                 case "spotify_playing":
                     return IsProcessSessionActive("spotify");
 
@@ -129,6 +138,9 @@ internal static class DynamicKeyStateProvider
         ("mute_mic",        "Mic Muted"),
         ("obs_recording",   "OBS Recording"),
         ("obs_streaming",   "OBS Streaming"),
+        ("obs_virtualcam",  "OBS Virtual Camera On"),
+        ("obs_replay_buffer", "OBS Replay Buffer On"),
+        ("obs_record_paused", "OBS Recording Paused"),
         ("spotify_playing", "Spotify Playing"),
         ("discord_mic",     "Discord Mic Muted"),
         ("discord_deafen",  "Discord Deafened"),
@@ -160,6 +172,13 @@ internal static class DynamicKeyStateProvider
                 return "obs_recording";
             case "obs_stream":
                 return "obs_streaming";
+            case "obs_virtualcam":
+                return "obs_virtualcam";
+            case "obs_replay_buffer":
+            case "obs_replay_save":
+                return "obs_replay_buffer";
+            case "obs_record_pause":
+                return "obs_record_paused";
             case "spotify_play_pause":
             case "spotify_next":
             case "spotify_prev":

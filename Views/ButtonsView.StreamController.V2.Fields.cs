@@ -180,7 +180,7 @@ public partial class ButtonsView
         if (string.IsNullOrEmpty(action)) action = GetComboActionValue(_scActionPicker);
 
         bool needsPath = (PathActions.Contains(action) && action is not "signalrgb_effect" and not "signalrgb_effect_cycle")
-            || action is "ha_service" or "ha_color" or "ha_color_temp" or "govee_color" or "obs_scene" or "obs_mute"
+            || action is "ha_service" or "ha_color" or "ha_color_temp" or "govee_color" or "obs_scene" or "obs_mute" or "obs_source_toggle" or "obs_filter_toggle"
             or "vm_mute_strip" or "vm_mute_bus";
 
         SetCardVisible(_v2PathCard, needsPath);
@@ -244,7 +244,7 @@ public partial class ButtonsView
             else
             {
                 ApplyPathLabelAndButtons(_scPathLabel, _scPathBox, _scBrowsePathButton, _scPickPathButton, action, _scAppChip);
-                _scPickPathButton.Visibility = action is "obs_scene" or "obs_mute" ? Visibility.Visible : Visibility.Collapsed;
+                _scPickPathButton.Visibility = action is "obs_scene" or "obs_mute" or "obs_source_toggle" or "obs_filter_toggle" ? Visibility.Visible : Visibility.Collapsed;
                 SetPathHeader(HeaderTextForAction(action, _scPathLabel.Text));
             }
         }
@@ -453,6 +453,8 @@ public partial class ButtonsView
         "signalrgb_effect" => "SIGNALRGB EFFECT",
         "signalrgb_effect_cycle" => "SIGNALRGB CYCLE",
         "obs_mute"       => "OBS SOURCE",
+        "obs_source_toggle" => "OBS SCENE | SOURCE",
+        "obs_filter_toggle" => "OBS SOURCE | FILTER",
         "vm_mute_strip"  => "VOICEMEETER STRIP",
         "vm_mute_bus"    => "VOICEMEETER BUS",
         "launch_exe"     => "PATH",

@@ -235,6 +235,11 @@ async Task RunObsChecks()
         obsServer.Inputs["Desktop Audio"] = true;
         obsServer.Inputs["Webcam"] = null; // video only
         obsServer.Scenes.AddRange(new[] { "Gaming", "Just Chatting", "BRB" });
+        obsServer.VolumesDb["Mic/Aux"] = ObsIntegration.NormalizedToDb(0.5f);
+        obsServer.CurrentScene = "Just Chatting";
+        obsServer.SceneItems["Gaming"] = new() { ["Game Capture"] = true, ["Webcam"] = true };
+        obsServer.SceneItems["Just Chatting"] = new() { ["Webcam"] = true };
+        obsServer.SourceFilters["Mic/Aux"] = new() { ["Noise Suppression"] = true };
 
         var obsConfig = new ObsConfig { Enabled = true, Host = "127.0.0.1", Port = obsServer.Port, Password = "hunter2" };
         using var obs = new ObsIntegration(obsConfig);
@@ -249,6 +254,66 @@ async Task RunObsChecks()
         Check(obs.TryGetMuted("Desktop Audio", out var desktopMuted) && desktopMuted
               && obs.TryGetMuted("Mic/Aux", out var micMutedObs) && !micMutedObs,
             "OBS initial mute state is read for each source");
+
+        Check(Math.Abs(ObsIntegration.DbToNormalized(ObsIntegration.NormalizedToDb(0.37f)) - 0.37f) < 0.001f,
+            "OBS dB readback is the exact inverse of the knob mapping");
+        Check(obs.TryGetVolume("Mic/Aux", out var micFader) && Math.Abs(micFader - 0.5f) < 0.01f,
+            "OBS slider positions are read on connect");
+        Check(obs.CurrentScene == "Just Chatting", "OBS live scene is read on connect");
+        Check(obs.SceneItems.SequenceEqual(new[] { "Gaming|Game Capture", "Gaming|Webcam", "Just Chatting|Webcam" })
+              && obs.Filters.SequenceEqual(new[] { "Mic/Aux|Noise Suppression" }),
+            "OBS scene sources and filters are listed for the pickers");
+
+        await obsServer.EmitEventAsync("InputVolumeChanged", new Newtonsoft.Json.Linq.JObject
+            { ["inputName"] = "Mic/Aux", ["inputVolumeDb"] = ObsIntegration.NormalizedToDb(0.8f), ["inputVolumeMul"] = 0.5 });
+        Check(await WaitFor(() => obs.TryGetVolume("Mic/Aux", out var f) && Math.Abs(f - 0.8f) < 0.01f),
+            "Moving a slider in OBS updates AmpUp (two-way sync)");
+
+        await obsServer.EmitEventAsync("InputVolumeMeters", new Newtonsoft.Json.Linq.JObject
+        {
+            ["inputs"] = new Newtonsoft.Json.Linq.JArray(new Newtonsoft.Json.Linq.JObject
+            {
+                ["inputName"] = "Mic/Aux",
+                // two channels of [magnitude, peak, inputPeak]; loudest post-fader peak is 0.5 (≈ -6 dB)
+                ["inputLevelsMul"] = Newtonsoft.Json.Linq.JArray.Parse("[[0.1, 0.25, 0.9], [0.2, 0.5, 0.9]]"),
+            }),
+        });
+        Check(await WaitFor(() => Math.Abs(obs.GetMeterLevel("Mic/Aux") - 0.9f) < 0.01f),
+            $"OBS live meters arrive on OBS's -60..0 dB scale ({obs.GetMeterLevel("Mic/Aux"):0.00})");
+        await Task.Delay(350);
+        Check(obs.GetMeterLevel("Mic/Aux") == 0f, "OBS meter falls to zero when OBS stops sending levels");
+
+        int outputEvents = 0;
+        string? replayPath = null, sceneEvent = null;
+        obs.OutputStateChanged += () => Interlocked.Increment(ref outputEvents);
+        obs.ReplaySaved += path => replayPath = path;
+        obs.SceneChanged += scene => sceneEvent = scene;
+        await obsServer.EmitEventAsync("StreamStateChanged", new Newtonsoft.Json.Linq.JObject { ["outputActive"] = true, ["outputState"] = "OBS_WEBSOCKET_OUTPUT_STARTED" });
+        Check(await WaitFor(() => obs.IsStreaming && obs.IsLive && outputEvents > 0), "Going live in OBS is reported (On Air light)");
+        await obsServer.EmitEventAsync("RecordStateChanged", new Newtonsoft.Json.Linq.JObject { ["outputActive"] = true, ["outputState"] = "OBS_WEBSOCKET_OUTPUT_PAUSED" });
+        Check(await WaitFor(() => obs.IsRecording && obs.IsRecordingPaused), "Recording pause state is tracked");
+        await obsServer.EmitEventAsync("VirtualcamStateChanged", new Newtonsoft.Json.Linq.JObject { ["outputActive"] = true });
+        Check(await WaitFor(() => obs.IsVirtualCamActive), "Virtual camera state is tracked");
+        await obsServer.EmitEventAsync("ReplayBufferSaved", new Newtonsoft.Json.Linq.JObject { ["savedReplayPath"] = @"C:\clipseplay.mkv" });
+        Check(await WaitFor(() => replayPath == @"C:\clipseplay.mkv"), "Saved replays are reported (lights flash)");
+        await obsServer.EmitEventAsync("CurrentProgramSceneChanged", new Newtonsoft.Json.Linq.JObject { ["sceneName"] = "Gaming" });
+        Check(await WaitFor(() => obs.CurrentScene == "Gaming" && sceneEvent == "Gaming"), "Scene switches in OBS are tracked (wheel marks the live scene)");
+
+        await obs.ToggleSceneItemAsync("", "Webcam");
+        Check(obsServer.SceneItems["Gaming"]["Webcam"] == false && obsServer.SceneItems["Just Chatting"]["Webcam"],
+            "Show/hide source with no scene acts on the live scene only");
+        await obs.ToggleSceneItemAsync("Gaming", "Webcam");
+        Check(obsServer.SceneItems["Gaming"]["Webcam"], "Show/hide source toggles back");
+        await obs.ToggleFilterAsync("Mic/Aux", "Noise Suppression");
+        Check(!obsServer.SourceFilters["Mic/Aux"]["Noise Suppression"], "Filter on/off turns an OBS filter off");
+        await obs.ToggleFilterAsync("Mic/Aux", "Noise Suppression");
+        Check(obsServer.SourceFilters["Mic/Aux"]["Noise Suppression"], "Filter on/off turns it back on");
+
+        Check(!await obs.SaveReplayAsync() && obsServer.ReplayBufferActive
+              && !obsServer.SnapshotRequests().Contains("SaveReplayBuffer"),
+            "Save replay starts the replay buffer when it isn't running");
+        Check(await obs.SaveReplayAsync() && obsServer.SnapshotRequests().Contains("SaveReplayBuffer"),
+            "Save replay saves once the buffer is running");
 
         await obsServer.EmitEventAsync("InputMuteStateChanged", new Newtonsoft.Json.Linq.JObject { ["inputName"] = "Mic/Aux", ["inputMuted"] = true });
         Check(await WaitFor(() => obs.TryGetMuted("Mic/Aux", out var m) && m)
@@ -315,5 +380,31 @@ async Task RunObsChecks()
     }
 }
 RunObsChecks().GetAwaiter().GetResult();
+
+using (var obsRgb = new RgbController())
+{
+    var onAir = new LightConfig { Idx = 0, Effect = LightEffect.ObsLive, R = 10, G = 20, B = 30, R2 = 250, G2 = 0, B2 = 0 };
+    obsRgb.UpdateConfig(new() { onAir });
+    var offAirFrame = Frame(obsRgb);
+    obsRgb.SetObsLive(true);
+    var liveFrame = Frame(obsRgb);
+    Check(offAirFrame.Take(3).SequenceEqual(new byte[] { 10, 20, 30 }) && liveFrame.Take(3).SequenceEqual(new byte[] { 250, 0, 0 }),
+        "On Air light shows the off-air color, then the live color while streaming or recording");
+
+    float meter = 0f;
+    obsRgb.SetKnobLevelProvider(k => k == 0 ? meter : 0f);
+    var meterLight = new LightConfig { Idx = 0, Effect = LightEffect.AudioReactive, ReactiveMode = ReactiveMode.ObsMeter,
+        EffectSpeed = 50, R = 0, G = 200, B = 0, R2 = 0, G2 = 200, B2 = 0 };
+    obsRgb.UpdateConfig(new() { meterLight });
+    var silent = Frame(obsRgb);
+    meter = 0.5f;
+    var half = Frame(obsRgb);
+    meter = 1f;
+    var loud = Frame(obsRgb);
+    Check(silent.Take(9).All(b => b == 0), "OBS Meter LEDs are dark while the source is silent");
+    Check(half[1] > 0 && half[4] > 0 && half[4] < half[1] && half[7] == 0, "OBS Meter fills LEDs bottom-up with the level");
+    Check(loud[1] > 0 && loud[4] == loud[1] && loud[7] == loud[1], "OBS Meter lights all three LEDs at full level");
+}
+
 
 Console.WriteLine($"{passed} regression checks passed.");

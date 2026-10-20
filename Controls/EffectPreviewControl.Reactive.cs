@@ -23,6 +23,23 @@ namespace AmpUp.Controls
             Dot(c.Dc, c.Cx, c.Cy, r, col, k);
         }
 
+        private void RenderObsLive(Ctx c)
+        {
+            // Alternates off air (dim color1) and live (glowing color2 with a pulsing halo)
+            bool live = ((int)(c.T * 0.5)) % 2 == 0;
+            double r = Math.Min(c.W, c.H) * 0.3;
+            if (live)
+            {
+                double pulse = Sin01(c.T * 4);
+                Dot(c.Dc, c.Cx, c.Cy, r + 3 + pulse * 5, c.Color2, 0.10 + 0.15 * pulse);
+                Dot(c.Dc, c.Cx, c.Cy, r, c.Color2, 0.75 + 0.25 * pulse);
+            }
+            else
+            {
+                Dot(c.Dc, c.Cx, c.Cy, r, c.Color, 0.35);
+            }
+        }
+
         private void RenderDeviceMute(Ctx c)
         {
             bool unmuted = ((int)(c.T * 0.5)) % 2 == 0;
