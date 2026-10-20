@@ -798,6 +798,11 @@
                                     <local:SettingsSwitch x:Name="ChkObsEnabled" Grid.Column="3" VerticalAlignment="Center" ToolTip="Enable OBS Studio" />
                                 </Grid>
                                 <StackPanel x:Name="ObsSettingsPanel" Style="{StaticResource SContent}">
+                                    <TextBlock Style="{StaticResource SHint}" Margin="0,0,0,12">
+                                        In OBS, open <Bold>Tools → WebSocket Server Settings</Bold>, tick <Bold>Enable WebSocket server</Bold>,
+                                        then click <Bold>Show Connect Info</Bold> for the port and password.
+                                        OBS on another PC? Use that PC's IP address as the host and allow the port through its firewall.
+                                    </TextBlock>
                                     <TextBlock Text="Host" Style="{StaticResource SField}" />
                                     <ui:TextBox x:Name="TxtObsHost" Style="{StaticResource SInput}" Margin="0,0,0,12" PlaceholderText="localhost" />
                                     <TextBlock Text="Port" Style="{StaticResource SField}" />
