@@ -1746,6 +1746,12 @@ public partial class ButtonsView : UserControl
         picker.AddActionGroup("group_pocketcasts", "Pocket Casts", "P",
             Color.FromRgb(0xF4, 0x3E, 0x37),
             new[] { "pocketcasts_open", "pocketcasts_play_pause", "pocketcasts_skip_back", "pocketcasts_skip_forward" });
+        if (obsEnabled || anyObsConfigured)
+            picker.AddActionGroup("group_obs", "OBS Studio", "●",
+                Color.FromRgb(0x7C, 0x4D, 0xFF),
+                new[] { "obs_scene", "obs_mute", "obs_record", "obs_stream", "obs_record_pause", "obs_record_chapter",
+                    "obs_replay_save", "obs_replay_buffer", "obs_virtualcam", "obs_studio_transition",
+                    "obs_source_toggle", "obs_filter_toggle" });
 
         picker.BuildPopup();
     }
