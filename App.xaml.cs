@@ -2424,9 +2424,10 @@ public partial class App : Application
             // Continue from OBS's real slider position, so a change made in OBS isn't undone
             current = VolumePipeline.ComputeRawValue(obsFader, knob);
         }
-        else if (CanReadN3TargetVolume(knob.Target))
+        else if (CanReadN3TargetVolume(knob.Target) && _mixer.GetVolume(knob) is var liveVolume && liveVolume >= 0f)
         {
-            float liveVolume = _mixer.GetVolume(knob);
+            // Continue from the target's real volume. -1 = nothing to read (focused window has
+            // no audio, app not running, device unplugged): fall through to the encoder's own position.
             current = VolumePipeline.ComputeRawValue(liveVolume, knob);
         }
         else

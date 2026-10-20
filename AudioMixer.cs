@@ -751,14 +751,14 @@ public class AudioMixer : IDisposable
                     }
                 }
                 catch { }
-                return 0f;
+                return -1f;
             }
 
             if (target == "apps")
             {
                 lock (_lock)
                 {
-                    float maxVol = 0f;
+                    float maxVol = -1f;
                     foreach (var entry in _sessionEntries)
                     {
                         if (MatchesAnyApp(entry, knob.Apps))
@@ -775,7 +775,7 @@ public class AudioMixer : IDisposable
                     var first = _sessions.Values.FirstOrDefault();
                     if (first != null) return first.SimpleAudioVolume.Volume;
                 }
-                return 0f;
+                return -1f;
             }
 
             // Process name substring match — return max volume across all matching sessions
@@ -792,18 +792,18 @@ public class AudioMixer : IDisposable
             }
         }
         catch { }
-        return 0f;
+        return -1f; // no matching audio session
     }
 
     private float GetDeviceVolume(string deviceId, DataFlow dataFlow)
     {
-        if (string.IsNullOrEmpty(deviceId)) return 0f;
+        if (string.IsNullOrEmpty(deviceId)) return -1f;
         lock (_enumLock)
         {
             try
             {
                 var device = GetOrCacheDeviceEndpoint(deviceId, dataFlow);
-                if (device == null) return 0f;
+                if (device == null) return -1f; // unplugged / disabled
                 return device.AudioEndpointVolume.MasterVolumeLevelScalar;
             }
             catch
@@ -853,10 +853,10 @@ public class AudioMixer : IDisposable
         try
         {
             IntPtr hwnd = NativeMethods.GetForegroundWindow();
-            if (hwnd == IntPtr.Zero) return 0f;
+            if (hwnd == IntPtr.Zero) return -1f;
 
             NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
-            if (pid == 0) return 0f;
+            if (pid == 0) return -1f;
 
             // Skip AmpUp's own window — user is just looking at the mixer
             int myPid = Environment.ProcessId;
@@ -882,7 +882,7 @@ public class AudioMixer : IDisposable
             catch { }
         }
         catch { }
-        return 0f;
+        return -1f; // focused app has no audio session
     }
 
     public float GetPeakLevel(KnobConfig knob)

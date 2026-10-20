@@ -18,6 +18,7 @@ public class ObsIntegration : IDisposable
     private ClientWebSocket? _ws;
     private ObsConfig _config;
     private string _connectionKey = "";
+    private string? _lastLoggedError; // retries every 5 s while OBS is closed: log each failure once
     private CancellationTokenSource? _cts;
     private Task? _receiveTask;
     private Task? _reconnectTask;
@@ -207,7 +208,7 @@ public class ObsIntegration : IDisposable
                 if (done != identified.Task || !identified.Task.Result)
                 {
                     LastError ??= "OBS didn't finish the handshake";
-                    Logger.Log($"OBS connect: {LastError}");
+                    LogConnectError($"OBS connect: {LastError}");
                     IsAvailable = false;
                     StartReconnectLoop();
                     return false;
@@ -219,7 +220,7 @@ public class ObsIntegration : IDisposable
                 LastError = ex is OperationCanceledException
                     ? $"No answer from {host}:{_config.Port}"
                     : $"Can't reach OBS at {host}:{_config.Port}";
-                Logger.Log($"OBS connect failed: {ex.Message}");
+                LogConnectError($"OBS connect failed: {LastError} ({ex.Message})");
                 IsAvailable = false;
                 StartReconnectLoop();
                 return false;
@@ -321,6 +322,13 @@ public class ObsIntegration : IDisposable
         }
     }
 
+    private void LogConnectError(string message)
+    {
+        if (message == _lastLoggedError) return;
+        _lastLoggedError = message;
+        Logger.Log(message + " (retrying every 5 s; logged once)");
+    }
+
     private void OnConnectionLost()
     {
         bool wasAvailable = IsAvailable;
@@ -348,6 +356,7 @@ public class ObsIntegration : IDisposable
             case 2: // Identified
                 IsAvailable = true;
                 LastError = null;
+                _lastLoggedError = null;
                 Logger.Log($"OBS WebSocket: connected to {_config.Host}:{_config.Port}");
                 _identified?.TrySetResult(true);
                 StateChanged?.Invoke();
