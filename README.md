@@ -21,6 +21,7 @@
   <a href="#supported-hardware">Hardware</a> ·
   <a href="#features">Features</a> ·
   <a href="#quick-wheels-and-on-screen-display">Quick Wheels</a> ·
+  <a href="#obs-studio">OBS</a> ·
   <a href="#integrations">Integrations</a> ·
   <a href="#build-from-source">Build</a> ·
   <a href="https://github.com/audioslayer/ampup/issues">Issues</a>
@@ -76,7 +77,7 @@ The experimental macOS port has been discontinued. Current releases support **64
 - Name app groups and share them between knobs and N3 encoders. An edit from any control updates the group everywhere it's used, and the **Groups** page lists every app group alongside your device groups.
 - Match traditional desktop apps, games, browsers, UWP apps, and sessions whose display name differs from their process name.
 - Move every audio session an app opens with one knob—apps such as Apple Music and Discord can show several sliders in the Windows volume mixer.
-- Apply linear, logarithmic, or exponential response curves with custom minimum and maximum volume ranges.
+- Apply linear, logarithmic, or exponential response curves with custom minimum and maximum volume ranges. Range and curve work on every target, including monitor brightness, LED and room-light brightness, Govee, Home Assistant, VoiceMeeter, and fans.
 - Use live VU meters, peak activity, mute state, and a unified tray mixer without opening the main window.
 - Detect newly connected, removed, or changed Windows audio devices while Amp Up remains open—including Bluetooth endpoints.
 - Cycle all eligible devices or a user-selected subset, with unavailable selections retained until the device returns.
@@ -91,9 +92,9 @@ The experimental macOS port has been discontinued. Current releases support **64
 
 ### Quick Wheels and on-screen display
 
-Hold a button, turn a knob, let go to pick. A Quick Wheel puts the things you switch often (profiles, audio devices, media keys, SignalRGB effects, or your own actions) one gesture away.
+Hold a button, turn a knob, let go to pick. A Quick Wheel puts the things you switch often (profiles, audio devices, media keys, SignalRGB effects, OBS scenes, or your own actions) one gesture away.
 
-- **Six wheel types:** profiles, output devices, input devices, media controls, SignalRGB effects, and fully custom wheels. Each wheel holds up to 12 items.
+- **Seven wheel types:** profiles, output devices, input devices, media controls, SignalRGB effects, OBS scenes, and fully custom wheels. Each wheel holds up to 12 items.
 - **Pick what it shows:** every wheel type has a tick list. Choose the items and their order, or leave it empty to show everything.
 - **Your own icons:** give any item a Material icon, an icon from a built-in or online pack, or your own image. "Open app" slots show the app's real icon automatically.
 - **Custom actions:** switch, cycle, or mute a specific output or input device, launch apps, open URLs, send macros, switch profiles, take screenshots, control media and volume, and more. Slots named after a device or app label themselves.
@@ -102,6 +103,20 @@ Hold a button, turn a knob, let go to pick. A Quick Wheel puts the things you sw
 
 The **OSD** page also controls the volume, profile, and device pop-ups: turn each one on or off, set how long it stays, hide it over fullscreen apps, and pick its monitor. To place it, click a spot on the live mini monitor.
 
+### OBS Studio
+
+Mix your stream from the mixer. Amp Up talks to OBS Studio 28+ over its built-in WebSocket server, on the same PC or on a second streaming PC.
+
+- **Knobs control OBS sources:** put any OBS audio source (mic, desktop audio, media, browser sources) on a knob or N3 encoder. The knob follows OBS's own fader scale, so its position matches the slider in OBS, and Volume Range and curve still apply.
+- **Live OBS meters:** the Mixer meter shows what the stream actually hears, after OBS's filters and fader. Set a knob's lights to **Audio Reactive → OBS Meter** to watch your mic level on the knob itself.
+- **Two-way sync:** move a slider in OBS and Amp Up follows; N3 encoders continue from OBS's real position.
+- **OBS On Air lighting:** a light effect that switches color while you're streaming or recording, with its own animation for each state. Knob lights flash when a replay is saved.
+- **Button actions:** switch scenes, mute sources, show or hide a source (your webcam, for example), turn a filter on or off (noise suppression, for example), start or stop streaming and recording, pause, add chapter markers, save replays, toggle the replay buffer and virtual camera, and run Studio Mode transitions. Pick scenes, sources, and filters from a list instead of typing them.
+- **OBS scenes Quick Wheel:** hold a button and pick a scene, with the live scene marked.
+- **Status everywhere:** mute LEDs follow OBS, and N3 keys can show recording, streaming, paused, replay buffer, and virtual camera states.
+
+To connect, open **Tools → WebSocket Server Settings** in OBS, tick **Enable WebSocket server**, and copy the port and password into **Settings → Connected Apps → OBS Studio** in Amp Up. For a second PC, use that PC's IP address as the host.
+
 ### Turn Up RGB lighting
 
 - Drive all 15 LEDs directly with per-knob or room-wide Scenes.
@@ -109,6 +124,7 @@ The **OSD** page also controls the volume, profile, and device pop-ups: turn eac
 - Edit gradients and palettes, brightness, speed, effect direction, and per-channel gamma calibration.
 - Use app-status lighting for running, muted, unmuted, and activity states.
 - Combine the active output-device color with physical knob position using **Dev+Pos** mode.
+- Show when you're live with **OBS On Air**, or put an OBS source's live level on a knob with **OBS Meter**.
 - Preview effects on the hardware while browsing the effect library.
 
 ### N3 stream controller
@@ -150,7 +166,7 @@ The **OSD** page also controls the volume, profile, and device pop-ups: turn eac
 | **Govee** | LAN and Cloud devices, scenes, brightness, color, temperature, groups, RGBIC segments, room effects, and screen/music sync |
 | **Corsair iCUE** | Room lighting, static and reactive effects, device sync, and supported fan/pump controls |
 | **Home Assistant** | Entity actions and controls from hardware buttons, knobs, and N3 keys |
-| **OBS Studio** | Knobs control OBS audio source volume (local or on a second streaming PC) with live OBS meters in the Mixer and on the knob LEDs, and stay in sync when you move a slider in OBS. Buttons switch scenes, mute, show/hide sources, toggle filters, stream, record, pause, add chapter markers, save replays, run Studio Mode transitions and toggle the virtual camera. An On Air light effect shows when you're live, the lights flash when a replay is saved, and a Quick Wheel can switch scenes |
+| **OBS Studio** | Source volume knobs with live OBS meters and two-way sync, scene / mute / source / filter / stream / record / replay / virtual camera actions, On Air lighting, and a scene Quick Wheel, on this PC or a second streaming PC. See [OBS Studio](#obs-studio) |
 | **VoiceMeeter** | Strip and bus gain and mute for Basic, Banana, and Potato; automatic detection or a chosen install folder, with automatic reconnect when VoiceMeeter restarts |
 | **Spotify** | Playback actions, session restore, track state, and N3 now-playing artwork |
 | **Discord RPC** | Mute, deafen, voice-state, leave-channel, and noise-suppression actions. Tester preview until Discord approves public access: join the [WolfDen Discord](https://discord.gg/TDkfWSjqZ) and DM audio in #amp-up to be added |
@@ -184,6 +200,13 @@ Amp Up keeps user data outside the installation directory:
 
 - Open VoiceMeeter and enable the integration in **Settings → Connected Apps**. Either app can start first.
 - If the status reads **Remote API not found**, click **Browse** and select the VoiceMeeter install folder, usually `C:\Program Files (x86)\VB\Voicemeeter`.
+
+### OBS does not connect
+
+- In OBS, open **Tools → WebSocket Server Settings**, tick **Enable WebSocket server**, and click **Show Connect Info** to check the port and password.
+- The OBS card in **Settings → Connected Apps** says why a connection failed, such as a wrong password or an address it can't reach.
+- If OBS runs on another PC, use that PC's IP address as the host and allow the WebSocket port (4455 by default) through its firewall.
+- Amp Up reconnects on its own when OBS restarts.
 
 ### A Bluetooth or USB audio device is missing
 
