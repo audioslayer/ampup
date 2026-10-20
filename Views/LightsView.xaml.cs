@@ -2699,10 +2699,10 @@ public partial class LightsView : UserControl
         // Pill labels follow what the colors mean for the selected effect
         if (effect == LightEffect.ObsLive)
         {
-            SetSwatchLabel(_color1Swatches[idx], "OFF AIR", "Color while OBS isn't streaming or recording");
-            SetSwatchLabel(_color2Swatches[idx], "LIVE", "Color while OBS is streaming or recording");
-            SetSwatchLabel(_color3Swatches[idx], "OFF AIR 2", "Second color for the off-air state effect");
-            SetSwatchLabel(_color4Swatches[idx], "LIVE 2", "Second color for the live state effect");
+            SetSwatchLabel(_color1Swatches[idx], "OBS OFF AIR", "Color while OBS isn't streaming or recording");
+            SetSwatchLabel(_color2Swatches[idx], "OBS LIVE", "Color while OBS is streaming or recording");
+            SetSwatchLabel(_color3Swatches[idx], "OBS OFF AIR 2", "Second color for the off-air state effect");
+            SetSwatchLabel(_color4Swatches[idx], "OBS LIVE 2", "Second color for the live state effect");
         }
         else if (isMuteStatus)
         {

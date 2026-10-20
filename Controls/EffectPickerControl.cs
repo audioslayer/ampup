@@ -376,7 +376,7 @@ namespace AmpUp.Controls
             {
                 (LightEffect.MicStatus,     "⏦",   "Mic",      false),
                 (LightEffect.DeviceMute,    "⊘",   "Mute",     false),
-                (LightEffect.ObsLive,       "●",   "On Air",   false),
+                (LightEffect.ObsLive,       "●",   "OBS On Air", false),
                 (LightEffect.AudioReactive, "♫",   "Audio",    false),
                 (LightEffect.AudioPositionBlend, "♫⬍", "Audio+Pos", false),
                 (LightEffect.ProgramMute,   "⊗",   "App Mute", false),
