@@ -803,13 +803,31 @@
                                         then click <Bold>Show Connect Info</Bold> for the port and password.
                                         OBS on another PC? Use that PC's IP address as the host and allow the port through its firewall.
                                     </TextBlock>
-                                    <TextBlock Text="Host" Style="{StaticResource SField}" />
-                                    <ui:TextBox x:Name="TxtObsHost" Style="{StaticResource SInput}" Margin="0,0,0,12" PlaceholderText="localhost" />
-                                    <TextBlock Text="Port" Style="{StaticResource SField}" />
-                                    <ui:TextBox x:Name="TxtObsPort" Style="{StaticResource SInput}" Width="140" HorizontalAlignment="Left"
-                                                Margin="0,0,0,12" PlaceholderText="4455" />
-                                    <TextBlock Text="Password" Style="{StaticResource SField}" />
-                                    <PasswordBox x:Name="TxtObsPassword" Style="{StaticResource SPassword}" Margin="0,0,0,14" />
+                                    <!-- Host + Port on one row, Password below at the same width; left-aligned
+                                         (a MaxWidth'd stretch input centers itself in a wide card) -->
+                                    <Grid Margin="0,0,0,14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" MaxWidth="440" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="Host" Style="{StaticResource SField}" />
+                                        <TextBlock Grid.Column="2" Text="Port" Style="{StaticResource SField}" />
+                                        <ui:TextBox x:Name="TxtObsHost" Grid.Row="1" Style="{StaticResource SInput}" Margin="0,0,0,12"
+                                                    PlaceholderText="localhost or the OBS PC's IP" />
+                                        <ui:TextBox x:Name="TxtObsPort" Grid.Row="1" Grid.Column="2" Style="{StaticResource SInput}"
+                                                    Margin="0,0,0,12" PlaceholderText="4455" />
+                                        <TextBlock Grid.Row="2" Text="Password" Style="{StaticResource SField}" />
+                                        <PasswordBox x:Name="TxtObsPassword" Grid.Row="3" Grid.ColumnSpan="3"
+                                                     Style="{StaticResource SPassword}" MaxWidth="10000" />
+                                    </Grid>
                                     <local:SettingsSwitch x:Name="ChkObsReplayFlash" Text="Flash lights on replay save"
                                                           Description="Flash the knob lights when OBS saves a replay clip."
                                                           Margin="0,0,0,14" ToolTip="Flash the knob lights when OBS saves a replay" />
