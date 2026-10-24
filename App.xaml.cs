@@ -69,6 +69,9 @@ public partial class App : Application
     private HardwareInputPump? _n3InputPump;
     public static DiscordRpcIntegration? DiscordRpc => (Current as App)?._discordRpc;
     public static ObsIntegration? Obs => (Current as App)?._obs;
+    private GoveeBleController? _goveeBle;
+    /// <summary>Bluetooth path for Govee lights without LAN (e.g. DreamView G1S Pro).</summary>
+    internal static GoveeBleController? GoveeBle => (Current as App)?._goveeBle;
     internal RoomView? MainWindowRoomView => _mainWindow?.GetRoomView();
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
@@ -279,6 +282,8 @@ public partial class App : Application
 
         // Ambience sync (Govee LAN)
         _ambienceSync = new AmbienceSync(_config.Ambience);
+        _goveeBle = new GoveeBleController(() => _config, RefreshStreamControllerDynamicStateVisuals);
+        _goveeBle.Sync(_config);
         _rgb.OnFrameReady += _ambienceSync.OnFrame;
 
         // Corsair iCUE sync
@@ -1567,6 +1572,7 @@ public partial class App : Application
         ConfigureAutoSwitchTimer();
         ConfigureGameModeTimer();
         _ambienceSync?.UpdateConfig(_config.Ambience);
+        _goveeBle?.Sync(_config);
         _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
         // Clear Turn Up screen sync override when neither screen sync nor room mixer is active
         if ((!_config.Ambience.ScreenSync.Enabled || !_config.Ambience.ScreenSync.SyncToTurnUp)
@@ -4205,6 +4211,15 @@ public partial class App : Application
         }
 
         if (string.IsNullOrWhiteSpace(dev.DeviceId) || string.IsNullOrWhiteSpace(dev.Sku)) return;
+
+        // No LAN, but AmpUp can reach it over Bluetooth: instant, and no cloud rate limit.
+        if (_goveeBle?.Handles(dev) == true)
+        {
+            dev.PoweredOn = on;
+            _goveeBle.SetPower(dev, on);
+            return;
+        }
+
         var apiKey = _config.Ambience.GoveeApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
         {
@@ -4435,6 +4450,18 @@ public partial class App : Application
             _ambienceSync?.EnsureDevicesPoweredOn();
             _ambienceSync?.SetBrightness(norm);
 
+            // Bluetooth path — lights without LAN that AmpUp reaches over Bluetooth
+            // get the light's own brightness (it also dims camera mode).
+            if (_goveeBle != null)
+            {
+                foreach (var dev in _config.Ambience.GoveeDevices)
+                {
+                    if (!_goveeBle.Handles(dev)) continue;
+                    if (!dev.PoweredOn) { dev.PoweredOn = true; _goveeBle.SetPower(dev, true); }
+                    _goveeBle.SetBrightness(dev, pctRoom);
+                }
+            }
+
             // Cloud path — cloud-only devices (no IP) don't go through
             // AmbienceSync. Throttle to 1.5 s/device so the knob doesn't burn
             // the daily API quota.
@@ -4445,6 +4472,7 @@ public partial class App : Application
                 {
                     if (!string.IsNullOrWhiteSpace(dev.Ip)) continue;
                     if (string.IsNullOrWhiteSpace(dev.DeviceId) || string.IsNullOrWhiteSpace(dev.Sku)) continue;
+                    if (_goveeBle?.Handles(dev) == true) continue; // handled over Bluetooth above
 
                     // Power-on + brightness in one background task
                     bool needsOn = !dev.PoweredOn;
@@ -5941,6 +5969,7 @@ public partial class App : Application
             _corsairSync = null; // Avoid disposing the SDK under an in-flight native call.
         _ha?.Dispose();
         _obs?.Dispose();
+        _goveeBle?.Dispose();
         _vm?.Dispose();
         _ambienceSync?.Dispose();
         _dreamSync?.Dispose();

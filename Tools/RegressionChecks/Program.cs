@@ -429,4 +429,41 @@ using (var obsRgb = new RgbController())
     sync.Invoke(null, new object?[] { normal, new ButtonConfig { Action = "room_effect", Path = "Aurora" } });
     Check(string.IsNullOrEmpty(normal.DynamicStateSource), "Normal keys don't get a live-state source");
 }
+// ── Govee over Bluetooth (DreamView G1S Pro and other lights without LAN) ──
+{
+    var P = typeof(AmpUp.Services.GoveeBleProtocol);
+    Check(AmpUp.Services.GoveeBleProtocol.Packet(0x33, 0x04, 0x3D) is var bp && bp.Length == 20 && bp[19] == (0x33 ^ 0x04 ^ 0x3D),
+        "Govee BLE packets are 20 bytes with an XOR checksum last");
+    var seg = AmpUp.Services.GoveeBleProtocol.SegmentColor(255, 0, 128, 0x00F0000Fu);
+    Check(seg[0] == 0x33 && seg[1] == 0x05 && seg[2] == 0x15 && seg[3] == 0x01 && seg[4] == 255 && seg[6] == 128
+          && seg[12] == 0x0F && seg[13] == 0x00 && seg[14] == 0xF0,
+        "Segment color packet carries RGB then a little-endian segment mask");
+    Check(AmpUp.Services.GoveeBleProtocol.CameraMode(null).Take(8).SequenceEqual(new byte[] { 0x33, 0x05, 0x00, 0x00, 0x32, 0x06, 0x01, 0x32 }),
+        "Camera mode defaults to the settings the G1S Pro reported");
+    var reply = AmpUp.Services.GoveeBleProtocol.Packet(0xAA, 0x05, 0x00, 0x00, 0x32, 0x06, 0x01, 0x32);
+    Check(AmpUp.Services.GoveeBleProtocol.TryParseCameraMode(reply, out var cam) && AmpUp.Services.GoveeBleProtocol.ToHex(cam) == "00 00 32 06 01 32",
+        "Camera-mode settings are read from a mode reply");
+    Check(!AmpUp.Services.GoveeBleProtocol.TryParseCameraMode(AmpUp.Services.GoveeBleProtocol.Packet(0xAA, 0x05, 0x15, 0x01), out _)
+          && !AmpUp.Services.GoveeBleProtocol.TryParseCameraMode(AmpUp.Services.GoveeBleProtocol.Packet(0xAA, 0x05, 0x00), out _),
+        "Segment-color mode and empty replies aren't mistaken for camera settings");
+    Check(AmpUp.Services.GoveeBleProtocol.TryGetBleAddress("1E:51:D5:32:37:36:74:6C", out var addr) && addr == 0xD5323736746CUL
+          && !AmpUp.Services.GoveeBleProtocol.TryGetBleAddress("192.168.1.5", out _),
+        "Bluetooth address comes from the last 6 bytes of the Govee device id");
+    var prof = AmpUp.Services.GoveeBleProtocol.GetProfile("h604c")!;
+    uint all = 0; bool overlap = false;
+    foreach (var z in prof.Zones) { overlap |= (all & z.Mask) != 0; all |= z.Mask; }
+    Check(!overlap && all == 0x00FFFFFFu, "G1S Pro zones cover segments 0-23 exactly once");
+    var frame = new byte[45];
+    for (int i = 0; i < 15; i++) { frame[i * 3] = (byte)(i * 18); frame[i * 3 + 2] = (byte)(252 - i * 18); }
+    var zc = AmpUp.Services.GoveeBleProtocol.SampleZones(prof, frame);
+    Check(zc[0].R < 20 && zc[0].B > 230 && zc[^1].R > 230 && zc[^1].B < 20 && zc[2].R < zc[3].R,
+        "Room-effect frames map left-to-right onto the bars and strip");
+    var ctl = typeof(App).Assembly.GetType("AmpUp.Services.GoveeBleController")!.GetMethod("Qualifies")!;
+    bool Q(GoveeDeviceConfig d) => (bool)ctl.Invoke(null, new object[] { d })!;
+    var g1s = new GoveeDeviceConfig { Sku = "H604C", DeviceId = "1E:51:D5:32:37:36:74:6C" };
+    Check(Q(g1s) && !Q(new GoveeDeviceConfig { Sku = "H604C", DeviceId = g1s.DeviceId, Ip = "192.168.1.9" })
+          && !Q(new GoveeDeviceConfig { Sku = "H9999", DeviceId = g1s.DeviceId })
+          && !Q(new GoveeDeviceConfig { Sku = "H604C", DeviceId = g1s.DeviceId, UseBluetooth = false }),
+        "Only known models without LAN use Bluetooth (and only when allowed)");
+}
 Console.WriteLine($"{passed} regression checks passed.");

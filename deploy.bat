@@ -22,7 +22,7 @@ timeout /t 3 /nobreak >nul
 
 echo.
 echo [3/5] Cleaning stale WPF temp build files...
-for %%D in ("obj\Debug\net8.0-windows" "obj\Release\net8.0-windows") do (
+for %%D in ("obj\Debug\net8.0-windows" "obj\Release\net8.0-windows" "obj\Debug\net8.0-windows10.0.19041.0" "obj\Release\net8.0-windows10.0.19041.0") do (
     if exist %%~D (
         del /q "%%~D\AmpUp_*_wpftmp.*" 2>nul
     )

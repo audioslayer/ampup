@@ -836,6 +836,12 @@ public class GoveeDeviceConfig
     /// edge, in which direction. Overrides side/spatial mapping when set (e.g. a rope bent into
     /// an upside-down U: right leg = right edge, top = top edge, left leg = left edge).</summary>
     public List<SegmentEdgeRange> SegmentMap { get; set; } = new();
+    /// <summary>For lights without Govee's LAN API (e.g. DreamView G1S Pro): drive them over
+    /// Bluetooth LE from this PC when AmpUp knows the model. Off = cloud only.</summary>
+    public bool UseBluetooth { get; set; } = true;
+    /// <summary>The light's own camera-mode settings as read over Bluetooth ("00 00 32 06 01 32"),
+    /// replayed when Screen Sync switches it to camera mode. Empty = not read yet.</summary>
+    public string BleCameraMode { get; set; } = "";
 }
 
 public enum ZoneSide { Full, Left, Right, Top, Bottom, LeftVertical, RightVertical }

@@ -6839,6 +6839,9 @@ public partial class RoomView : UserControl
                     preserveSegmentOrder: _vuFillActive
                         && config.Ambience.VuFillMode is VuFillMode.Rainfall or VuFillMode.Drip);
 
+            // Lights without LAN that AmpUp reaches over Bluetooth: zone colors, a few per second each
+            App.GoveeBle?.OnRoomFrame(frameForSync, config.Ambience);
+
             // Cloud-only devices (no LAN IP) — throttle to ~1/sec (Cloud API rate limit)
             if (config.Ambience.GoveeCloudEnabled
                 && !isTemperaturePattern
@@ -6850,6 +6853,7 @@ public partial class RoomView : UserControl
                 {
                     if (!string.IsNullOrWhiteSpace(dev.Ip) || !dev.PoweredOn || !dev.SyncWithAmpUp) continue;
                     if (string.IsNullOrWhiteSpace(dev.DeviceId)) continue;
+                    if (App.GoveeBle?.Handles(dev) == true) continue; // Bluetooth path above
                     var cloud = _cloudDevices.FirstOrDefault(c => c.Device == dev.DeviceId);
                     if (cloud == null) continue;
                     _ = SafeCloudCall(() => _cloudApi.ControlDeviceAsync(
