@@ -69,6 +69,7 @@ public partial class App : Application
     private HardwareInputPump? _n3InputPump;
     public static DiscordRpcIntegration? DiscordRpc => (Current as App)?._discordRpc;
     public static ObsIntegration? Obs => (Current as App)?._obs;
+    internal RoomView? MainWindowRoomView => _mainWindow?.GetRoomView();
     private RadialWheelOverlay? _radialWheel;
     private bool _wheelVisible;
     private System.Windows.Threading.DispatcherTimer? _wheelDismissTimer;
@@ -394,6 +395,7 @@ public partial class App : Application
         _buttons.OnSpotifyShuffleToggle+= () => { _ = _spotify?.ToggleShuffleAsync(); };
         _buttons.OnSpotifyLikeToggle   += () => { _ = _spotify?.ToggleLikeAsync(); };
         _buttons.OnRoomEffectSet += HandleRoomEffectSet;
+        _buttons.OnLightingModeToggle += HandleLightingModeToggle;
         _buttons.OnGroupToggle += HandleGroupToggle;
         _buttons.OnScPageChange += HandleScPageChange;
         _buttons.OnOpenFolder += NavigateToN3Folder;
@@ -4002,6 +4004,19 @@ public partial class App : Application
     /// Room view so the pattern engine + save path are identical to the
     /// user clicking an effect tile there.
     /// </summary>
+    private void HandleLightingModeToggle(string mode)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                _mainWindow?.GetRoomView()?.ToggleLightingMode(mode);
+            }
+            catch (Exception ex) { Logger.Log($"HandleLightingModeToggle({mode}) failed: {ex.Message}"); }
+            RefreshStreamControllerDynamicStateVisuals();
+        });
+    }
+
     private void HandleRoomEffectSet(string effectName)
     {
         if (string.IsNullOrEmpty(effectName) || _config == null) return;

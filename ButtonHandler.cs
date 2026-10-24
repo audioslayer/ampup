@@ -68,6 +68,8 @@ public class ButtonHandler : IDisposable
 
     /// <summary>Fires when room_toggle action is triggered — toggle all room lights.</summary>
     public event Action? OnRoomToggle;
+    /// <summary>Screen Sync / VU Fill / Music Reactive / Game Mode toggle (arg = action id).</summary>
+    public event Action<string>? OnLightingModeToggle;
     /// <summary>Fires when corsair_toggle action is triggered — toggle Corsair iCUE lights on/off.</summary>
     public event Action? OnCorsairToggle;
     /// <summary>Fires when govee_white_toggle action is triggered — flips the
@@ -337,6 +339,12 @@ public class ButtonHandler : IDisposable
                 case "room_toggle":
                     // Toggle ALL room lights (Govee + Corsair) on/off
                     OnRoomToggle?.Invoke();
+                    break;
+                case "room_screen_sync":
+                case "room_vu_fill":
+                case "room_music_reactive":
+                case "room_game_mode":
+                    OnLightingModeToggle?.Invoke(action);
                     break;
                 case "corsair_toggle":
                     // Toggle Corsair iCUE lights on/off (flips config.Corsair.Enabled)

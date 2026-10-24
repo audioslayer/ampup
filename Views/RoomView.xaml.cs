@@ -713,6 +713,80 @@ public partial class RoomView : UserControl
             }, Color.FromRgb(0xFF, 0x6B, 0x35)));
     }
 
+    // ── Lighting modes (shared by the Room tiles and the room_* mode button actions) ──
+
+    public bool IsScreenSyncOn => _config?.Ambience.ScreenSync.Enabled == true;
+    public bool IsVuFillOn => _vuFillActive;
+    public bool IsMusicReactiveOn => _corsairMusicTimer?.IsEnabled == true && !_vuFillActive;
+    public bool IsGameModeOn => _config?.Ambience.GameModeEnabled == true;
+
+    /// <summary>Flips one lighting mode exactly as its Room page toggle does.
+    /// <paramref name="mode"/> is the button action id (room_screen_sync, room_vu_fill,
+    /// room_music_reactive, room_game_mode). Must run on the UI thread.</summary>
+    public void ToggleLightingMode(string mode)
+    {
+        if (_config == null) return;
+        switch (mode)
+        {
+            case "room_screen_sync":
+                SetScreenSyncEnabled(!IsScreenSyncOn);
+                break;
+            case "room_vu_fill":
+                if (_vuFillActive) StopVuFill();
+                else { StopCorsairMusicSync(); StartVuFill(); }
+                QueueSave();
+                break;
+            case "room_music_reactive":
+                if (IsMusicReactiveOn)
+                {
+                    StopCorsairMusicSync();
+                    if (_activePattern == "AudioReactive") StopRoomPattern();
+                }
+                else { StopVuFill(); StartGlobalMusicSync(); }
+                QueueSave();
+                break;
+            case "room_game_mode":
+                _config.Ambience.GameModeEnabled = !_config.Ambience.GameModeEnabled;
+                QueueSave();
+                break;
+            default:
+                return;
+        }
+        if (_roomTabIndex == 0) RefreshToggleRow();
+        else RebuildRoomTabContent();
+    }
+
+    private void SetScreenSyncEnabled(bool on)
+    {
+        if (_config == null) return;
+        _config.Ambience.ScreenSync.Enabled = on;
+        // A manual toggle is the user's choice — Game Mode must not undo it on game exit.
+        _config.Ambience.GameModeOwnsScreenSync = false;
+        if (on)
+        {
+            // Stop everything so screen sync has exclusive control
+            StopCorsairMusicSync();
+            StopVuFill();
+            ResumeAllGoveeSync();
+            StopRoomPattern();
+            _config.Ambience.LinkToLights = false;
+            if (_config.Corsair.Enabled)
+                _config.Corsair.LightSyncMode = "dreamview";
+        }
+        else
+        {
+            // DreamSync.Stop() disables segments — clear AmbienceSync tracking
+            _sync?.ClearAllSegmentTracking();
+            if (_config.Corsair.Enabled)
+                _config.Corsair.LightSyncMode = "vu_reactive";
+            // Restart the room effect if one was selected
+            if (_activePattern != null && _activePattern != "__sync__")
+                StartRoomPattern(_activePattern);
+        }
+        _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
+        QueueSave();
+    }
+
     // ── ROOM EFFECT TAB (unified: effect + palette + direction + canvas) ──
 
     /// <summary>
@@ -4081,32 +4155,7 @@ public partial class RoomView : UserControl
             {
                 if (_loading || _config == null) return;
                 syncSwitchShown = on;
-                _config.Ambience.ScreenSync.Enabled = on;
-                // A manual toggle is the user's choice — Game Mode must not undo it on game exit.
-                _config.Ambience.GameModeOwnsScreenSync = false;
-                if (on)
-                {
-                    // Stop everything so screen sync has exclusive control
-                    StopCorsairMusicSync();
-                    StopVuFill();
-                    ResumeAllGoveeSync();
-                    StopRoomPattern();
-                    _config.Ambience.LinkToLights = false;
-                    if (_config.Corsair.Enabled)
-                        _config.Corsair.LightSyncMode = "dreamview";
-                }
-                else
-                {
-                    // DreamSync.Stop() disables segments — clear AmbienceSync tracking
-                    _sync?.ClearAllSegmentTracking();
-                    if (_config.Corsair.Enabled)
-                        _config.Corsair.LightSyncMode = "vu_reactive";
-                    // Restart the room effect if one was selected
-                    if (_activePattern != null && _activePattern != "__sync__")
-                        StartRoomPattern(_activePattern);
-                }
-                _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
-                QueueSave();
+                SetScreenSyncEnabled(on);
                 // Music Reactive / VU Fill tiles live on the ROOM EFFECT tab and are
                 // rebuilt from live state whenever that tab is opened.
             }, out setSyncSwitch, "Turn Screen Sync on or off");

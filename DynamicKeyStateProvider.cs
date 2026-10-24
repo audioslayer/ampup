@@ -61,6 +61,18 @@ internal static class DynamicKeyStateProvider
                 case "discord_deafen":
                     return App.DiscordRpc?.LastKnownDeafen == true;
 
+                case "room_screen_sync":
+                    return App.Config?.Ambience.ScreenSync.Enabled == true;
+
+                case "room_vu_fill":
+                    return (System.Windows.Application.Current as App)?.MainWindowRoomView?.IsVuFillOn == true;
+
+                case "room_music_reactive":
+                    return (System.Windows.Application.Current as App)?.MainWindowRoomView?.IsMusicReactiveOn == true;
+
+                case "room_game_mode":
+                    return App.Config?.Ambience.GameModeEnabled == true;
+
                 case "room_lights_on":
                     // Any Govee device currently powered on, or Corsair
                     // active in a non-off mode, counts as "lights on".
@@ -145,6 +157,10 @@ internal static class DynamicKeyStateProvider
         ("discord_mic",     "Discord Mic Muted"),
         ("discord_deafen",  "Discord Deafened"),
         ("room_lights_on",  "Room Lights On"),
+        ("room_screen_sync", "Screen Sync On"),
+        ("room_vu_fill",    "VU Fill On"),
+        ("room_music_reactive", "Music Reactive On"),
+        ("room_game_mode",  "Game Mode On"),
     };
 
     /// <summary>
@@ -185,6 +201,11 @@ internal static class DynamicKeyStateProvider
             case "spotify_shuffle":
             case "spotify_like":
                 return "spotify_playing";
+            case "room_screen_sync":
+            case "room_vu_fill":
+            case "room_music_reactive":
+            case "room_game_mode":
+                return action;
             case "room_toggle":
             case "corsair_toggle":
             case "govee_toggle":

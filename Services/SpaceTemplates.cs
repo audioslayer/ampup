@@ -26,6 +26,8 @@ public static class SpaceTemplates
 
     public static readonly IReadOnlyList<Template> All = new[]
     {
+        new Template("Lighting",      "Lighting hub: Screen Sync, VU Fill, Music Reactive and Game Mode toggles with live on/off, lights on/off, and an Effects key.",
+            "#448AFF", "fx_lightning", BuildLighting),
         new Template("Room Effects",  "40 room lighting patterns across 7 pages, led by ten palette-driven cinematic scenes.",
             "#69F0AE", "neon_lava_lamp", BuildRoomEffects),
         new Template("Media",         "Prev / Play-Pause / Next, mute master + mic, screenshot.",
@@ -45,6 +47,39 @@ public static class SpaceTemplates
     };
 
     // ── Builders ────────────────────────────────────────────────────────
+
+    /// <summary>Lighting hub. Mode keys are DynamicState keys, bright with a glow while the
+    /// mode is on and dimmed while it's off. The Effects key opens the "Room Effects"
+    /// template Space, so effects sit one level deeper.</summary>
+    private static ButtonFolderConfig BuildLighting()
+    {
+        (string Title, string Accent, string Icon, string Action, string Source)[] keys =
+        {
+            ("Screen Sync", "#448AFF", "MonitorShimmer", "room_screen_sync",    "room_screen_sync"),
+            ("VU Fill",     "#FF4081", "Equalizer",      "room_vu_fill",        "room_vu_fill"),
+            ("Music",       "#FFB800", "MusicNote",      "room_music_reactive", "room_music_reactive"),
+            ("Game Mode",   "#FF6B35", "GamepadVariant", "room_game_mode",      "room_game_mode"),
+            ("Lights",      "#69F0AE", "LightbulbGroup", "room_toggle",         "room_lights_on"),
+            ("Effects",     "#E040FB", "fx_lightning",   "open_folder",         ""),
+        };
+        var folder = new ButtonFolderConfig { Name = "Lighting", PageCount = 1, BackKeyEnabled = false };
+        for (int i = 0; i < keys.Length; i++)
+        {
+            var (title, accent, icon, action, source) = keys[i];
+            var key = DisplayKey(i, title, accent, icon);
+            if (source.Length > 0)
+            {
+                key.DisplayType = DisplayKeyType.DynamicState;
+                key.DynamicStateSource = source;
+                key.DynamicStateGlowColor = accent;
+            }
+            folder.DisplayKeys.Add(key);
+            var btn = Btn(KeyBase + i, action, "");
+            if (action == "open_folder") btn.FolderName = "Room Effects";
+            folder.Buttons.Add(btn);
+        }
+        return folder;
+    }
 
     private static ButtonFolderConfig BuildRoomEffects()
     {
