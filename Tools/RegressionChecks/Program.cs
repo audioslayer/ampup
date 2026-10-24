@@ -294,8 +294,10 @@ async Task RunObsChecks()
         Check(await WaitFor(() => obs.IsRecording && obs.IsRecordingPaused), "Recording pause state is tracked");
         await obsServer.EmitEventAsync("VirtualcamStateChanged", new Newtonsoft.Json.Linq.JObject { ["outputActive"] = true });
         Check(await WaitFor(() => obs.IsVirtualCamActive), "Virtual camera state is tracked");
-        await obsServer.EmitEventAsync("ReplayBufferSaved", new Newtonsoft.Json.Linq.JObject { ["savedReplayPath"] = @"C:\clipseplay.mkv" });
-        Check(await WaitFor(() => replayPath == @"C:\clipseplay.mkv"), "Saved replays are reported (lights flash)");
+        await obsServer.EmitEventAsync("ReplayBufferSaved", new Newtonsoft.Json.Linq.JObject { ["savedReplayPath"] = @"C:\clips
+eplay.mkv" });
+        Check(await WaitFor(() => replayPath == @"C:\clips
+eplay.mkv"), "Saved replays are reported (lights flash)");
         await obsServer.EmitEventAsync("CurrentProgramSceneChanged", new Newtonsoft.Json.Linq.JObject { ["sceneName"] = "Gaming" });
         Check(await WaitFor(() => obs.CurrentScene == "Gaming" && sceneEvent == "Gaming"), "Scene switches in OBS are tracked (wheel marks the live scene)");
 
@@ -407,4 +409,24 @@ using (var obsRgb = new RgbController())
 }
 
 
+// ── N3 keys that glow for "this effect" / "this light" ──
+{
+    var provider = typeof(App).Assembly.GetType("AmpUp.DynamicKeyStateProvider")!;
+    var derive = provider.GetMethod("DeriveSourceFromAction")!;
+    var sync = provider.GetMethod("SyncBoundSource")!;
+    Check((string)derive.Invoke(null, new object?[] { "room_effect", "Aurora" })! == "room_effect:Aurora"
+          && (string)derive.Invoke(null, new object?[] { "govee_toggle", "192.168.1.50" })! == "govee_on:192.168.1.50"
+          && (string)derive.Invoke(null, new object?[] { "govee_toggle", "cloud:AA:BB" })! == "govee_on:cloud:AA:BB"
+          && (string)derive.Invoke(null, new object?[] { "corsair_toggle", null })! == "corsair_on",
+        "Effect, Govee light and Corsair keys get a live state for what they control");
+    var fxKey = new StreamControllerDisplayKeyConfig { DisplayType = DisplayKeyType.DynamicState, DynamicStateSource = "room_effect:Ocean" };
+    sync.Invoke(null, new object?[] { fxKey, new ButtonConfig { Action = "room_effect", Path = "Aurora" } });
+    Check(fxKey.DynamicStateSource == "room_effect:Aurora", "Changing a key's effect moves its glow to the new effect");
+    var manual = new StreamControllerDisplayKeyConfig { DisplayType = DisplayKeyType.DynamicState, DynamicStateSource = "mute_mic" };
+    sync.Invoke(null, new object?[] { manual, new ButtonConfig { Action = "room_effect", Path = "Aurora" } });
+    Check(manual.DynamicStateSource == "mute_mic", "A live-state source picked by hand is left alone");
+    var normal = new StreamControllerDisplayKeyConfig { DisplayType = DisplayKeyType.Normal };
+    sync.Invoke(null, new object?[] { normal, new ButtonConfig { Action = "room_effect", Path = "Aurora" } });
+    Check(string.IsNullOrEmpty(normal.DynamicStateSource), "Normal keys don't get a live-state source");
+}
 Console.WriteLine($"{passed} regression checks passed.");

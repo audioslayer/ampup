@@ -73,12 +73,19 @@ internal static class DynamicKeyStateProvider
                 case "room_game_mode":
                     return App.Config?.Ambience.GameModeEnabled == true;
 
+                case "corsair_on":
+                    return App.Config?.Corsair.Enabled == true;
+
                 case "room_lights_on":
                     // Any Govee device currently powered on, or Corsair
                     // active in a non-off mode, counts as "lights on".
                     return AreRoomLightsOn();
 
                 default:
+                    if (source.StartsWith(RoomEffectPrefix, StringComparison.Ordinal))
+                        return IsRoomEffectPlaying(source.Substring(RoomEffectPrefix.Length));
+                    if (source.StartsWith(GoveeOnPrefix, StringComparison.Ordinal))
+                        return IsGoveeDeviceOn(source.Substring(GoveeOnPrefix.Length));
                     return false;
             }
         }
@@ -86,6 +93,52 @@ internal static class DynamicKeyStateProvider
         {
             return false;
         }
+    }
+
+    // Sources tied to what the key itself controls: "room_effect:<effect>" and
+    // "govee_on:<ip or cloud:deviceId>". They're filled from the bound button at render
+    // time (SyncBoundSource), so changing a key's effect or light keeps its glow right.
+    public const string RoomEffectPrefix = "room_effect:";
+    public const string GoveeOnPrefix = "govee_on:";
+
+    private static bool IsBoundSource(string source) =>
+        source.StartsWith(RoomEffectPrefix, StringComparison.Ordinal)
+        || source.StartsWith(GoveeOnPrefix, StringComparison.Ordinal);
+
+    /// <summary>
+    /// For a DynamicState key, fill in (or refresh) a source that follows the bound button:
+    /// empty sources are derived from the action, and per-effect / per-light sources are
+    /// re-derived so they always name the effect or light the key currently controls.
+    /// Sources the user picked by hand are left alone.
+    /// </summary>
+    public static void SyncBoundSource(AmpUp.Core.Models.StreamControllerDisplayKeyConfig key, AmpUp.Core.Models.ButtonConfig? button)
+    {
+        if (key.DisplayType != AmpUp.Core.Models.DisplayKeyType.DynamicState) return;
+        string current = key.DynamicStateSource ?? "";
+        if (current.Length > 0 && !IsBoundSource(current)) return;
+        string derived = DeriveSourceFromAction(button?.Action, button?.Path);
+        if (!string.IsNullOrWhiteSpace(derived) && derived != current)
+            key.DynamicStateSource = derived;
+    }
+
+    /// <summary>The effect is the room's current effect and nothing else has the lights
+    /// (Screen Sync, the Amp Up knob mirror) and they're on.</summary>
+    private static bool IsRoomEffectPlaying(string effect)
+    {
+        var amb = App.Config?.Ambience;
+        if (amb == null || string.IsNullOrWhiteSpace(effect)) return false;
+        if (amb.ScreenSync.Enabled || amb.LinkToLights) return false;
+        return string.Equals(amb.RoomEffect, effect, StringComparison.OrdinalIgnoreCase) && AreRoomLightsOn();
+    }
+
+    private static bool IsGoveeDeviceOn(string target)
+    {
+        var devices = App.Config?.Ambience.GoveeDevices;
+        if (devices == null || string.IsNullOrWhiteSpace(target)) return false;
+        var dev = target.StartsWith("cloud:", StringComparison.OrdinalIgnoreCase)
+            ? devices.FirstOrDefault(d => string.Equals(d.DeviceId, target.Substring(6), StringComparison.OrdinalIgnoreCase))
+            : devices.FirstOrDefault(d => string.Equals(d.Ip, target, StringComparison.OrdinalIgnoreCase));
+        return dev?.PoweredOn == true;
     }
 
     private static bool GetDefaultEndpointMute(DataFlow flow, Role role)
@@ -161,17 +214,24 @@ internal static class DynamicKeyStateProvider
         ("room_vu_fill",    "VU Fill On"),
         ("room_music_reactive", "Music Reactive On"),
         ("room_game_mode",  "Game Mode On"),
+        ("corsair_on",      "Corsair Lighting On"),
     };
 
     /// <summary>
     /// Auto-derive the dynamic state source that matches a bound button action.
     /// Returns empty string if the action has no meaningful on/off state to track.
     /// </summary>
-    public static string DeriveSourceFromAction(string? action)
+    public static string DeriveSourceFromAction(string? action, string? path = null)
     {
         if (string.IsNullOrWhiteSpace(action)) return "";
         switch (action)
         {
+            case "room_effect":
+                return RoomEffectPrefix + (path ?? "").Trim();
+            case "govee_toggle":
+                return GoveeOnPrefix + (path ?? "").Trim();
+            case "corsair_toggle":
+                return "corsair_on";
             case "mute_master":
                 return "mute_master";
             case "mute_mic":
@@ -207,12 +267,9 @@ internal static class DynamicKeyStateProvider
             case "room_game_mode":
                 return action;
             case "room_toggle":
-            case "corsair_toggle":
-            case "govee_toggle":
             case "govee_white_toggle":
             case "govee_color":
             case "govee_scene":
-            case "room_effect":
             case "group_toggle":
                 return "room_lights_on";
             default:
@@ -225,6 +282,8 @@ internal static class DynamicKeyStateProvider
     {
         foreach (var (s, l) in Sources)
             if (s == source) return l;
+        if (source != null && source.StartsWith(RoomEffectPrefix, StringComparison.Ordinal)) return "This Effect Playing";
+        if (source != null && source.StartsWith(GoveeOnPrefix, StringComparison.Ordinal)) return "This Light On";
         return "";
     }
 

@@ -2586,13 +2586,8 @@ public partial class ButtonsView
             var activeKeys = GetActiveN3DisplayKeys();
             var activeButtons = GetActiveN3ButtonList();
             var key = activeKeys.FirstOrDefault(k => k.Idx == selection.DisplayIdx.Value) ?? new StreamControllerDisplayKeyConfig { Idx = selection.DisplayIdx.Value };
-            if (key.DisplayType == DisplayKeyType.DynamicState && string.IsNullOrWhiteSpace(key.DynamicStateSource))
-            {
-                var boundButton = activeButtons.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + selection.DisplayIdx.Value);
-                string derived = DynamicKeyStateProvider.DeriveSourceFromAction(boundButton?.Action);
-                if (!string.IsNullOrWhiteSpace(derived))
-                    key.DynamicStateSource = derived;
-            }
+            DynamicKeyStateProvider.SyncBoundSource(key,
+                activeButtons.FirstOrDefault(b => b.Idx == StreamControllerDisplayKeyBase + selection.DisplayIdx.Value));
             _scTitleBox.Text = key.Title;
             _scIconBox.Text = !string.IsNullOrWhiteSpace(key.ImagePath)
                 ? System.IO.Path.GetFileName(key.ImagePath)

@@ -396,6 +396,7 @@ public partial class App : Application
         _buttons.OnSpotifyLikeToggle   += () => { _ = _spotify?.ToggleLikeAsync(); };
         _buttons.OnRoomEffectSet += HandleRoomEffectSet;
         _buttons.OnLightingModeToggle += HandleLightingModeToggle;
+        _buttons.OnGoveeDeviceToggle += HandleGoveeDeviceToggle;
         _buttons.OnGroupToggle += HandleGroupToggle;
         _buttons.OnScPageChange += HandleScPageChange;
         _buttons.OnOpenFolder += NavigateToN3Folder;
@@ -3518,14 +3519,9 @@ public partial class App : Application
                     continue;
                 }
 
-                if (key.DisplayType == DisplayKeyType.DynamicState
-                    && string.IsNullOrWhiteSpace(key.DynamicStateSource))
-                {
-                    var boundButton = activeButtons.FirstOrDefault(b => b.Idx == N3DisplayKeyBase + folderLocalIdx);
-                    string derived = DynamicKeyStateProvider.DeriveSourceFromAction(boundButton?.Action);
-                    if (!string.IsNullOrWhiteSpace(derived))
-                        key.DynamicStateSource = derived;
-                }
+                if (key.DisplayType == DisplayKeyType.DynamicState)
+                    DynamicKeyStateProvider.SyncBoundSource(key,
+                        activeButtons.FirstOrDefault(b => b.Idx == N3DisplayKeyBase + folderLocalIdx));
 
                 if (TryGetAnimatedN3State(i, key, buildIfMissing: false, out var animatedState))
                 {
@@ -4015,6 +4011,31 @@ public partial class App : Application
             catch (Exception ex) { Logger.Log($"HandleLightingModeToggle({mode}) failed: {ex.Message}"); }
             RefreshStreamControllerDynamicStateVisuals();
         });
+    }
+
+    /// <summary>
+    /// One Govee light on/off from a key. Goes through SetGoveePower (like group toggles) so
+    /// the device's PoweredOn flag is kept: the room effect sync then stops sending frames to a
+    /// light that's off (frames would switch it back on), and its key can glow while it's on.
+    /// </summary>
+    private void HandleGoveeDeviceToggle(string path)
+    {
+        var devices = _config?.Ambience.GoveeDevices;
+        var dev = devices == null ? null
+            : path.StartsWith("cloud:", StringComparison.OrdinalIgnoreCase)
+                ? devices.FirstOrDefault(d => string.Equals(d.DeviceId, path.Substring(6), StringComparison.OrdinalIgnoreCase))
+                : devices.FirstOrDefault(d => string.Equals(d.Ip, path, StringComparison.OrdinalIgnoreCase));
+        if (dev == null)
+        {
+            Logger.Log($"govee_toggle: no configured Govee device for '{path}', sending a raw LAN toggle");
+            if (!path.StartsWith("cloud:", StringComparison.OrdinalIgnoreCase))
+                _ = AmbienceSync.SendToggleAsync(path);
+            return;
+        }
+        bool on = !dev.PoweredOn;
+        SetGoveePower(dev, on);
+        ConfigManager.Save(_config!);
+        RefreshStreamControllerDynamicStateVisuals();
     }
 
     private void HandleRoomEffectSet(string effectName)

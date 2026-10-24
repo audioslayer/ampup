@@ -85,6 +85,8 @@ public class ButtonHandler : IDisposable
     public event Action? OnSpotifyLikeToggle;
     /// <summary>Fires when room_effect action is triggered — set the active room effect by name (LightEffect enum string).</summary>
     public event Action<string>? OnRoomEffectSet;
+    /// <summary>govee_toggle for one device (arg = IP or "cloud:&lt;deviceId&gt;").</summary>
+    public event Action<string>? OnGoveeDeviceToggle;
     /// <summary>Fires with group name when group_toggle action is triggered — toggle a device group.</summary>
     public event Action<string>? OnGroupToggle;
     /// <summary>Fires with button index when quick_wheel is triggered.</summary>
@@ -359,7 +361,12 @@ public class ButtonHandler : IDisposable
                     // path = device IP (LAN) OR "cloud:<deviceId>" for cloud-only
                     // devices that Govee doesn't expose on LAN (e.g. H604C G1S Pro).
                     if (!string.IsNullOrEmpty(path))
-                        _ = GoveeToggleAsync(path);
+                    {
+                        // App owns device power (keeps PoweredOn, segment mode and the
+                        // room-effect sync consistent); fall back to a raw toggle without it.
+                        if (OnGoveeDeviceToggle != null) OnGoveeDeviceToggle(path);
+                        else _ = GoveeToggleAsync(path);
+                    }
                     break;
                 case "quick_wheel":
                     // Fired by gesture engine (hold gesture) — open the radial wheel

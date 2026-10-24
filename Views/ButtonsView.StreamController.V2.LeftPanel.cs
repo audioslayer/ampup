@@ -867,13 +867,7 @@ public partial class ButtonsView
             var button = activeButtons.FirstOrDefault(b => b.Idx == buttonIdx);
             spotifySpanMasters.TryGetValue(i, out var spotifySpanMaster);
             bool isSelected = _scSelectedButtonIdx == buttonIdx;
-            if (key.DisplayType == DisplayKeyType.DynamicState
-                && string.IsNullOrWhiteSpace(key.DynamicStateSource))
-            {
-                string derived = DynamicKeyStateProvider.DeriveSourceFromAction(button?.Action);
-                if (!string.IsNullOrWhiteSpace(derived))
-                    key.DynamicStateSource = derived;
-            }
+            DynamicKeyStateProvider.SyncBoundSource(key, button);
             bool dynamicActive = false;
             if (key.DisplayType == DisplayKeyType.DynamicState
                 && !string.IsNullOrWhiteSpace(key.DynamicStateSource))
