@@ -2287,6 +2287,17 @@ public partial class SettingsView : UserControl
                     }
                 }
 
+                // Keep saved LAN devices this scan didn't hear from (a light that's off or
+                // slow to answer). Replacing the list dropped their IPs, and every LAN
+                // command to them then failed silently.
+                foreach (var prev in existing.Where(p => !string.IsNullOrWhiteSpace(p.Ip)))
+                {
+                    bool seen = found.Any(f =>
+                        string.Equals(f.Ip, prev.Ip, StringComparison.OrdinalIgnoreCase) ||
+                        (!string.IsNullOrEmpty(prev.DeviceId) && string.Equals(f.DeviceId, prev.DeviceId, StringComparison.OrdinalIgnoreCase)));
+                    if (!seen) found.Add(prev);
+                }
+
                 _config.Ambience.GoveeDevices = found;
                 TxtGoveeScanStatus.Text = $"{found.Count} device(s) found";
                 RefreshGoveeDeviceList();
