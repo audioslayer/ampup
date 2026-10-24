@@ -4027,6 +4027,7 @@ public partial class App : Application
                 _mainWindow?.GetRoomView()?.ApplyRoomEffect(effectName);
             }
             catch (Exception ex) { Logger.Log($"HandleRoomEffectSet failed: {ex.Message}"); }
+            RefreshStreamControllerDynamicStateVisuals(); // Screen Sync key may have just turned off
         });
     }
 

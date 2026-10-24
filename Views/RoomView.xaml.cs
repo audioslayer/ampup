@@ -1362,6 +1362,7 @@ public partial class RoomView : UserControl
         {
             if (_loading) return;
             var effect = effectPicker.SelectedEffect;
+            StopScreenSyncForUserMode(); // picking an effect means "show this", not "fight Screen Sync"
             // Run SingleColor through the pattern loop too — otherwise the Govee
             // device falls out of razer mode after a few seconds (no keepalive frames).
             // For SingleColor we collapse both colors to _roomColor1 so every LED is uniform.
@@ -6509,6 +6510,7 @@ public partial class RoomView : UserControl
             return;
         }
 
+        StopScreenSyncForUserMode(); // an effect key means "show this effect"
         _config.Ambience.RoomEffect = normalized;
         _activePattern = normalized;
         StartRoomPattern(normalized);
