@@ -6521,6 +6521,18 @@ public partial class RoomView : UserControl
     {
         Dispatcher.BeginInvoke(() =>
         {
+            // Lights just came back on while Screen Sync owns them: restarting the room
+            // effect here made both drive the lights (flashing until Screen Sync was
+            // toggled). Re-arm Screen Sync instead: the power cycle dropped the devices'
+            // segment mode, so clear the cache and let DreamSync re-enable it.
+            if (IsScreenSyncOn)
+            {
+                if (_roomRgb != null) StopRoomPattern();
+                _sync?.ClearAllSegmentTracking();
+                _dreamSync?.UpdateConfig(_config!.Ambience.ScreenSync, _config.Ambience);
+                return;
+            }
+
             // Prefer the live pattern; fall back to the persisted RoomEffect
             // so room_toggle/group_toggle on-press restores color even when
             // the user hasn't opened the Room tab this session.
