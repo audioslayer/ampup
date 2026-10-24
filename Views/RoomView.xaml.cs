@@ -676,7 +676,7 @@ public partial class RoomView : UserControl
             syncActive, on =>
             {
                 if (_config == null) return;
-                if (on) { StopVuFill(); ResumeAllGoveeSync(); StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
+                if (on) { StopScreenSyncForUserMode(); StopVuFill(); ResumeAllGoveeSync(); StopRoomPattern(); _activePattern = "__sync__"; _config.Ambience.LinkToLights = true; _config.Corsair.LightSyncMode = "vu_reactive"; }
                 else { _activePattern = null; _config.Ambience.LinkToLights = false; _config.Corsair.LightSyncMode = "static"; }
                 QueueSave(); RefreshToggleRow();
             }, Color.FromRgb(0x69, 0xF0, 0xAE)));
@@ -687,7 +687,7 @@ public partial class RoomView : UserControl
             globalMusic, on =>
             {
                 if (_loading) return;
-                if (on) { StopVuFill(); StartGlobalMusicSync(); }
+                if (on) { StopScreenSyncForUserMode(); StopVuFill(); StartGlobalMusicSync(); }
                 else { StopCorsairMusicSync(); if (_activePattern == "AudioReactive") StopRoomPattern(); }
                 QueueSave(); RefreshToggleRow();
             }, Color.FromRgb(0xFF, 0xB8, 0x00)));
@@ -697,7 +697,7 @@ public partial class RoomView : UserControl
             _vuFillActive, on =>
             {
                 if (_loading) return;
-                if (on) { StopCorsairMusicSync(); StartVuFill(); }
+                if (on) { StopScreenSyncForUserMode(); StopCorsairMusicSync(); StartVuFill(); }
                 else StopVuFill();
                 QueueSave(); RefreshToggleRow();
             }, Color.FromRgb(0xFF, 0x40, 0x81)));
@@ -733,7 +733,7 @@ public partial class RoomView : UserControl
                 break;
             case "room_vu_fill":
                 if (_vuFillActive) StopVuFill();
-                else { StopCorsairMusicSync(); StartVuFill(); }
+                else { StopScreenSyncForUserMode(); StopCorsairMusicSync(); StartVuFill(); }
                 QueueSave();
                 break;
             case "room_music_reactive":
@@ -742,7 +742,7 @@ public partial class RoomView : UserControl
                     StopCorsairMusicSync();
                     if (_activePattern == "AudioReactive") StopRoomPattern();
                 }
-                else { StopVuFill(); StartGlobalMusicSync(); }
+                else { StopScreenSyncForUserMode(); StopVuFill(); StartGlobalMusicSync(); }
                 QueueSave();
                 break;
             case "room_game_mode":
@@ -754,6 +754,17 @@ public partial class RoomView : UserControl
         }
         if (_roomTabIndex == 0) RefreshToggleRow();
         else RebuildRoomTabContent();
+    }
+
+    /// <summary>
+    /// Screen Sync, Music Reactive, VU Fill and the AMP UP mirror all drive the same lights.
+    /// Turning Screen Sync on already stops the others; this is the other direction, so
+    /// turning an audio mode on hands the lights back from Screen Sync instead of both
+    /// sending frames at once (the lights flash white and flicker between them).
+    /// </summary>
+    private void StopScreenSyncForUserMode()
+    {
+        if (IsScreenSyncOn) SetScreenSyncEnabled(false);
     }
 
     private void SetScreenSyncEnabled(bool on)

@@ -78,6 +78,12 @@ public static class SpaceTemplates
             if (action == "open_folder") btn.FolderName = "Room Effects";
             folder.Buttons.Add(btn);
         }
+        // Middle knob = room light brightness while this Space is open
+        folder.EncoderContexts.Add(new N3EncoderContextConfig
+        {
+            Page = -1,
+            Knobs = { new KnobConfig { Idx = 1, Label = "Room Brightness", Target = "room_lights", Curve = ResponseCurve.Logarithmic } },
+        });
         return folder;
     }
 
