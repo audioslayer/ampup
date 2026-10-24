@@ -157,14 +157,14 @@ internal sealed class GoveeBleController : IDisposable
                     e.Link.DropPending(k => k.StartsWith("zone", StringComparison.Ordinal));
                     e.Link.Send("mode", GoveeBleProtocol.CameraMode(GoveeBleProtocol.FromHex(e.Device.BleCameraMode)), priority: true);
                     e.InCamera = true;
-                    Logger.Log($"Govee BLE: {e.Link.Name} → camera mode (Screen Sync)");
+                    Logger.Log($"Govee BLE: {e.Link.Name} -> camera mode (Screen Sync)");
                 }
                 else if (!wantCamera && e.InCamera)
                 {
                     // Leaving Screen Sync: room frames take over; resend every zone right away.
                     e.InCamera = false;
                     ForgetZones(e);
-                    Logger.Log($"Govee BLE: {e.Link.Name} → room effects");
+                    Logger.Log($"Govee BLE: {e.Link.Name} -> room effects");
                 }
             }
         }
