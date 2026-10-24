@@ -94,12 +94,18 @@ internal sealed class GoveeBleController : IDisposable
     {
         var e = Get(dev);
         if (e == null) return;
-        e.Link.Send("power", GoveeBleProtocol.Power(on), priority: true);
-        if (on)
+        // Under the frame lock: a color sent after "off" switches a Govee light straight back
+        // on, so drop queued zone colors first and keep OnRoomFrame from queueing more.
+        lock (_gate)
         {
-            // Back on: re-apply camera mode if Screen Sync owns the light, and resend every zone.
-            e.InCamera = false;
-            ForgetZones(e);
+            if (!on) e.Link.DropPending(k => k.StartsWith("zone", StringComparison.Ordinal) || k == "mode");
+            e.Link.Send("power", GoveeBleProtocol.Power(on), priority: true);
+            if (on)
+            {
+                // Back on: re-apply camera mode if Screen Sync owns the light, and resend every zone.
+                e.InCamera = false;
+                ForgetZones(e);
+            }
         }
         _stateChanged();
     }
