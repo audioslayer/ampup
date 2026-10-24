@@ -945,11 +945,13 @@ internal static class StreamControllerDisplayRenderer
     {
         using var g = DrawingGraphics.FromImage(bitmap);
         ConfigureGraphics(g);
-        // Inset from the outer edge so the rings aren't clipped.
-        float inset = Math.Max(1f, canvas * 0.04f);
+        // Inset from the outer edge so the rings aren't clipped. A thin crisp ring on
+        // top of two wide, faint passes reads as a lit edge with a soft glow; the old
+        // stack of medium-alpha passes read as a thick frame that crowded the icon.
+        float inset = Math.Max(1f, canvas * 0.025f);
         float cornerR = canvas * 0.22f;
-        float[] widths = { canvas * 0.06f, canvas * 0.04f, canvas * 0.025f };
-        int[] alphas   = { 60, 110, 180 };
+        float[] widths = { canvas * 0.09f, canvas * 0.055f, canvas * 0.022f };
+        int[] alphas   = { 22, 45, 235 };
         for (int i = 0; i < widths.Length; i++)
         {
             using var pen = new DrawingPen(DrawingColor.FromArgb(alphas[i], glow), widths[i]);
