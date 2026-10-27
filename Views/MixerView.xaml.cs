@@ -1029,7 +1029,7 @@ public partial class MixerView : UserControl
         };
         foreach (var mon in MonitorBrightness.GetMonitorInfos())
         {
-            items.Add(new GridPicker.SubItem(mon.FriendlyName, mon.DeviceName, null, clr, MaterialIconKind.Monitor));
+            items.Add(new GridPicker.SubItem(mon.FriendlyName, mon.StableId, null, clr, MaterialIconKind.Monitor));
         }
         return items;
     }
@@ -1259,12 +1259,14 @@ public partial class MixerView : UserControl
         // Monitor target with device ID(s) — multi-select sub-tag
         if (baseTarget == "monitor" && !string.IsNullOrEmpty(deviceId))
         {
-            var monitorIds = deviceId.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            // Older configs hold GDI names; map them to the stable id so the picker highlights them.
+            var monitorIds = deviceId.Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Select(MonitorBrightness.ResolveStableId).ToArray();
             var monInfos = MonitorBrightness.GetMonitorInfos();
             string displayName;
             if (monitorIds.Length == 1)
             {
-                var mon = monInfos.FirstOrDefault(m => m.DeviceName.Equals(monitorIds[0], StringComparison.OrdinalIgnoreCase));
+                var mon = monInfos.FirstOrDefault(m => m.StableId.Equals(monitorIds[0], StringComparison.OrdinalIgnoreCase));
                 displayName = mon?.FriendlyName ?? monitorIds[0];
             }
             else

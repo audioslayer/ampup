@@ -61,10 +61,17 @@ public static class MonitorBrightness
     /// <summary>Info about a single physical monitor for UI display and targeting.</summary>
     public class MonitorInfo
     {
-        /// <summary>GDI device name, e.g. \\.\DISPLAY1. Stable identifier for config.</summary>
+        /// <summary>GDI device name, e.g. \\.\DISPLAY1. Windows can renumber it, so prefer <see cref="StableId"/> for config.</summary>
         public string DeviceName { get; init; } = "";
         /// <summary>Friendly name from DisplayConfig, e.g. "DELL U2723QE".</summary>
         public string FriendlyName { get; init; } = "";
+        /// <summary>
+        /// DisplayConfig monitor device path (hardware ID + instance). Windows does not renumber it
+        /// when monitors power off/on, and it differs between two monitors of the same model.
+        /// </summary>
+        public string DevicePath { get; init; } = "";
+        /// <summary>Identifier to save in config: the device path, or the GDI name if Windows gave no path.</summary>
+        public string StableId => !string.IsNullOrEmpty(DevicePath) ? DevicePath : DeviceName;
         /// <summary>Index into the cached handles list.</summary>
         internal int HandleIndex { get; init; }
     }
@@ -74,6 +81,7 @@ public static class MonitorBrightness
     private static readonly object _cacheLock = new();
     private static List<PHYSICAL_MONITOR>? _cachedMonitors;
     private static List<string>? _cachedDeviceNames; // GDI device name per handle, same order
+    private static List<string>? _cachedDevicePaths; // DisplayConfig device path per handle, same order ("" if unknown)
 
     // DDC/CI brightness min/max per handle, same order. Lazily filled on first use —
     // min/max are static per monitor, so the 60ms throttle loop only issues the Set
@@ -110,6 +118,8 @@ public static class MonitorBrightness
 
         var monitors = new List<PHYSICAL_MONITOR>();
         var deviceNames = new List<string>();
+        var devicePaths = new List<string>();
+        var displayConfig = NativeMethods.GetMonitorDisplayConfigInfo();
 
         EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
         {
@@ -120,6 +130,10 @@ public static class MonitorBrightness
             if (GetMonitorInfo(hMonitor, ref info))
                 gdiName = info.szDevice?.Trim('\0') ?? "";
 
+            string devicePath = "";
+            if (!string.IsNullOrEmpty(gdiName) && displayConfig.TryGetValue(gdiName, out var cfgInfo))
+                devicePath = cfgInfo.DevicePath ?? "";
+
             if (GetNumberOfPhysicalMonitorsFromHMONITOR(hMonitor, out uint count) && count > 0)
             {
                 var arr = new PHYSICAL_MONITOR[count];
@@ -129,6 +143,7 @@ public static class MonitorBrightness
                     {
                         monitors.Add(pm);
                         deviceNames.Add(gdiName);
+                        devicePaths.Add(devicePath);
                     }
                 }
             }
@@ -137,6 +152,7 @@ public static class MonitorBrightness
 
         _cachedMonitors = monitors;
         _cachedDeviceNames = deviceNames;
+        _cachedDevicePaths = devicePaths;
         _cachedRanges = new (uint Min, uint Max)?[monitors.Count];
     }
 
@@ -155,7 +171,46 @@ public static class MonitorBrightness
         }
         _cachedMonitors = null;
         _cachedDeviceNames = null;
+        _cachedDevicePaths = null;
         _cachedRanges = null;
+    }
+
+    /// <summary>
+    /// True if a saved monitor id refers to the cached monitor at <paramref name="index"/>.
+    /// Saved ids are DisplayConfig device paths; older configs hold GDI names (e.g. \\.\DISPLAY1),
+    /// which are still honored as a fallback. Callers must hold _cacheLock.
+    /// </summary>
+    private static bool MatchesId(int index, string id)
+    {
+        var path = _cachedDevicePaths![index];
+        if (!string.IsNullOrEmpty(path) && string.Equals(path, id, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return string.Equals(_cachedDeviceNames![index], id, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Converts a saved monitor id (device path or legacy GDI name) to the stable id of the
+    /// monitor it currently points at, so pickers can highlight it and re-save it in the
+    /// stable form. Returns the input unchanged if no connected monitor matches.
+    /// </summary>
+    public static string ResolveStableId(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return id;
+        lock (_cacheLock)
+        {
+            try
+            {
+                EnsureCache();
+                for (int i = 0; i < _cachedMonitors!.Count; i++)
+                {
+                    if (!MatchesId(i, id)) continue;
+                    var path = _cachedDevicePaths![i];
+                    return !string.IsNullOrEmpty(path) ? path : _cachedDeviceNames![i];
+                }
+            }
+            catch { }
+        }
+        return id;
     }
 
     /// <summary>
@@ -294,7 +349,7 @@ public static class MonitorBrightness
                     EnsureCache();
                     for (int i = 0; i < _cachedMonitors!.Count; i++)
                     {
-                        if (!string.Equals(_cachedDeviceNames![i], deviceName, StringComparison.OrdinalIgnoreCase))
+                        if (!MatchesId(i, deviceName))
                             continue;
 
                         var m = _cachedMonitors[i];
@@ -436,6 +491,7 @@ public static class MonitorBrightness
                     result.Add(new MonitorInfo
                     {
                         DeviceName = gdiName,
+                        DevicePath = _cachedDevicePaths![i],
                         FriendlyName = friendly ?? $"Monitor {i + 1}",
                         HandleIndex = i
                     });

@@ -881,6 +881,11 @@ public class ScreenSyncConfig
 {
     public bool Enabled { get; set; } = false;
     public int MonitorIndex { get; set; } = 0;
+    // Monitor identity, so capture follows the same screen when Windows reorders displays.
+    // Empty in older configs, which fall back to MonitorIndex.
+    public string MonitorDevicePath { get; set; } = "";
+    public string MonitorFriendlyName { get; set; } = "";
+    public string MonitorDeviceName { get; set; } = "";
     public int TargetFps { get; set; } = 30;
     public int ZoneCount { get; set; } = 8;
     public float Saturation { get; set; } = 1.5f;

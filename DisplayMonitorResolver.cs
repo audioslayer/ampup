@@ -68,6 +68,37 @@ internal static class DisplayMonitorResolver
         osd.MonitorDevicePath = monitor.DevicePath;
     }
 
+    public static int ResolveScreenSyncMonitorIndex(ScreenSyncConfig cfg)
+    {
+        var monitors = GetMonitors();
+        if (monitors.Count == 0)
+            return 0;
+
+        var match = FindByIdentity(monitors, cfg.MonitorDevicePath, m => m.DevicePath)
+            ?? FindByIdentity(monitors, cfg.MonitorFriendlyName, m => m.FriendlyName)
+            ?? FindByIdentity(monitors, cfg.MonitorDeviceName, m => m.DeviceName);
+
+        if (match != null)
+            return match.Index;
+
+        if (cfg.MonitorIndex >= 0 && cfg.MonitorIndex < monitors.Count)
+            return cfg.MonitorIndex;
+
+        return monitors.FirstOrDefault(m => m.IsPrimary)?.Index ?? 0;
+    }
+
+    public static void RememberScreenSyncMonitor(ScreenSyncConfig cfg, int monitorIndex)
+    {
+        var monitor = GetMonitors().FirstOrDefault(m => m.Index == monitorIndex);
+        if (monitor == null)
+            return;
+
+        cfg.MonitorIndex = monitor.Index;
+        cfg.MonitorDeviceName = monitor.DeviceName;
+        cfg.MonitorFriendlyName = monitor.FriendlyName;
+        cfg.MonitorDevicePath = monitor.DevicePath;
+    }
+
     private static DisplayMonitorInfo? FindByIdentity(
         List<DisplayMonitorInfo> monitors,
         string? storedValue,

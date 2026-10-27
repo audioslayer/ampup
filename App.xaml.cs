@@ -345,6 +345,7 @@ public partial class App : Application
         StartStreamControllerRefreshTimer();
 
         // DreamView / Screen Sync
+        DreamSyncController.MonitorIndexResolver = DisplayMonitorResolver.ResolveScreenSyncMonitorIndex;
         _dreamSync = new DreamSyncController(_config.Ambience.ScreenSync, _config.Ambience, new WindowsScreenCapture());
         // Seed the spatial mapper from the saved layout. Previously it was only set when the
         // user edited the Room layout, so "Auto Spatial" mappings silently fell back to the
@@ -2701,7 +2702,7 @@ public partial class App : Application
                         {
                             // Only the monitor Screen Sync captures counts — a game on another
                             // screen would otherwise sync lights to whatever is on this one.
-                            isFullscreen = NativeMethods.IsForegroundFullscreen(_config.Ambience.ScreenSync.MonitorIndex);
+                            isFullscreen = NativeMethods.IsForegroundFullscreen(DisplayMonitorResolver.ResolveScreenSyncMonitorIndex(_config.Ambience.ScreenSync));
                         }
                     }
                     catch { }
@@ -4969,7 +4970,7 @@ public partial class App : Application
         var infos = MonitorBrightness.GetMonitorInfos();
         if (ids.Length == 1)
         {
-            var mon = infos.FirstOrDefault(m => m.DeviceName.Equals(ids[0], StringComparison.OrdinalIgnoreCase));
+            var mon = infos.FirstOrDefault(m => m.StableId.Equals(MonitorBrightness.ResolveStableId(ids[0]), StringComparison.OrdinalIgnoreCase));
             return mon?.FriendlyName ?? "Monitor";
         }
         return $"{ids.Length} Monitors";

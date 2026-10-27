@@ -4360,11 +4360,11 @@ public partial class RoomView : UserControl
             if (screen.Primary) label += " (Primary)";
             monitorCombo.Items.Add(label);
         }
-        monitorCombo.SelectedIndex = Math.Min(cfg.MonitorIndex, screens.Length - 1);
+        monitorCombo.SelectedIndex = Math.Min(DisplayMonitorResolver.ResolveScreenSyncMonitorIndex(cfg), screens.Length - 1);
         monitorCombo.SelectionChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
-            _config.Ambience.ScreenSync.MonitorIndex = monitorCombo.SelectedIndex;
+            DisplayMonitorResolver.RememberScreenSyncMonitor(_config.Ambience.ScreenSync, monitorCombo.SelectedIndex);
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };

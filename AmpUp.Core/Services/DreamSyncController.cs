@@ -30,6 +30,31 @@ public class DreamSyncController : IDisposable
     private bool _disposed;
     private ScreenSpatialMapper? _spatialMapper;
 
+    /// <summary>
+    /// Maps the saved monitor identity to the current monitor index. Set by the Windows app;
+    /// when null the saved MonitorIndex is used as-is.
+    /// </summary>
+    public static Func<ScreenSyncConfig, int>? MonitorIndexResolver { get; set; }
+
+    private int _resolvedMonitorIndex;
+    private long _resolvedMonitorTick = long.MinValue;
+
+    // Resolving queries Windows display config, so reuse the answer for a couple of seconds.
+    private int ResolveMonitorIndex(ScreenSyncConfig cfg)
+    {
+        var resolver = MonitorIndexResolver;
+        if (resolver == null) return cfg.MonitorIndex;
+
+        long now = Environment.TickCount64;
+        if (now - _resolvedMonitorTick > 2000)
+        {
+            try { _resolvedMonitorIndex = resolver(cfg); }
+            catch { _resolvedMonitorIndex = cfg.MonitorIndex; }
+            _resolvedMonitorTick = now;
+        }
+        return _resolvedMonitorIndex;
+    }
+
     // Running state
     private CancellationTokenSource? _cts;
     private Thread? _loopThread;
@@ -193,7 +218,7 @@ public class DreamSyncController : IDisposable
 
         int cols = cfg.ZoneCount;
         int rows = GridRows;
-        return _capture.CaptureZoneGrid(cfg.MonitorIndex, cols, rows, crop);
+        return _capture.CaptureZoneGrid(ResolveMonitorIndex(cfg), cols, rows, crop);
     }
 
     // ── Start / Stop ─────────────────────────────────────────────────────────
@@ -285,7 +310,7 @@ public class DreamSyncController : IDisposable
                 // Try 2D grid capture first (preferred — enables spatial mapping)
                 int gridCols = cfg.ZoneCount;
                 int gridRows = GridRows;
-                var grid = _capture.CaptureZoneGrid(cfg.MonitorIndex, gridCols, gridRows, contentCrop);
+                var grid = _capture.CaptureZoneGrid(ResolveMonitorIndex(cfg), gridCols, gridRows, contentCrop);
 
                 // Flat zone array (for legacy path + UI preview)
                 (byte R, byte G, byte B)[]? zones = null;
@@ -298,7 +323,7 @@ public class DreamSyncController : IDisposable
                 else
                 {
                     // Fallback: use legacy 1D capture
-                    zones = _capture.CaptureZones(cfg.MonitorIndex, cfg.ZoneCount, cfg.CropBlackBars);
+                    zones = _capture.CaptureZones(ResolveMonitorIndex(cfg), cfg.ZoneCount, cfg.CropBlackBars);
                 }
 
                 if (zones != null)
@@ -333,7 +358,7 @@ public class DreamSyncController : IDisposable
                             // An actual crop was applied to this frame's sampling — the
                             // IScreenCapture interface has no resample-last-frame API, so a
                             // second (uncropped) capture is still required in this case.
-                            fullScreenZones = _capture.CaptureZones(cfg.MonitorIndex, cfg.ZoneCount, false);
+                            fullScreenZones = _capture.CaptureZones(ResolveMonitorIndex(cfg), cfg.ZoneCount, false);
                     }
 
                     // Boost saturation on flat zones (used for UI preview + legacy path)
