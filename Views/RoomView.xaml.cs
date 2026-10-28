@@ -4348,19 +4348,12 @@ public partial class RoomView : UserControl
         // ══════════════════ SOURCE ══════════════════
         var sourceBody = new StackPanel();
 
-        var screens = System.Windows.Forms.Screen.AllScreens;
-        var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
+        // Combo index = monitor index (Screen.AllScreens order); labels numbered like the other pickers
+        var monitors = DisplayMonitorResolver.GetMonitors();
         var monitorCombo = new ComboBox { MinWidth = 180, MaxWidth = 280 };
-        for (int i = 0; i < screens.Length; i++)
-        {
-            var screen = screens[i];
-            var gdiName = screen.DeviceName.TrimEnd('\0');
-            var friendly = friendlyNames.GetValueOrDefault(gdiName, "");
-            string label = !string.IsNullOrEmpty(friendly) ? friendly : $"Display {i + 1}";
-            if (screen.Primary) label += " (Primary)";
-            monitorCombo.Items.Add(label);
-        }
-        monitorCombo.SelectedIndex = Math.Min(DisplayMonitorResolver.ResolveScreenSyncMonitorIndex(cfg), screens.Length - 1);
+        foreach (var monitor in monitors)
+            monitorCombo.Items.Add(monitor.Label);
+        monitorCombo.SelectedIndex = Math.Min(DisplayMonitorResolver.ResolveScreenSyncMonitorIndex(cfg), monitors.Count - 1);
         monitorCombo.SelectionChanged += (_, _) =>
         {
             if (_loading || _config == null) return;
@@ -4368,7 +4361,12 @@ public partial class RoomView : UserControl
             _dreamSync?.UpdateConfig(_config.Ambience.ScreenSync, _config.Ambience);
             QueueSave();
         };
-        sourceBody.Children.Add(MakeSettingRow("Monitor", "Screen to capture colors from", monitorCombo));
+        var monitorRow = new StackPanel { Orientation = Orientation.Horizontal };
+        monitorRow.Children.Add(monitorCombo);
+        var identify = MonitorIdentifyOverlay.CreateButton();
+        identify.Margin = new Thickness(6, 0, 0, 0);
+        monitorRow.Children.Add(identify);
+        sourceBody.Children.Add(MakeSettingRow("Monitor", "Screen to capture colors from", monitorRow));
 
         var fpsPills = MakeScreenSyncPillRow(new[] { "15", "30", "60" },
             cfg.TargetFps switch { 15 => 0, 60 => 2, _ => 1 }, idx =>

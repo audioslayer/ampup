@@ -7,9 +7,16 @@ internal sealed class DisplayMonitorInfo
     public string FriendlyName { get; init; } = "";
     public string DevicePath { get; init; } = "";
     public bool IsPrimary { get; init; }
+    /// <summary>1, 2, 3… left to right (then top to bottom). Follows where the screens sit, so it
+    /// survives power cycles; Identify flashes it on each screen.</summary>
+    public int Number { get; set; }
+    /// <summary>Work area in physical pixels.</summary>
+    public System.Drawing.Rectangle WorkingArea { get; init; }
+    internal System.Drawing.Rectangle Bounds { get; init; }
 
     public string DisplayName => !string.IsNullOrWhiteSpace(FriendlyName) ? FriendlyName : DeviceName;
-    public string Label => IsPrimary ? $"{DisplayName} (Primary)" : DisplayName;
+    public string NumberedName => $"{Number} · {DisplayName}";
+    public string Label => IsPrimary ? $"{NumberedName} (Primary)" : NumberedName;
 }
 
 internal static class DisplayMonitorResolver
@@ -30,10 +37,24 @@ internal static class DisplayMonitorResolver
                 FriendlyName = info?.FriendlyName ?? "",
                 DevicePath = info?.DevicePath ?? "",
                 IsPrimary = screens[i].Primary,
+                WorkingArea = screens[i].WorkingArea,
+                Bounds = screens[i].Bounds,
             });
         }
 
+        int number = 1;
+        foreach (var m in monitors.OrderBy(m => m.Bounds.Left).ThenBy(m => m.Bounds.Top))
+            m.Number = number++;
+
         return monitors;
+    }
+
+    /// <summary>"2 · VS32254K" for a GDI device name (\\.\DISPLAY3), or the plain name if
+    /// that screen isn't connected.</summary>
+    public static string NumberedName(IReadOnlyList<DisplayMonitorInfo> monitors, string deviceName, string name)
+    {
+        var m = monitors.FirstOrDefault(x => string.Equals(x.DeviceName.TrimEnd('\0'), deviceName.TrimEnd('\0'), StringComparison.OrdinalIgnoreCase));
+        return m == null ? name : $"{m.Number} · {name}";
     }
 
     public static int ResolveOsdMonitorIndex(OsdConfig osd)

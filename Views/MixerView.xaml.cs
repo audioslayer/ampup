@@ -1027,9 +1027,13 @@ public partial class MixerView : UserControl
         {
             new("All monitors", "", null, clr, MaterialIconKind.MonitorMultiple)
         };
-        foreach (var mon in MonitorBrightness.GetMonitorInfos())
+        // Numbered like the OSD / Screen Sync pickers so two monitors of the same model can be told apart
+        var screens = DisplayMonitorResolver.GetMonitors();
+        foreach (var mon in MonitorBrightness.GetMonitorInfos()
+            .OrderBy(m => screens.FirstOrDefault(s => s.DeviceName.TrimEnd('\0') == m.DeviceName)?.Number ?? int.MaxValue))
         {
-            items.Add(new GridPicker.SubItem(mon.FriendlyName, mon.StableId, null, clr, MaterialIconKind.Monitor));
+            items.Add(new GridPicker.SubItem(DisplayMonitorResolver.NumberedName(screens, mon.DeviceName, mon.FriendlyName),
+                mon.StableId, null, clr, MaterialIconKind.Monitor));
         }
         return items;
     }
@@ -1267,7 +1271,8 @@ public partial class MixerView : UserControl
             if (monitorIds.Length == 1)
             {
                 var mon = monInfos.FirstOrDefault(m => m.StableId.Equals(monitorIds[0], StringComparison.OrdinalIgnoreCase));
-                displayName = mon?.FriendlyName ?? monitorIds[0];
+                displayName = mon == null ? monitorIds[0]
+                    : DisplayMonitorResolver.NumberedName(DisplayMonitorResolver.GetMonitors(), mon.DeviceName, mon.FriendlyName);
             }
             else
             {

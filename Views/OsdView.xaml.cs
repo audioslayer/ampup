@@ -2506,7 +2506,13 @@ public partial class OsdView : UserControl
 
         stack.Children.Add(MakeLabel("Monitor"));
         CmbOsdMonitor = new ListPicker { HorizontalAlignment = HorizontalAlignment.Stretch };
-        stack.Children.Add(CmbOsdMonitor);
+        var monitorRow = new DockPanel();
+        var identify = MonitorIdentifyOverlay.CreateButton();
+        identify.Margin = new Thickness(6, 0, 0, 0);
+        DockPanel.SetDock(identify, Dock.Right);
+        monitorRow.Children.Add(identify);
+        monitorRow.Children.Add(CmbOsdMonitor);
+        stack.Children.Add(monitorRow);
         return stack;
     }
 
