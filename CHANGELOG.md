@@ -32,6 +32,111 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.3] - 2026-10-19
+
+### Added
+- OBS Studio audio sources as knob and N3 encoder targets, following OBS's own fader scale, with live OBS meters in the Mixer and two-way slider sync. Works with OBS on a second streaming PC.
+- OBS On Air light effect (separate animation per state) and an OBS Meter audio-reactive mode; knob lights flash when a replay is saved.
+- OBS button actions grouped together: scenes, source mute, stream/record, save replay, replay buffer, virtual camera, record pause, chapter markers, Studio Mode transitions, source show/hide and filter on/off, with names picked from a list.
+- OBS scenes Quick Wheel, and N3 keys that show OBS recording, streaming, paused, replay buffer and virtual camera states.
+
+### Fixed
+- Volume Range and curve now apply to every knob target (monitor, LED and room brightness, Govee, device groups, Home Assistant, VoiceMeeter, fans).
+- OBS connected but couldn't control anything.
+
+### Changed
+- The OBS Settings card explains the OBS-side setup, says why a connection failed, and reconnects on its own.
+
+---
+
+## [1.4.2] - 2026-10-14
+
+### Added
+- Custom icons on any Quick Wheel item (Material icons, icon packs or your own image); "Open app" slots use the app's own icon.
+- Pick and order the items on Media and Profile wheels; device actions (switch, cycle, mute a specific device) and more actions on custom wheels.
+- Quick Wheel styling: six presets plus size, transparency, glow, color, ring, center and open-animation options.
+- "Mute a specific mic" button action.
+
+### Changed
+- OSD page split into OVERLAYS and QUICK WHEELS tabs, with click-to-place pop-ups on a live mini monitor.
+- Redesigned icon picker shared by N3 keys and Quick Wheels.
+- Slot labels are edited in a dialog with a live preview of the wheel center.
+
+---
+
+## [1.4.0] - 2026-10-08
+
+### Added
+- Named app groups that can be shared between knobs, listed on the Groups page.
+- Halo Quick Wheel design, Input Device and SignalRGB Effect wheels, and up to 12 items per wheel.
+- GPU screen capture with HDR support, edge lighting, adaptive brightness and per-device white balance for Screen Sync.
+
+### Changed
+- Redesigned interface: hover-expand sidebar with the profile switcher, compact page headers, consistent controls, searchable pickers with app icons and "?" help tips.
+- Mixer cards per knob and N3 encoder; blueprint-style N3 editor with live key previews and a page mini map.
+- Smoother input, fewer duplicate lighting frames and lower memory use.
+
+### Fixed
+- Segment layouts for Govee wall panels, light bars and rope lights.
+
+---
+
+## [1.3.8] - 2026-10-02
+
+### Added
+- VoiceMeeter Basic, Banana and Potato support, including portable and custom installs, with an install-folder picker, automatic reconnect and clear connection status.
+- Real app icons on integration cards.
+
+### Fixed
+- App-group knobs move every audio session of an app (e.g. Apple Music, Discord), match helper processes by display name, and drop stale process-numbered entries automatically. Mute App Group catches the same sessions.
+
+### Changed
+- Settings split into Devices, General, Profiles, Lighting Apps and Connected Apps tabs, one card per integration.
+
+---
+
+## [1.3.7] - 2026-09-19
+
+### Added
+- 22 room effects, including Firefly Garden, Sparkler, Black Hole, Lava Lamp, Hyperdrive, Laser Grid, Sunrise and Shimmer.
+- Six reworked VU modes (Voice Glow, Mirror EQ, Beat Rain, Bass Bloom, Prism EQ, Gravimeter) with rotary tuning controls.
+- Pos+Mute and Blend+Mute light effects that follow the knob's linked VoiceMeeter strip/bus, app group, master, mic or device.
+
+### Fixed
+- App-group mute detection for names such as Apple Music; clearing an app group clears stale mute lighting.
+- FFT scaling and a spectrum frequency-boundary error; better bass resolution at ~23 updates/s.
+- Corsair discovery recursion crash; Govee H61A0 rope-light power-off.
+
+---
+
+## [1.3.5] - 2026-08-29
+
+### Added
+- Contextual N3 encoder bindings for Home and each Space, including Space and page cycling, with a redesigned rotation editor.
+
+### Fixed
+- N3 Quick Wheel trigger lookup.
+- N3 boot artwork is cleared before Amp Up draws, the first page sync retries so all six keys return, and dynamic-state glow no longer leaks onto normal keys.
+- VoiceMeeter mute handling and lighting integration behavior.
+
+---
+
+## [1.3.4] - 2026-08-08
+
+### Added
+- Pocket Casts desktop controls (open, play/pause, skip back, skip forward).
+
+### Fixed
+- Process picker crash when choosing an app for Mute App (#25).
+- First-run Turn Up import uses an untouched Default profile instead of creating an extra one (#26).
+- Govee power state refreshes when lights are changed outside Amp Up.
+- Corsair iCUE solid color for QX fans and LINK cooler lighting.
+
+### Changed
+- Settings redesigned into focused tabs with separate integration cards.
+
+---
+
 ## [1.3.3] - 2026-08-01
 
 ### Fixed
