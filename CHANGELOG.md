@@ -6,6 +6,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.4] - 2026-10-27
+
+### Added
+- Govee lights without LAN support (DreamView G1S Pro / H604C) are driven over Bluetooth from the PC: Screen Sync switches them to their own camera mode, and room effects, Music Reactive, VU Fill, power and the Room Lights knob work without the cloud rate limit.
+- Lighting mode button actions (Screen Sync, VU Fill, Music Reactive, Game Mode) with live on/off on N3 keys, plus a new "Lighting" Space template.
+- N3 effect and light keys glow while the effect they start is playing or the light they control is on.
+- Monitor pickers number screens left to right ("2 · VS32254K") and have an Identify button that shows each screen's number on it.
+- Neon icons: rope light, Glide wall light, smart bulb, White Out and RGB sync.
+
+### Fixed
+- Issue #29: brightness knobs, Screen Sync and the OSD stay on the same monitor after screens are switched off and on, and two monitors of the same model can be told apart. Re-pick a brightness knob's monitors once to switch it to the new identity.
+- A mirrored screen (e.g. a monitor plus an AV receiver) shows once in monitor pickers instead of twice.
+- Room effects, Music Reactive, VU Fill and lights coming back on no longer fight Screen Sync for the same lights.
+- N3 encoders no longer stall at one step when the target has no audio playing.
+- A single-light Govee toggle keeps the light's power state, so room effects stop switching it back on.
+- A Govee LAN scan no longer forgets saved lights that didn't answer.
+- The N3 stays asleep when live-state keys refresh.
+- The welcome screen only shows on fresh installs, not after every update.
+
+### Changed
+- Settings tabs sit at the top of the page in a card, matching the OSD page.
+- Thinner, softer glow ring on N3 live-state keys.
+- A failing OBS connection is logged once instead of every retry.
+
+---
+
 ## [1.3.3] - 2026-08-01
 
 ### Fixed
