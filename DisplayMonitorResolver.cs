@@ -42,12 +42,14 @@ internal static class DisplayMonitorResolver
         if (monitors.Count == 0)
             return 0;
 
-        var match = FindByIdentity(monitors, osd.MonitorDevicePath, m => m.DevicePath)
-            ?? FindByIdentity(monitors, osd.MonitorFriendlyName, m => m.FriendlyName)
-            ?? FindByIdentity(monitors, osd.MonitorDeviceName, m => m.DeviceName);
+        var match = FindMonitor(monitors, osd.MonitorDevicePath, osd.MonitorFriendlyName, osd.MonitorDeviceName);
 
         if (match != null)
+        {
+            if (string.IsNullOrWhiteSpace(osd.MonitorDevicePath) && MatchedByUniqueName(monitors, match, osd.MonitorFriendlyName))
+                osd.MonitorDevicePath = match.DevicePath; // older config: pin it to the hardware path
             return match.Index;
+        }
 
         if (osd.MonitorIndex >= 0 && osd.MonitorIndex < monitors.Count)
             return osd.MonitorIndex;
@@ -74,12 +76,14 @@ internal static class DisplayMonitorResolver
         if (monitors.Count == 0)
             return 0;
 
-        var match = FindByIdentity(monitors, cfg.MonitorDevicePath, m => m.DevicePath)
-            ?? FindByIdentity(monitors, cfg.MonitorFriendlyName, m => m.FriendlyName)
-            ?? FindByIdentity(monitors, cfg.MonitorDeviceName, m => m.DeviceName);
+        var match = FindMonitor(monitors, cfg.MonitorDevicePath, cfg.MonitorFriendlyName, cfg.MonitorDeviceName);
 
         if (match != null)
+        {
+            if (string.IsNullOrWhiteSpace(cfg.MonitorDevicePath) && MatchedByUniqueName(monitors, match, cfg.MonitorFriendlyName))
+                cfg.MonitorDevicePath = match.DevicePath; // older config: pin it to the hardware path
             return match.Index;
+        }
 
         if (cfg.MonitorIndex >= 0 && cfg.MonitorIndex < monitors.Count)
             return cfg.MonitorIndex;
@@ -98,6 +102,39 @@ internal static class DisplayMonitorResolver
         cfg.MonitorFriendlyName = monitor.FriendlyName;
         cfg.MonitorDevicePath = monitor.DevicePath;
     }
+
+    /// <summary>
+    /// The hardware path survives power cycles and tells identical monitors apart. A friendly
+    /// name only counts when one screen has it (two of the same model share it). GDI names
+    /// (\\.\DISPLAY1) get renumbered when screens power off and on, so they're only trusted
+    /// for configs saved before the hardware path was recorded (issue #29).
+    /// </summary>
+    private static DisplayMonitorInfo? FindMonitor(
+        List<DisplayMonitorInfo> monitors, string? devicePath, string? friendlyName, string? deviceName)
+    {
+        var match = FindByIdentity(monitors, devicePath, m => m.DevicePath);
+        if (match != null)
+            return match;
+
+        if (!string.IsNullOrWhiteSpace(friendlyName))
+        {
+            var named = monitors.Where(m => string.Equals(m.FriendlyName, friendlyName, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (named.Count == 1)
+                return named[0];
+        }
+
+        return string.IsNullOrWhiteSpace(devicePath)
+            ? FindByIdentity(monitors, deviceName, m => m.DeviceName)
+            : null;
+    }
+
+    /// <summary>True when <paramref name="monitor"/> was found by a saved friendly name no other
+    /// screen shares, so its hardware path can safely be saved in place of the old identity.</summary>
+    private static bool MatchedByUniqueName(List<DisplayMonitorInfo> monitors, DisplayMonitorInfo monitor, string? savedFriendlyName) =>
+        !string.IsNullOrWhiteSpace(monitor.DevicePath)
+        && string.Equals(monitor.FriendlyName, savedFriendlyName, StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(monitor.FriendlyName)
+        && monitors.Count(m => string.Equals(m.FriendlyName, monitor.FriendlyName, StringComparison.OrdinalIgnoreCase)) == 1;
 
     private static DisplayMonitorInfo? FindByIdentity(
         List<DisplayMonitorInfo> monitors,
