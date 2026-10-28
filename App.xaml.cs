@@ -625,12 +625,11 @@ public partial class App : Application
             new Action(InitializeHardwareDeferred),
             System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
-        // Welcome dialog — show on first run OR when version changes (update)
+        // Welcome dialog — fresh installs only; updates skip it
         var currentVersion = UpdateChecker.CurrentVersion;
         bool isFirstRun = !_config.HasCompletedSetup;
-        bool isUpdate = _config.HasCompletedSetup && _config.LastWelcomeVersion != currentVersion;
 
-        if ((isFirstRun || isUpdate) && !args.Contains("--minimized"))
+        if (isFirstRun && !args.Contains("--minimized"))
         {
             var welcome = new WelcomeDialog(
                 onOpenSettings: () =>
