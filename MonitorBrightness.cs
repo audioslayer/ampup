@@ -82,6 +82,7 @@ public static class MonitorBrightness
     private static List<PHYSICAL_MONITOR>? _cachedMonitors;
     private static List<string>? _cachedDeviceNames; // GDI device name per handle, same order
     private static List<string>? _cachedDevicePaths; // DisplayConfig device path per handle, same order ("" if unknown)
+    private static List<IReadOnlyList<string>>? _cachedAllPaths; // every monitor path on that handle's screen (mirrored = several)
 
     // DDC/CI brightness min/max per handle, same order. Lazily filled on first use —
     // min/max are static per monitor, so the 60ms throttle loop only issues the Set
@@ -119,6 +120,7 @@ public static class MonitorBrightness
         var monitors = new List<PHYSICAL_MONITOR>();
         var deviceNames = new List<string>();
         var devicePaths = new List<string>();
+        var allPaths = new List<IReadOnlyList<string>>();
         var displayConfig = NativeMethods.GetMonitorDisplayConfigInfo();
 
         EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
@@ -131,8 +133,12 @@ public static class MonitorBrightness
                 gdiName = info.szDevice?.Trim('\0') ?? "";
 
             string devicePath = "";
+            IReadOnlyList<string> screenPaths = Array.Empty<string>();
             if (!string.IsNullOrEmpty(gdiName) && displayConfig.TryGetValue(gdiName, out var cfgInfo))
+            {
                 devicePath = cfgInfo.DevicePath ?? "";
+                screenPaths = cfgInfo.AllDevicePaths;
+            }
 
             if (GetNumberOfPhysicalMonitorsFromHMONITOR(hMonitor, out uint count) && count > 0)
             {
@@ -144,6 +150,7 @@ public static class MonitorBrightness
                         monitors.Add(pm);
                         deviceNames.Add(gdiName);
                         devicePaths.Add(devicePath);
+                        allPaths.Add(screenPaths);
                     }
                 }
             }
@@ -153,6 +160,7 @@ public static class MonitorBrightness
         _cachedMonitors = monitors;
         _cachedDeviceNames = deviceNames;
         _cachedDevicePaths = devicePaths;
+        _cachedAllPaths = allPaths;
         _cachedRanges = new (uint Min, uint Max)?[monitors.Count];
     }
 
@@ -172,18 +180,22 @@ public static class MonitorBrightness
         _cachedMonitors = null;
         _cachedDeviceNames = null;
         _cachedDevicePaths = null;
+        _cachedAllPaths = null;
         _cachedRanges = null;
     }
 
     /// <summary>
     /// True if a saved monitor id refers to the cached monitor at <paramref name="index"/>.
     /// Saved ids are DisplayConfig device paths; older configs hold GDI names (e.g. \\.\DISPLAY1),
-    /// which are still honored as a fallback. Callers must hold _cacheLock.
+    /// which are still honored as a fallback. A mirrored screen's handles match the path of any
+    /// monitor on that screen. Callers must hold _cacheLock.
     /// </summary>
     private static bool MatchesId(int index, string id)
     {
         var path = _cachedDevicePaths![index];
         if (!string.IsNullOrEmpty(path) && string.Equals(path, id, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (_cachedAllPaths![index].Contains(id, StringComparer.OrdinalIgnoreCase))
             return true;
         return string.Equals(_cachedDeviceNames![index], id, StringComparison.OrdinalIgnoreCase);
     }
@@ -472,10 +484,15 @@ public static class MonitorBrightness
             {
                 EnsureCache();
                 var friendlyNames = NativeMethods.GetMonitorFriendlyNames();
+                // Mirrored monitors share one screen and get several physical handles, which
+                // Windows can't map back to the monitors (descriptions are all "Generic PnP
+                // Monitor"). List the screen once; brightness goes to every handle on it.
+                var listedScreens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 for (int i = 0; i < _cachedMonitors!.Count; i++)
                 {
                     var gdiName = _cachedDeviceNames![i];
+                    if (!string.IsNullOrEmpty(gdiName) && !listedScreens.Add(gdiName)) continue;
                     var friendly = "";
                     if (!string.IsNullOrEmpty(gdiName))
                         friendlyNames.TryGetValue(gdiName, out friendly!);

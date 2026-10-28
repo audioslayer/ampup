@@ -323,13 +323,20 @@ internal static class NativeMethods
     internal sealed class MonitorDisplayConfigInfo
     {
         public string GdiDeviceName { get; init; } = "";
+        /// <summary>Monitor name; a mirrored screen joins its monitors' names ("ASUS VG278HE + DENON-AVAMP").</summary>
         public string FriendlyName { get; init; } = "";
+        /// <summary>Hardware path to save in config. For a mirrored screen, always the same one of its
+        /// monitors (Windows' path order can change between boots).</summary>
         public string DevicePath { get; init; } = "";
+        /// <summary>Every monitor showing this screen; one entry unless the screen is mirrored.
+        /// Saved ids match any of them.</summary>
+        public IReadOnlyList<string> AllDevicePaths { get; init; } = Array.Empty<string>();
     }
 
     internal static Dictionary<string, MonitorDisplayConfigInfo> GetMonitorDisplayConfigInfo()
     {
         var result = new Dictionary<string, MonitorDisplayConfigInfo>(StringComparer.OrdinalIgnoreCase);
+        var targetsByScreen = new Dictionary<string, List<(string Friendly, string Path)>>(StringComparer.OrdinalIgnoreCase);
 
         if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out uint pathCount, out uint modeCount) != 0)
             return result;
@@ -368,13 +375,25 @@ internal static class NativeMethods
 
             if (!string.IsNullOrEmpty(gdiName))
             {
-                result[gdiName] = new MonitorDisplayConfigInfo
-                {
-                    GdiDeviceName = gdiName,
-                    FriendlyName = friendly ?? "",
-                    DevicePath = devicePath ?? "",
-                };
+                if (!targetsByScreen.TryGetValue(gdiName, out var targets))
+                    targetsByScreen[gdiName] = targets = new();
+                targets.Add((friendly ?? "", devicePath ?? ""));
             }
+        }
+
+        // Several paths share one GDI screen when monitors are mirrored (e.g. a monitor plus an
+        // AV receiver on HDMI). Sort by path so the saved path and the name order don't depend
+        // on the order Windows lists them in.
+        foreach (var (gdiName, targets) in targetsByScreen)
+        {
+            var sorted = targets.OrderBy(t => t.Path, StringComparer.OrdinalIgnoreCase).ToList();
+            result[gdiName] = new MonitorDisplayConfigInfo
+            {
+                GdiDeviceName = gdiName,
+                FriendlyName = string.Join(" + ", sorted.Select(t => t.Friendly).Where(f => f.Length > 0).Distinct()),
+                DevicePath = sorted[0].Path,
+                AllDevicePaths = sorted.Select(t => t.Path).Where(p => p.Length > 0).ToList(),
+            };
         }
 
         return result;

@@ -6,6 +6,8 @@ internal sealed class DisplayMonitorInfo
     public string DeviceName { get; init; } = "";
     public string FriendlyName { get; init; } = "";
     public string DevicePath { get; init; } = "";
+    /// <summary>Every monitor showing this screen (several when mirrored); saved paths match any.</summary>
+    public IReadOnlyList<string> AllDevicePaths { get; init; } = Array.Empty<string>();
     public bool IsPrimary { get; init; }
     /// <summary>1, 2, 3… left to right (then top to bottom). Follows where the screens sit, so it
     /// survives power cycles; Identify flashes it on each screen.</summary>
@@ -36,6 +38,7 @@ internal static class DisplayMonitorResolver
                 DeviceName = screens[i].DeviceName,
                 FriendlyName = info?.FriendlyName ?? "",
                 DevicePath = info?.DevicePath ?? "",
+                AllDevicePaths = info?.AllDevicePaths ?? Array.Empty<string>(),
                 IsPrimary = screens[i].Primary,
                 WorkingArea = screens[i].WorkingArea,
                 Bounds = screens[i].Bounds,
@@ -136,6 +139,12 @@ internal static class DisplayMonitorResolver
         var match = FindByIdentity(monitors, devicePath, m => m.DevicePath);
         if (match != null)
             return match;
+        if (!string.IsNullOrWhiteSpace(devicePath))
+        {
+            match = monitors.FirstOrDefault(m => m.AllDevicePaths.Contains(devicePath, StringComparer.OrdinalIgnoreCase));
+            if (match != null)
+                return match;
+        }
 
         if (!string.IsNullOrWhiteSpace(friendlyName))
         {
