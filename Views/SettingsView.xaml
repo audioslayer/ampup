@@ -250,18 +250,17 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <ContentControl x:Name="PageHeaderHost" Grid.Row="0" Margin="20,16,20,0" Focusable="False" />
-
-        <!-- Section tabs (underline style) -->
-        <Border Grid.Row="1" Margin="20,0,20,14" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1">
-            <StackPanel x:Name="SettingsTabRow" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,0,0,-1" />
+        <!-- Section tabs: no page header, same underline bar card as the OSD / Room pages -->
+        <Border Grid.Row="0" Margin="20,16,20,10" Padding="8,6,8,6" Style="{StaticResource CardPanel}">
+            <Border BorderBrush="{DynamicResource InputBgBrush}" BorderThickness="0,0,0,1">
+                <StackPanel x:Name="SettingsTabRow" Orientation="Horizontal" HorizontalAlignment="Center" />
+            </Border>
         </Border>
 
-        <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="2" VerticalScrollBarVisibility="Auto"
+        <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled" Background="Transparent">
             <StackPanel Margin="20,0,20,18">
 

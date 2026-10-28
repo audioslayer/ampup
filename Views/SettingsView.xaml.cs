@@ -57,8 +57,6 @@ public partial class SettingsView : UserControl
     public SettingsView()
     {
         InitializeComponent();
-        PageHeaderHost.Content = AmpUp.Controls.UiKit.PageHeader("Settings", "Hardware, appearance, profiles and integrations",
-            icon: Material.Icons.MaterialIconKind.CogOutline);
         BuildSettingsTabs();
         BindReveal(ChkHaEnabled, HaSettingsPanel);
         BindReveal(ChkObsEnabled, ObsSettingsPanel);
@@ -243,7 +241,7 @@ public partial class SettingsView : UserControl
             int index = i;
             var tab = new Border
             {
-                Padding = new Thickness(18, 10, 18, 10),
+                Padding = new Thickness(22, 10, 22, 10),
                 Cursor = Cursors.Hand,
                 BorderBrush = Brushes.Transparent,
                 BorderThickness = new Thickness(0, 0, 0, 2),
