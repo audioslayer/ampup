@@ -4523,7 +4523,8 @@ public partial class App : Application
         Dispatcher.BeginInvoke(() =>
         {
             _lastDynamicStateTick = DateTime.Now;
-            if (_n3 != null && _isN3Connected)
+            // Asleep: any HID frame lights the LCDs back up. Wake re-syncs every key anyway.
+            if (_n3 != null && _isN3Connected && !_n3AsleepFromIdle)
                 SyncStreamControllerDisplays();
             _mainWindow?.GetButtonsView()?.RefreshV2LeftPanel();
         });

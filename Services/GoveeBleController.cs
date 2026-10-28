@@ -148,7 +148,14 @@ internal sealed class GoveeBleController : IDisposable
     }
 
     // Screen Sync (manual or Game Mode) decides camera mode; checked twice a second.
+    // Runs on a timer thread, where an unhandled exception would end the process.
     private void Reconcile()
+    {
+        try { ReconcileCore(); }
+        catch (Exception ex) { Logger.Log($"Govee BLE: reconcile failed: {ex.Message}"); }
+    }
+
+    private void ReconcileCore()
     {
         var cfg = _config();
         if (cfg == null) return;
