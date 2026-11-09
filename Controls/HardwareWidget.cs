@@ -477,7 +477,7 @@ namespace AmpUp.Controls
             { "launch_exe", "Launch" }, { "close_program", "Close App" },
             { "cycle_output", "Cycle Output" }, { "cycle_input", "Cycle Input" },
             { "select_output", "Set Output" }, { "select_input", "Set Input" },
-            { "macro", "Macro" }, { "switch_profile", "Switch Profile" },
+            { "macro", "Keystroke" }, { "macro_hold", "Hold Key" }, { "switch_profile", "Switch Profile" },
             { "cycle_profile", "Cycle Profiles" }, { "cycle_brightness", "Cycle Brightness" },
             { "power_sleep", "Sleep" }, { "power_lock", "Lock" }, { "power_off", "Shut Down" },
             { "power_restart", "Restart" }, { "power_logoff", "Log Off" }, { "power_hibernate", "Hibernate" },
@@ -500,7 +500,7 @@ namespace AmpUp.Controls
                 "launch_exe" or "close_program" or "mute_program" when !string.IsNullOrEmpty(path)
                     => System.IO.Path.GetFileNameWithoutExtension(path),
                 "switch_profile" when !string.IsNullOrEmpty(profileName) => profileName,
-                "macro" when !string.IsNullOrEmpty(macroKeys) => macroKeys,
+                "macro" or "macro_hold" when !string.IsNullOrEmpty(macroKeys) => macroKeys,
                 _ => null
             };
 
@@ -564,7 +564,7 @@ namespace AmpUp.Controls
             if (action.StartsWith("mute_"))  return Color.FromRgb(0xEF, 0x53, 0x50); // red
             if (action == "launch_exe" || action == "close_program") return Color.FromRgb(0x42, 0xA5, 0xF5); // blue
             if (action.StartsWith("cycle_") || action.StartsWith("select_")) return Color.FromRgb(0xAB, 0x47, 0xBC); // purple
-            if (action == "macro") return Color.FromRgb(0xFF, 0xD5, 0x4F); // gold
+            if (action is "macro" or "macro_hold") return Color.FromRgb(0xFF, 0xD5, 0x4F); // gold
             if (action == "switch_profile") return Color.FromRgb(0x29, 0xB6, 0xF6); // cyan
             if (action.StartsWith("power_")) return Color.FromRgb(0xFF, 0x44, 0x44); // red
             if (action.StartsWith("ha_")) return Color.FromRgb(0x26, 0xC6, 0xDA); // teal

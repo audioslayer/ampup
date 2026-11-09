@@ -247,6 +247,9 @@ public class ButtonGestureEngine : IDisposable
         }
     }
 
+    /// <summary>Resolve the ButtonConfig bound to a button index (same lookup the gesture timers use).</summary>
+    public ButtonConfig? ResolveButton(int idx) => ResolveButtonConfig(idx);
+
     private ButtonConfig? ResolveButtonConfig(int idx)
     {
         var over = ButtonResolverOverride;

@@ -58,7 +58,8 @@ public class ActionPicker : System.Windows.Controls.Border
         ["select_output"]           = (MaterialIconKind.Speaker, "Use a speaker / headset", "Switch Windows output to a specific device"),
         ["select_input"]            = (MaterialIconKind.MicrophoneVariant, "Use a microphone", "Switch Windows input to a specific mic"),
         // System
-        ["macro"]                   = (MaterialIconKind.KeyboardOutline, "Keyboard shortcut", "Press a key combo like Ctrl+Shift+M"),
+        ["macro"]                   = (MaterialIconKind.KeyboardOutline, "Send keystroke / hotkey", "Press any key or combo, incl. F13–F24 (great for Discord keybinds)"),
+        ["macro_hold"]              = (MaterialIconKind.KeyboardVariant, "Hold key while pressed", "Keep a key down while the button is held (push-to-talk)"),
         ["switch_profile"]          = (MaterialIconKind.AccountSwitch, "Switch profile", "Load a different AmpUp profile"),
         ["cycle_profile"]           = (MaterialIconKind.AccountMultiple, "Next profile", "Cycle through your chosen profiles"),
         ["cycle_brightness"]        = (MaterialIconKind.Brightness6, "LED brightness", "Step through the knob LED brightness levels"),

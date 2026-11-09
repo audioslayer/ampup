@@ -448,7 +448,8 @@ public partial class OsdOverlay : Window
         "close_program" => "Close Program",
         "select_output" => "Select Output",
         "select_input" => "Select Input",
-        "macro" => "Macro",
+        "macro" => "Keystroke",
+        "macro_hold" => "Hold Key",
         "cycle_brightness" => "Cycle Brightness",
         "power_sleep" => "Sleep",
         "power_lock" => "Lock",
@@ -520,7 +521,7 @@ public partial class OsdOverlay : Window
                 => btn.ProfileName,
             "switch_profile" when !string.IsNullOrEmpty(btn.Path)
                 => btn.Path,
-            "macro" when !string.IsNullOrEmpty(btn.MacroKeys)
+            "macro" or "macro_hold" when !string.IsNullOrEmpty(btn.MacroKeys)
                 => btn.MacroKeys,
             _ => null
         };

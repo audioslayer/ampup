@@ -35,7 +35,7 @@ public partial class ButtonsView : UserControl
         ("Add Focused App to Group", "add_active_app_to_group"),
         ("Cycle Output", "cycle_output"), ("Cycle Input", "cycle_input"),
         ("Set Output", "select_output"), ("Set Input", "select_input"),
-        ("Keyboard Macro", "macro"), ("Switch Profile", "switch_profile"),
+        ("Send Keystroke", "macro"), ("Hold Key While Pressed", "macro_hold"), ("Switch Profile", "switch_profile"),
         ("Cycle Profiles", "cycle_profile"),
         ("Cycle Brightness", "cycle_brightness"), ("Quick Wheel", "quick_wheel"),
         ("Sleep", "power_sleep"), ("Lock", "power_lock"), ("Off", "power_off"),
@@ -102,7 +102,7 @@ public partial class ButtonsView : UserControl
         { "media_prev", "⏮" }, { "mute_master", "🔇" }, { "mute_mic", "🎤" },
         { "mute_program", "🔇" }, { "mute_active_window", "🔇" }, { "launch_exe", "🚀" },
         { "close_program", "✕" }, { "cycle_output", "🔊" }, { "cycle_input", "🎙" },
-        { "select_output", "🔊" }, { "select_input", "🎙" }, { "macro", "⌨" },
+        { "select_output", "🔊" }, { "select_input", "🎙" }, { "macro", "⌨" }, { "macro_hold", "⌨" },
         { "switch_profile", "📋" }, { "cycle_profile", "🔄" }, { "cycle_brightness", "💡" }, { "quick_wheel", "🎡" }, { "mute_app_group", "🔇" },
         { "mute_device", "🔇" }, { "mute_input_device", "🎙" },
         { "power_sleep", "😴" }, { "power_lock", "🔒" }, { "power_off", "⏻" },
@@ -157,6 +157,7 @@ public partial class ButtonsView : UserControl
         { "select_output",      Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "select_input",       Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "macro",              Color.FromRgb(0xFF, 0xD5, 0x4F) },
+        { "macro_hold",         Color.FromRgb(0xFF, 0xD5, 0x4F) },
         { "switch_profile",     Color.FromRgb(0x29, 0xB6, 0xF6) },
         { "cycle_profile",     Color.FromRgb(0x29, 0xB6, 0xF6) },
         { "cycle_brightness",   Color.FromRgb(0xFF, 0xF1, 0x76) },
@@ -1112,7 +1113,7 @@ public partial class ButtonsView : UserControl
         bool isVmPathAction = action is "vm_mute_strip" or "vm_mute_bus";
         _tapPathPanels[idx].Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction || isVmPathAction ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(_tapPathLabels[idx], _tapPathBoxes[idx], _tapBrowseButtons[idx], _tapPickButtons[idx], action, _tapAppChips[idx]);
-        _tapMacroPanels[idx].Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
+        _tapMacroPanels[idx].Visibility = action is "macro" or "macro_hold" ? Visibility.Visible : Visibility.Collapsed;
         _tapDevicePanels[idx].Visibility = Visibility.Collapsed; // select/mute now use sub-flyout
         _tapCycleDevicePanels[idx].Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
         _tapCycleTypePanels[idx].Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
@@ -1133,7 +1134,7 @@ public partial class ButtonsView : UserControl
         bool isVmPathAction = action is "vm_mute_strip" or "vm_mute_bus";
         pathPanel.Visibility = PathActions.Contains(action) || isHaServiceAction || action == "govee_color" || isObsPathAction || isVmPathAction ? Visibility.Visible : Visibility.Collapsed;
         ApplyPathLabelAndButtons(pathLabel, box, browseBtn, pickBtn, action, chip);
-        macroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
+        macroPanel.Visibility = action is "macro" or "macro_hold" ? Visibility.Visible : Visibility.Collapsed;
         devicePanel.Visibility = Visibility.Collapsed; // select/mute now use sub-flyout
         cycleDevicePanel.Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
         cycleTypePanel.Visibility = action is "cycle_output" or "cycle_input" ? Visibility.Visible : Visibility.Collapsed;
@@ -1485,7 +1486,8 @@ public partial class ButtonsView : UserControl
         { "cycle_input",        "Switch to next input device" },
         { "select_output",      "Switch to a specific output device" },
         { "select_input",       "Switch to a specific input device" },
-        { "macro",              "Send a keyboard shortcut (e.g. ctrl+shift+m)" },
+        { "macro",              "Send a keystroke or shortcut (e.g. ctrl+shift+m, f13)" },
+        { "macro_hold",         "Hold a key down while the button is held (push-to-talk)" },
         { "switch_profile",     "Load a different AmpUp profile" },
         { "cycle_profile",      "Cycle through selected profiles" },
         { "cycle_brightness",   "Step through LED brightness levels" },
@@ -1656,7 +1658,7 @@ public partial class ButtonsView : UserControl
         ("Mute",            new[] { "mute_master", "mute_mic", "mute_program", "mute_active_window", "mute_app_group", "mute_device", "mute_input_device" }),
         ("App Control",     new[] { "launch_exe", "close_program", "add_active_app_to_group", "open_url", "type_text", "screenshot" }),
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
-        ("System",          new[] { "none", "macro", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
+        ("System",          new[] { "none", "macro", "macro_hold", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
         ("Advanced",        new[] { "multi_action", "toggle_action", "open_folder" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Room",            new[] { "room_toggle", "room_effect", "room_screen_sync", "room_vu_fill", "room_music_reactive", "room_game_mode" }),
@@ -1812,12 +1814,23 @@ public partial class ButtonsView : UserControl
             BorderBrush = FindBrush("InputBorderBrush"),
             Padding = new Thickness(6, 4, 6, 4),
             FontSize = 11,
-            ToolTip = "Enter keyboard shortcut (e.g. ctrl+shift+m)",
+            ToolTip = "Type a shortcut (e.g. ctrl+shift+m, f13) or click the keyboard button to record it",
+            VerticalContentAlignment = VerticalAlignment.Center,
         };
         box.Tag = placeholder;
         box.Text = "";
         SetPlaceholder(box);
-        container.Children.Add(box);
+
+        // Text box + "record keystroke" button on one line
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(box, 0);
+        var rec = KeyCaptureDialog.MakeRecordButton(box);
+        Grid.SetColumn(rec, 1);
+        row.Children.Add(box);
+        row.Children.Add(rec);
+        container.Children.Add(row);
         return (container, box);
     }
 

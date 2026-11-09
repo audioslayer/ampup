@@ -1457,9 +1457,21 @@ public partial class ButtonsView
     {
         var panel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
         panel.Children.Add(MakeEditorLabel("MACRO"));
-        var box = MakeEditorTextBox("ctrl+shift+m");
+        var box = MakeEditorTextBox("ctrl+shift+m  or  f13");
         box.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
-        panel.Children.Add(box);
+
+        // Text box + "record keystroke" button on one line
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(box, 0);
+        var rec = KeyCaptureDialog.MakeRecordButton(box);
+        rec.Height = 36;
+        rec.Margin = new Thickness(6, 0, 0, 8);
+        Grid.SetColumn(rec, 1);
+        row.Children.Add(box);
+        row.Children.Add(rec);
+        panel.Children.Add(row);
         return (panel, box);
     }
 
@@ -2819,7 +2831,7 @@ public partial class ButtonsView
         bool needsPath = (PathActions.Contains(action) && action is not "signalrgb_effect" and not "signalrgb_effect_cycle")
             || action is "ha_service" or "ha_color" or "ha_color_temp" or "govee_color" or "obs_scene" or "obs_mute" or "obs_source_toggle" or "obs_filter_toggle" or "vm_mute_strip" or "vm_mute_bus";
         _scPathPanel.Visibility = needsPath ? Visibility.Visible : Visibility.Collapsed;
-        _scMacroPanel.Visibility = action == "macro" ? Visibility.Visible : Visibility.Collapsed;
+        _scMacroPanel.Visibility = action is "macro" or "macro_hold" ? Visibility.Visible : Visibility.Collapsed;
         if (_scTextSnippetPanel != null)
             _scTextSnippetPanel.Visibility = action == "type_text" ? Visibility.Visible : Visibility.Collapsed;
         if (_scScreenshotInfoPanel != null)
@@ -4578,7 +4590,7 @@ public partial class ButtonsView
                 "vm_mute_strip" or "vm_mute_bus" => "INDEX",
                 _ => "PATH"
             };
-            macroPanel.Visibility = currentAction == "macro" ? Visibility.Visible : Visibility.Collapsed;
+            macroPanel.Visibility = currentAction is "macro" or "macro_hold" ? Visibility.Visible : Visibility.Collapsed;
         }
 
         actionPicker.SelectionChanged += (_, _) =>

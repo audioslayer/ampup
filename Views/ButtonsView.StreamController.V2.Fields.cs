@@ -184,7 +184,7 @@ public partial class ButtonsView
             or "vm_mute_strip" or "vm_mute_bus";
 
         SetCardVisible(_v2PathCard, needsPath);
-        SetCardVisible(_v2MacroCard, action == "macro");
+        SetCardVisible(_v2MacroCard, action is "macro" or "macro_hold");
         SetCardVisible(_v2TextSnippetCard, action == "type_text");
         SetCardVisible(_v2ScreenshotCard, action == "screenshot");
         SetCardVisible(_v2DeviceCard, action is "select_output" or "select_input" or "mute_device" or "mute_input_device");

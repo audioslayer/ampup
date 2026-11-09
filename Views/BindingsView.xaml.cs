@@ -36,6 +36,7 @@ public class BindingsView : UserControl
         { "select_output",      Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "select_input",       Color.FromRgb(0xAB, 0x47, 0xBC) },
         { "macro",              Color.FromRgb(0xFF, 0xD5, 0x4F) },
+        { "macro_hold",         Color.FromRgb(0xFF, 0xD5, 0x4F) },
         { "switch_profile",     Color.FromRgb(0x29, 0xB6, 0xF6) },
         { "cycle_brightness",   Color.FromRgb(0xFF, 0xF1, 0x76) },
         { "power_sleep",        Color.FromRgb(0x7C, 0x8C, 0xF8) },
@@ -64,7 +65,7 @@ public class BindingsView : UserControl
         { "launch_exe", "Launch" }, { "close_program", "Close App" },
         { "cycle_output", "Cycle Out" }, { "cycle_input", "Cycle In" },
         { "select_output", "Set Output" }, { "select_input", "Set Input" },
-        { "macro", "Macro" }, { "switch_profile", "Profile" },
+        { "macro", "Keystroke" }, { "macro_hold", "Hold Key" }, { "switch_profile", "Profile" },
         { "cycle_brightness", "Brightness" },
         { "power_sleep", "Sleep" }, { "power_lock", "Lock" }, { "power_off", "Off" },
         { "power_restart", "Restart" }, { "power_logoff", "Logoff" }, { "power_hibernate", "Hibernate" },
@@ -800,7 +801,7 @@ public class BindingsView : UserControl
                 => profileName,
             "switch_profile" when !string.IsNullOrEmpty(path)
                 => path,
-            "macro" when !string.IsNullOrEmpty(macroKeys)
+            "macro" or "macro_hold" when !string.IsNullOrEmpty(macroKeys)
                 => macroKeys,
             _ => null
         };
@@ -851,7 +852,7 @@ public class BindingsView : UserControl
     {
         return action switch
         {
-            "macro" when !string.IsNullOrEmpty(macroKeys) => macroKeys,
+            "macro" or "macro_hold" when !string.IsNullOrEmpty(macroKeys) => macroKeys,
             "switch_profile" when !string.IsNullOrEmpty(profileName) => profileName,
             "mute_program" or "launch_exe" or "close_program" or "mute_active_window"
                 when !string.IsNullOrEmpty(path) => System.IO.Path.GetFileName(path),

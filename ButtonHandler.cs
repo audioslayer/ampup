@@ -164,11 +164,13 @@ public class ButtonHandler : IDisposable
     {
         _lastConfig = config;
         _gestureEngine.HandleDown(idx, config);
+        BeginHeldKey(idx);
     }
 
     public void HandleUp(int idx, AppConfig config)
     {
         _lastConfig = config;
+        EndHeldKey(idx);
         _gestureEngine.HandleUp(idx, config);
 
         // If this button was holding the wheel open, fire close event
@@ -279,6 +281,8 @@ public class ButtonHandler : IDisposable
                     CloseProgram(path); break;
                 case "macro":
                     ExecuteMacro(btn?.MacroKeys ?? ""); break;
+                case "macro_hold":
+                    break; // handled on raw down/up in HandleDown/HandleUp
                 case "switch_profile":
                     SwitchProfile(btn?.ProfileName ?? ""); break;
                 case "cycle_profile":
@@ -1319,103 +1323,42 @@ public class ButtonHandler : IDisposable
 
     private static void ExecuteMacro(string macroKeys)
     {
-        if (string.IsNullOrWhiteSpace(macroKeys))
-        {
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(macroKeys)) return;
+        try { KeyboardInjector.Tap(macroKeys); }
+        catch (Exception ex) { Logger.Log($"macro error: {ex.Message}"); }
+    }
 
+    // ── Hold-while-pressed keys (macro_hold) ─────────────────────────
+
+    private readonly Dictionary<int, List<ushort>> _heldKeys = new();
+    private readonly object _heldKeysLock = new();
+
+    private void BeginHeldKey(int idx)
+    {
         try
         {
-            var parts = macroKeys.ToLowerInvariant().Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var modifiers = new List<byte>();
-            var keys = new List<byte>();
-
-            foreach (var part in parts)
+            var btn = _gestureEngine.ResolveButton(idx);
+            if (btn == null || !string.Equals(btn.Action, "macro_hold", StringComparison.OrdinalIgnoreCase)) return;
+            if (string.IsNullOrWhiteSpace(btn.MacroKeys)) return;
+            lock (_heldKeysLock)
             {
-                switch (part)
-                {
-                    case "ctrl" or "control":
-                        modifiers.Add(VK_CONTROL); break;
-                    case "shift":
-                        modifiers.Add(VK_SHIFT); break;
-                    case "alt":
-                        modifiers.Add(VK_MENU); break;
-                    case "win" or "windows" or "super":
-                        modifiers.Add(VK_LWIN); break;
-                    default:
-                        var vk = ResolveKeyCode(part);
-                        if (vk != 0) keys.Add(vk);
-                        break;
-                }
+                if (_heldKeys.ContainsKey(idx)) return;
+                _heldKeys[idx] = KeyboardInjector.Hold(btn.MacroKeys);
             }
-
-            // Press modifiers down
-            foreach (var mod in modifiers)
-                NativeMethods.keybd_event(mod, 0, 0, UIntPtr.Zero);
-
-            // Press and release each key
-            foreach (var key in keys)
-            {
-                NativeMethods.keybd_event(key, 0, 0, UIntPtr.Zero);
-                NativeMethods.keybd_event(key, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-            }
-
-            // Release modifiers in reverse order
-            for (int i = modifiers.Count - 1; i >= 0; i--)
-                NativeMethods.keybd_event(modifiers[i], 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
-        catch (Exception ex)
-        {
-            Logger.Log($"macro error: {ex.Message}");
-        }
+        catch (Exception ex) { Logger.Log($"macro_hold down error: {ex.Message}"); }
     }
 
-    private static byte ResolveKeyCode(string keyName)
+    private void EndHeldKey(int idx)
     {
-        return keyName switch
+        List<ushort>? keys;
+        lock (_heldKeysLock)
         {
-            "enter" or "return" => VK_RETURN,
-            "tab" => VK_TAB,
-            "escape" or "esc" => VK_ESCAPE,
-            "space" or "spacebar" => VK_SPACE,
-            "up" => VK_UP,
-            "down" => VK_DOWN,
-            "left" => VK_LEFT,
-            "right" => VK_RIGHT,
-            "delete" or "del" => VK_DELETE,
-            "backspace" => VK_BACK,
-            "insert" or "ins" => VK_INSERT,
-            "home" => VK_HOME,
-            "end" => VK_END,
-            "pageup" or "pgup" => VK_PRIOR,
-            "pagedown" or "pgdn" => VK_NEXT,
-            "printscreen" or "prtsc" => VK_SNAPSHOT,
-            "f1" => 0x70, "f2" => 0x71, "f3" => 0x72, "f4" => 0x73,
-            "f5" => 0x74, "f6" => 0x75, "f7" => 0x76, "f8" => 0x77,
-            "f9" => 0x78, "f10" => 0x79, "f11" => 0x7A, "f12" => 0x7B,
-            "0" => 0x30, "1" => 0x31, "2" => 0x32, "3" => 0x33, "4" => 0x34,
-            "5" => 0x35, "6" => 0x36, "7" => 0x37, "8" => 0x38, "9" => 0x39,
-            _ => ResolveKeyCodeFallback(keyName)
-        };
-    }
-
-    private static byte ResolveKeyCodeFallback(string keyName)
-    {
-        // Single character — use VkKeyScan to resolve to virtual key code
-        if (keyName.Length == 1)
-        {
-            short result = NativeMethods.VkKeyScan(keyName[0]);
-            byte vk = (byte)(result & 0xFF);
-            if (vk != 0xFF)
-                return vk;
-            // VkKeyScan failed; fall back to uppercase ASCII for letter keys
-            if (char.IsAsciiLetter(keyName[0]))
-                return (byte)char.ToUpperInvariant(keyName[0]);
+            if (!_heldKeys.Remove(idx, out keys)) return;
         }
-
-        return 0;
+        try { KeyboardInjector.Release(keys!); }
+        catch (Exception ex) { Logger.Log($"macro_hold up error: {ex.Message}"); }
     }
-
     // ── Switch profile ────────────────────────────────────────────────
 
     private void SwitchProfile(string profileName)
@@ -1476,6 +1419,7 @@ public class ButtonHandler : IDisposable
     public void Dispose()
     {
         _gestureEngine.OnGestureAction -= HandleGestureAction;
+        foreach (var idx in _heldKeys.Keys.ToList()) EndHeldKey(idx);
         _gestureEngine.Dispose();
         _enumerator.Dispose();
     }
