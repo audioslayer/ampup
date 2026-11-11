@@ -153,6 +153,66 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- Devices page: hardware mode chooser cards + large device cards (hover lift; glow set in code) -->
+        <Style x:Key="HwModeCard" TargetType="Border">
+            <Setter Property="Margin" Value="5" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="Background" Value="{DynamicResource BgDarkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="RenderTransform">
+                <Setter.Value><TranslateTransform /></Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="RenderTransform">
+                        <Setter.Value><TranslateTransform Y="-2" /></Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="HwModeCheck" TargetType="mi:MaterialIcon">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
+        <Style x:Key="HwDeviceCard" TargetType="Border">
+            <Setter Property="Margin" Value="6" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="Background" Value="{DynamicResource BgDarkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="RenderTransform">
+                <Setter.Value><TranslateTransform /></Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="RenderTransform">
+                        <Setter.Value><TranslateTransform Y="-3" /></Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="HwDeviceStage" TargetType="Border">
+            <Setter Property="Height" Value="200" />
+            <Setter Property="CornerRadius" Value="15,15,0,0" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <RadialGradientBrush Center="0.5,0.45" GradientOrigin="0.5,0.4" RadiusX="0.7" RadiusY="0.8">
+                        <GradientStop Color="#22FFFFFF" Offset="0" />
+                        <GradientStop Color="#00FFFFFF" Offset="1" />
+                    </RadialGradientBrush>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- These keyed styles replace WPF-UI's implicit ones, so they carry full
              templates; without them WPF falls back to the grey Windows chrome. -->
         <Style x:Key="SPassword" TargetType="PasswordBox">
@@ -264,128 +324,292 @@
                       HorizontalScrollBarVisibility="Disabled" Background="Transparent">
             <StackPanel Margin="20,0,20,18">
 
-                <!-- â•â•â• DEVICES â•â•â• -->
+                <!-- ═══ DEVICES ═══ -->
+                <!-- Hero (setup summary) → Hardware mode chooser cards → device cards (photo slot + status + actions).
+                     Device photos load from Assets/devices/<id>.png (see SettingsView.Devices.cs); a drawn
+                     placeholder shows until the PNG exists. SegHardwareMode stays the source of truth (hidden). -->
                 <Border x:Name="ConnectionCard" Style="{StaticResource SCard}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Style="{StaticResource SBar}" />
-                        <StackPanel Style="{StaticResource SBody}">
+                    <StackPanel Margin="20,18,20,20">
+                        <!-- Hero -->
+                        <Border CornerRadius="12" BorderThickness="1" Padding="18,16"
+                                BorderBrush="{DynamicResource AccentBorder55Brush}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#2AFFFFFF" Offset="0" />
+                                    <GradientStop Color="#06FFFFFF" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource STile}">
-                                    <mi:MaterialIcon Kind="UsbPort" Style="{StaticResource STileIcon}" />
+                                <Border Style="{StaticResource STile}" Width="52" Height="52" CornerRadius="14">
+                                    <mi:MaterialIcon Kind="UsbPort" Width="26" Height="26" Foreground="{DynamicResource AccentBrush}" />
                                 </Border>
-                                <StackPanel Style="{StaticResource SHeaderNames}">
-                                    <TextBlock Text="Hardware" Style="{StaticResource STitle}" />
-                                    <TextBlock Text="Which controllers Amp Up listens to, and how it connects to them." Style="{StaticResource SSub}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,12,0">
+                                    <TextBlock Text="Your devices" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock x:Name="TxtHwSummary" Text="Mode: Auto" Style="{StaticResource SSub}" FontSize="12" />
                                 </StackPanel>
-                            </Grid>
-
-                            <StackPanel Style="{StaticResource SContent}">
-                                <!-- Device status list -->
-                                <Border CornerRadius="8" BorderThickness="1" Padding="12,8" Margin="0,0,0,16"
-                                        Background="{DynamicResource BgDarkBrush}" BorderBrush="{DynamicResource CardBorderBrush}">
-                                    <StackPanel>
-                                        <Grid Margin="0,2,0,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <mi:MaterialIcon Kind="Knob" Width="16" Height="16" Foreground="{DynamicResource TextDimBrush}" Margin="0,0,10,0" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="Turn Up" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                                <Ellipse x:Name="ConnectionDot" Style="{StaticResource SDot}" Fill="{DynamicResource DangerRedBrush}" />
-                                                <TextBlock x:Name="TxtConnectionStatus" Text="Disconnected" Style="{StaticResource SStatusText}" />
-                                            </StackPanel>
-                                        </Grid>
-                                        <Grid Margin="0,0,0,2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <mi:MaterialIcon Kind="ViewGridOutline" Width="16" Height="16" Foreground="{DynamicResource TextDimBrush}" Margin="0,0,10,0" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="Stream Controller (TreasLin N3)" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                                <Ellipse x:Name="N3ConnectionDot" Style="{StaticResource SDot}" Fill="{DynamicResource DangerRedBrush}" />
-                                                <TextBlock x:Name="TxtN3ConnectionStatus" Text="Not detected" Style="{StaticResource SStatusText}" />
-                                            </StackPanel>
-                                        </Grid>
+                                <Border Grid.Column="2" Style="{StaticResource SPill}" Margin="0" Padding="12,6">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse x:Name="HeroStatusDot" Style="{StaticResource SDot}" Width="9" Height="9" Fill="{DynamicResource DangerRedBrush}" />
+                                        <TextBlock x:Name="TxtHeroStatus" Text="No devices connected" FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
+                            </Grid>
+                        </Border>
 
-                                <StackPanel Style="{StaticResource SGroup}">
-                                    <TextBlock Text="Hardware mode" Style="{StaticResource SField}"
-                                               ToolTip="Choose whether Amp Up listens to Turn Up, Stream Controller, or both at once" />
-                                    <controls:SegmentedControl x:Name="SegHardwareMode" HorizontalAlignment="Left" MinWidth="360" />
-                                </StackPanel>
-
-                                <StackPanel x:Name="ActiveSurfacePanel" Visibility="Collapsed" Style="{StaticResource SGroup}">
-                                    <TextBlock Text="Active surface" Style="{StaticResource SField}"
-                                               ToolTip="Which surface drives the Mixer, Buttons, and Lights tabs when both devices are available" />
-                                    <controls:SegmentedControl x:Name="SegActiveSurface" HorizontalAlignment="Left" MinWidth="360" />
-                                </StackPanel>
-
-                                <StackPanel Style="{StaticResource SGroup}">
-                                    <TextBlock x:Name="TxtN3IdleSleepLabel" Text="Stream Controller Screen Sleep: 10m" Style="{StaticResource SField}"
-                                               ToolTip="Blank the N3 LCD screens after this long with no keyboard/mouse activity. Drag to Never to keep them lit." />
-                                    <Grid MaxWidth="520" HorizontalAlignment="Left">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" MinWidth="240" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <controls:StyledSlider x:Name="SldN3IdleSleep" Minimum="0" Maximum="11" Width="360"
-                                                               Step="1" ShowLabel="False" VerticalAlignment="Center" />
-                                        <ui:Button x:Name="BtnN3SleepNow" Grid.Column="1" Content="Sleep now"
-                                                   Appearance="Secondary" Height="32" Margin="12,0,0,0" VerticalAlignment="Center"
-                                                   ToolTip="Blank the N3 screens right now. Any keyboard/mouse input wakes them back up." />
-                                    </Grid>
-                                </StackPanel>
-
-                                <StackPanel>
-                                    <TextBlock Text="Turn Up port" Style="{StaticResource SField}"
-                                               ToolTip="Select the COM port for your AmpUp hardware" />
-                                    <WrapPanel Orientation="Horizontal">
-                                        <controls:ListPicker x:Name="CmbSerialPort" Width="220" Margin="0,0,8,8" VerticalAlignment="Center"
-                                                             ToolTip="Available COM ports â€” select the one for your AmpUp hardware" />
-                                        <ui:Button x:Name="BtnRefreshPorts" Content="Refresh" Style="{StaticResource SButton}"
-                                                   ToolTip="Rescan for available COM ports">
-                                            <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
-                                        </ui:Button>
-                                        <ui:Button x:Name="BtnAutoDetect" Content="Auto-detect" Style="{StaticResource SButton}" Appearance="Primary"
-                                                   ToolTip="Automatically find the AmpUp hardware by probing available ports" />
-                                    </WrapPanel>
-                                </StackPanel>
-
-                                <Border Style="{StaticResource SDivider}" Margin="0,8,0,10" />
-                                <StackPanel Orientation="Horizontal" Cursor="Hand" Background="Transparent"
-                                            x:Name="AdvancedToggle" MouseLeftButtonDown="AdvancedToggle_Click">
-                                    <mi:MaterialIcon x:Name="AdvancedArrow" Kind="ChevronRight" Width="16" Height="16"
-                                                     Foreground="{DynamicResource TextDimBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                    <TextBlock Text="Advanced serial settings" FontSize="12" Foreground="{DynamicResource TextSecBrush}" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <StackPanel x:Name="AdvancedSection" Visibility="Collapsed" Margin="22,12,0,0">
-                                    <TextBlock Text="Serial port" Style="{StaticResource SField}"
-                                               ToolTip="COM port for the AmpUp hardware (e.g. COM3)" />
-                                    <ui:TextBox x:Name="TxtSerialPort" Style="{StaticResource SInput}" MaxWidth="220" HorizontalAlignment="Left" Width="220"
-                                                PlaceholderText="COM3" Margin="0,0,0,12"
-                                                ToolTip="COM port for the AmpUp hardware (e.g. COM3)" />
-                                    <TextBlock Text="Baud rate" Style="{StaticResource SField}"
-                                               ToolTip="Communication speed â€” leave at 115200" />
-                                    <ui:TextBox x:Name="TxtBaudRate" Style="{StaticResource SInput}" MaxWidth="220" HorizontalAlignment="Left" Width="220"
-                                                PlaceholderText="115200"
-                                                ToolTip="Communication speed â€” leave at 115200" />
-                                </StackPanel>
-                            </StackPanel>
+                        <!-- Hardware mode chooser -->
+                        <StackPanel Orientation="Horizontal" Margin="2,20,0,10">
+                            <Border Style="{StaticResource SBar}" Height="14" Margin="0,0,8,0" />
+                            <TextBlock Text="HARDWARE MODE" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TextSecBrush}" VerticalAlignment="Center"
+                                       ToolTip="Choose whether Amp Up listens to Turn Up, Stream Controller, or both at once" />
                         </StackPanel>
-                    </Grid>
+                        <controls:SegmentedControl x:Name="SegHardwareMode" Visibility="Collapsed" />
+                        <UniformGrid x:Name="ModeCardGrid" Columns="4" Margin="-5,0,-5,0">
+                            <Border x:Name="ModeCardAuto" Tag="0" Style="{StaticResource HwModeCard}" MouseLeftButtonUp="ModeCard_Click">
+                                <Grid>
+                                    <StackPanel>
+                                        <Border Style="{StaticResource STile}" HorizontalAlignment="Left" Margin="0,0,0,10">
+                                            <mi:MaterialIcon Kind="Autorenew" Style="{StaticResource STileIcon}" />
+                                        </Border>
+                                        <TextBlock Text="Auto" Style="{StaticResource STitle}" />
+                                        <TextBlock Text="Use whatever is plugged in" Style="{StaticResource SSub}" />
+                                    </StackPanel>
+                                    <mi:MaterialIcon x:Name="ModeCheckAuto" Kind="CheckCircle" Style="{StaticResource HwModeCheck}" />
+                                </Grid>
+                            </Border>
+                            <Border x:Name="ModeCardTurnUp" Tag="1" Style="{StaticResource HwModeCard}" MouseLeftButtonUp="ModeCard_Click">
+                                <Grid>
+                                    <StackPanel>
+                                        <Border Style="{StaticResource STile}" HorizontalAlignment="Left" Margin="0,0,0,10">
+                                            <mi:MaterialIcon Kind="Knob" Style="{StaticResource STileIcon}" />
+                                        </Border>
+                                        <TextBlock Text="Turn Up only" Style="{StaticResource STitle}" />
+                                        <TextBlock Text="5-knob mixer over USB serial" Style="{StaticResource SSub}" />
+                                    </StackPanel>
+                                    <mi:MaterialIcon x:Name="ModeCheckTurnUp" Kind="CheckCircle" Style="{StaticResource HwModeCheck}" />
+                                </Grid>
+                            </Border>
+                            <Border x:Name="ModeCardStreamController" Tag="2" Style="{StaticResource HwModeCard}" MouseLeftButtonUp="ModeCard_Click">
+                                <Grid>
+                                    <StackPanel>
+                                        <Border Style="{StaticResource STile}" HorizontalAlignment="Left" Margin="0,0,0,10">
+                                            <mi:MaterialIcon Kind="ViewGridOutline" Style="{StaticResource STileIcon}" />
+                                        </Border>
+                                        <TextBlock Text="Stream Controller only" Style="{StaticResource STitle}" />
+                                        <TextBlock Text="N3 LCD keys and knobs" Style="{StaticResource SSub}" />
+                                    </StackPanel>
+                                    <mi:MaterialIcon x:Name="ModeCheckStreamController" Kind="CheckCircle" Style="{StaticResource HwModeCheck}" />
+                                </Grid>
+                            </Border>
+                            <Border x:Name="ModeCardBoth" Tag="3" Style="{StaticResource HwModeCard}" MouseLeftButtonUp="ModeCard_Click">
+                                <Grid>
+                                    <StackPanel>
+                                        <Border Style="{StaticResource STile}" HorizontalAlignment="Left" Margin="0,0,0,10">
+                                            <mi:MaterialIcon Kind="LinkVariant" Style="{StaticResource STileIcon}" />
+                                        </Border>
+                                        <TextBlock Text="Both" Style="{StaticResource STitle}" />
+                                        <TextBlock Text="Run both controllers at once" Style="{StaticResource SSub}" />
+                                    </StackPanel>
+                                    <mi:MaterialIcon x:Name="ModeCheckBoth" Kind="CheckCircle" Style="{StaticResource HwModeCheck}" />
+                                </Grid>
+                            </Border>
+                        </UniformGrid>
+
+                        <StackPanel x:Name="ActiveSurfacePanel" Visibility="Collapsed" Margin="2,12,0,0">
+                            <TextBlock Text="Active surface" Style="{StaticResource SField}"
+                                       ToolTip="Which surface drives the Mixer, Buttons, and Lights tabs when both devices are available" />
+                            <controls:SegmentedControl x:Name="SegActiveSurface" HorizontalAlignment="Left" MinWidth="360" />
+                        </StackPanel>
+
+                        <!-- Device cards -->
+                        <StackPanel Orientation="Horizontal" Margin="2,22,0,10">
+                            <Border Style="{StaticResource SBar}" Height="14" Margin="0,0,8,0" />
+                            <TextBlock Text="DEVICES" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TextSecBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <UniformGrid x:Name="DeviceCardGrid" Columns="2" Margin="-6,0,-6,0">
+
+                            <!-- Turn Up -->
+                            <Border x:Name="DevCardTurnUp" Style="{StaticResource HwDeviceCard}">
+                                <StackPanel>
+                                    <Border Style="{StaticResource HwDeviceStage}">
+                                        <Grid>
+                                            <Viewbox x:Name="ArtTurnUp" Stretch="Uniform" Margin="18">
+                                                <Canvas Width="360" Height="150">
+                                                    <Rectangle Width="360" Height="150" RadiusX="22" RadiusY="22" Stroke="#33FFFFFF" StrokeThickness="1.5">
+                                                        <Rectangle.Fill>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                                <GradientStop Color="#FF2A2D33" Offset="0" />
+                                                                <GradientStop Color="#FF15171B" Offset="1" />
+                                                            </LinearGradientBrush>
+                                                        </Rectangle.Fill>
+                                                    </Rectangle>
+                                                    <!-- 5 knobs: accent LED ring + dark cap + pointer -->
+                                                    <Ellipse Canvas.Left="20" Canvas.Top="18" Width="56" Height="56" Stroke="{DynamicResource AccentBrush}" StrokeThickness="3" Opacity="0.85" />
+                                                    <Ellipse Canvas.Left="27" Canvas.Top="25" Width="42" Height="42" Fill="#FF0E0F12" Stroke="#44FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="47" Canvas.Top="29" Width="2" Height="12" RadiusX="1" RadiusY="1" Fill="#DDFFFFFF" />
+                                                    <Ellipse Canvas.Left="88" Canvas.Top="18" Width="56" Height="56" Stroke="{DynamicResource AccentBrush}" StrokeThickness="3" Opacity="0.85" />
+                                                    <Ellipse Canvas.Left="95" Canvas.Top="25" Width="42" Height="42" Fill="#FF0E0F12" Stroke="#44FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="115" Canvas.Top="29" Width="2" Height="12" RadiusX="1" RadiusY="1" Fill="#DDFFFFFF" />
+                                                    <Ellipse Canvas.Left="156" Canvas.Top="18" Width="56" Height="56" Stroke="{DynamicResource AccentBrush}" StrokeThickness="3" Opacity="0.85" />
+                                                    <Ellipse Canvas.Left="163" Canvas.Top="25" Width="42" Height="42" Fill="#FF0E0F12" Stroke="#44FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="183" Canvas.Top="29" Width="2" Height="12" RadiusX="1" RadiusY="1" Fill="#DDFFFFFF" />
+                                                    <Ellipse Canvas.Left="224" Canvas.Top="18" Width="56" Height="56" Stroke="{DynamicResource AccentBrush}" StrokeThickness="3" Opacity="0.85" />
+                                                    <Ellipse Canvas.Left="231" Canvas.Top="25" Width="42" Height="42" Fill="#FF0E0F12" Stroke="#44FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="251" Canvas.Top="29" Width="2" Height="12" RadiusX="1" RadiusY="1" Fill="#DDFFFFFF" />
+                                                    <Ellipse Canvas.Left="292" Canvas.Top="18" Width="56" Height="56" Stroke="{DynamicResource AccentBrush}" StrokeThickness="3" Opacity="0.85" />
+                                                    <Ellipse Canvas.Left="299" Canvas.Top="25" Width="42" Height="42" Fill="#FF0E0F12" Stroke="#44FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="319" Canvas.Top="29" Width="2" Height="12" RadiusX="1" RadiusY="1" Fill="#DDFFFFFF" />
+                                                    <!-- 5 buttons -->
+                                                    <Rectangle Canvas.Left="26" Canvas.Top="98" Width="44" Height="30" RadiusX="7" RadiusY="7" Fill="#FF22252B" Stroke="#40FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="94" Canvas.Top="98" Width="44" Height="30" RadiusX="7" RadiusY="7" Fill="#FF22252B" Stroke="#40FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="162" Canvas.Top="98" Width="44" Height="30" RadiusX="7" RadiusY="7" Fill="#FF22252B" Stroke="#40FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="230" Canvas.Top="98" Width="44" Height="30" RadiusX="7" RadiusY="7" Fill="#FF22252B" Stroke="#40FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="298" Canvas.Top="98" Width="44" Height="30" RadiusX="7" RadiusY="7" Fill="#FF22252B" Stroke="#40FFFFFF" StrokeThickness="1" />
+                                                </Canvas>
+                                            </Viewbox>
+                                            <Image x:Name="ImgTurnUp" Visibility="Collapsed" Stretch="Uniform" Margin="14"
+                                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                                        </Grid>
+                                    </Border>
+                                    <StackPanel Margin="18,14,18,18">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Turn Up" FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock Text="5 knobs · 5 buttons · 15 RGB LEDs" Style="{StaticResource SSub}" />
+                                            </StackPanel>
+                                            <Border Grid.Column="1" Style="{StaticResource SPill}" Margin="8,0,0,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse x:Name="ConnectionDot" Style="{StaticResource SDot}" Fill="{DynamicResource DangerRedBrush}" />
+                                                    <TextBlock x:Name="TxtConnectionStatus" Text="Disconnected" Style="{StaticResource SStatusText}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+
+                                        <TextBlock Text="Port" Style="{StaticResource SField}" Margin="0,16,0,6"
+                                                   ToolTip="Select the COM port for your AmpUp hardware" />
+                                        <WrapPanel Orientation="Horizontal">
+                                            <controls:ListPicker x:Name="CmbSerialPort" Width="160" Margin="0,0,8,8" VerticalAlignment="Center"
+                                                                 ToolTip="Available COM ports — select the one for your AmpUp hardware" />
+                                            <ui:Button x:Name="BtnRefreshPorts" Content="Refresh" Style="{StaticResource SButton}"
+                                                       ToolTip="Rescan for available COM ports">
+                                                <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
+                                            </ui:Button>
+                                            <ui:Button x:Name="BtnAutoDetect" Content="Auto-detect" Style="{StaticResource SButton}" Appearance="Primary"
+                                                       ToolTip="Automatically find the AmpUp hardware by probing available ports" />
+                                        </WrapPanel>
+
+                                        <Border Style="{StaticResource SDivider}" Margin="0,6,0,10" />
+                                        <StackPanel Orientation="Horizontal" Cursor="Hand" Background="Transparent"
+                                                    x:Name="AdvancedToggle" MouseLeftButtonDown="AdvancedToggle_Click">
+                                            <mi:MaterialIcon x:Name="AdvancedArrow" Kind="ChevronRight" Width="16" Height="16"
+                                                             Foreground="{DynamicResource TextDimBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock Text="Connection settings" FontSize="12" Foreground="{DynamicResource TextSecBrush}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <StackPanel x:Name="AdvancedSection" Visibility="Collapsed" Margin="22,12,0,0">
+                                            <TextBlock Text="Serial port" Style="{StaticResource SField}"
+                                                       ToolTip="COM port for the AmpUp hardware (e.g. COM3)" />
+                                            <ui:TextBox x:Name="TxtSerialPort" Style="{StaticResource SInput}" MaxWidth="220" HorizontalAlignment="Left" Width="220"
+                                                        PlaceholderText="COM3" Margin="0,0,0,12"
+                                                        ToolTip="COM port for the AmpUp hardware (e.g. COM3)" />
+                                            <TextBlock Text="Baud rate" Style="{StaticResource SField}"
+                                                       ToolTip="Communication speed — leave at 115200" />
+                                            <ui:TextBox x:Name="TxtBaudRate" Style="{StaticResource SInput}" MaxWidth="220" HorizontalAlignment="Left" Width="220"
+                                                        PlaceholderText="115200"
+                                                        ToolTip="Communication speed — leave at 115200" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Stream Controller (TreasLin N3) -->
+                            <Border x:Name="DevCardStreamController" Style="{StaticResource HwDeviceCard}">
+                                <StackPanel>
+                                    <Border Style="{StaticResource HwDeviceStage}">
+                                        <Grid>
+                                            <Viewbox x:Name="ArtStreamController" Stretch="Uniform" Margin="18">
+                                                <Canvas Width="300" Height="170">
+                                                    <Rectangle Width="300" Height="170" RadiusX="22" RadiusY="22" Stroke="#33FFFFFF" StrokeThickness="1.5">
+                                                        <Rectangle.Fill>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                                <GradientStop Color="#FF2A2D33" Offset="0" />
+                                                                <GradientStop Color="#FF15171B" Offset="1" />
+                                                            </LinearGradientBrush>
+                                                        </Rectangle.Fill>
+                                                    </Rectangle>
+                                                    <!-- 2x3 LCD keys -->
+                                                    <Rectangle Canvas.Left="20" Canvas.Top="18" Width="54" Height="54" RadiusX="9" RadiusY="9" Fill="{DynamicResource AccentBg30Brush}" Stroke="{DynamicResource AccentBorder55Brush}" StrokeThickness="1.5" />
+                                                    <Rectangle Canvas.Left="84" Canvas.Top="18" Width="54" Height="54" RadiusX="9" RadiusY="9" Fill="#FF1B2B3A" Stroke="#40FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="148" Canvas.Top="18" Width="54" Height="54" RadiusX="9" RadiusY="9" Fill="#FF2E1F3A" Stroke="#40FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="20" Canvas.Top="82" Width="54" Height="54" RadiusX="9" RadiusY="9" Fill="#FF3A2A1B" Stroke="#40FFFFFF" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="84" Canvas.Top="82" Width="54" Height="54" RadiusX="9" RadiusY="9" Fill="{DynamicResource AccentBg30Brush}" Stroke="{DynamicResource AccentBorder55Brush}" StrokeThickness="1.5" />
+                                                    <Rectangle Canvas.Left="148" Canvas.Top="82" Width="54" Height="54" RadiusX="9" RadiusY="9" Fill="#FF1B3A2E" Stroke="#40FFFFFF" StrokeThickness="1" />
+                                                    <!-- 3 side buttons -->
+                                                    <Rectangle Canvas.Left="20" Canvas.Top="146" Width="54" Height="10" RadiusX="5" RadiusY="5" Fill="#FF2C3036" />
+                                                    <Rectangle Canvas.Left="84" Canvas.Top="146" Width="54" Height="10" RadiusX="5" RadiusY="5" Fill="#FF2C3036" />
+                                                    <Rectangle Canvas.Left="148" Canvas.Top="146" Width="54" Height="10" RadiusX="5" RadiusY="5" Fill="#FF2C3036" />
+                                                    <!-- 3 knobs -->
+                                                    <Ellipse Canvas.Left="228" Canvas.Top="16" Width="44" Height="44" Fill="#FF0E0F12" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" Opacity="0.9" />
+                                                    <Rectangle Canvas.Left="249" Canvas.Top="21" Width="2" Height="10" RadiusX="1" RadiusY="1" Fill="#DDFFFFFF" />
+                                                    <Ellipse Canvas.Left="228" Canvas.Top="66" Width="44" Height="44" Fill="#FF0E0F12" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" Opacity="0.9" />
+                                                    <Rectangle Canvas.Left="249" Canvas.Top="71" Width="2" Height="10" RadiusX="1" RadiusY="1" Fill="#DDFFFFFF" />
+                                                    <Ellipse Canvas.Left="228" Canvas.Top="116" Width="44" Height="44" Fill="#FF0E0F12" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" Opacity="0.9" />
+                                                    <Rectangle Canvas.Left="249" Canvas.Top="121" Width="2" Height="10" RadiusX="1" RadiusY="1" Fill="#DDFFFFFF" />
+                                                </Canvas>
+                                            </Viewbox>
+                                            <Image x:Name="ImgStreamController" Visibility="Collapsed" Stretch="Uniform" Margin="14"
+                                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                                        </Grid>
+                                    </Border>
+                                    <StackPanel Margin="18,14,18,18">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Stream Controller" FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock Text="TreasLin N3 · 6 LCD keys · 3 knobs" Style="{StaticResource SSub}" />
+                                            </StackPanel>
+                                            <Border Grid.Column="1" Style="{StaticResource SPill}" Margin="8,0,0,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse x:Name="N3ConnectionDot" Style="{StaticResource SDot}" Fill="{DynamicResource DangerRedBrush}" />
+                                                    <TextBlock x:Name="TxtN3ConnectionStatus" Text="Not detected" Style="{StaticResource SStatusText}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+
+                                        <TextBlock x:Name="TxtN3IdleSleepLabel" Text="Stream Controller Screen Sleep: 10m" Style="{StaticResource SField}" Margin="0,16,0,6"
+                                                   ToolTip="Blank the N3 LCD screens after this long with no keyboard/mouse activity. Drag to Never to keep them lit." />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" MinWidth="140" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <controls:StyledSlider x:Name="SldN3IdleSleep" Minimum="0" Maximum="11"
+                                                                   Step="1" ShowLabel="False" VerticalAlignment="Center" />
+                                            <ui:Button x:Name="BtnN3SleepNow" Grid.Column="1" Content="Sleep now"
+                                                       Appearance="Secondary" Height="32" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                       ToolTip="Blank the N3 screens right now. Any keyboard/mouse input wakes them back up." />
+                                        </Grid>
+                                        <TextBlock Text="Connects automatically over USB HID — no port to pick." Style="{StaticResource SHint}" Margin="0,12,0,0" />
+                                        <ui:Button x:Name="BtnBuyN3" Content="Buy on Amazon" Style="{StaticResource SButton}" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                                   ToolTip="Open the TreasLin N3 listing on Amazon">
+                                            <ui:Button.Icon><ui:SymbolIcon Symbol="Cart24" /></ui:Button.Icon>
+                                        </ui:Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+                    </StackPanel>
                 </Border>
 
                 <!-- â•â•â• GENERAL â•â•â• -->

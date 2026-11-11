@@ -112,6 +112,7 @@ public partial class SettingsView : UserControl
         CmbSerialPort.SelectionChanged += OnPortComboSelectionChanged;
         BtnRefreshPorts.Click += (_, _) => RefreshPortList();
         BtnAutoDetect.Click += OnAutoDetect;
+        InitDevicesPage();
 
         // Integration events
         ChkHaEnabled.Checked += OnValueChanged;
@@ -910,6 +911,7 @@ public partial class SettingsView : UserControl
 
     public void RefreshActiveSurfaceVisibility()
     {
+        RefreshDevicesPage();
         if (_config == null) return;
         bool show = _config.HardwareMode == HardwareMode.DualMode;
         ActiveSurfacePanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
