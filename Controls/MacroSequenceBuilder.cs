@@ -707,8 +707,8 @@ public sealed class MacroSequenceBuilder
         var chip = new Border
         {
             Child = sp,
-            Background = new SolidColorBrush(ThemeManager.WithAlpha(p, editing ? 0x2E : 0x1A)),
-            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(p, editing ? 0xDD : 0x77)),
+            Background = new SolidColorBrush(ThemeManager.WithAlpha(p, (byte)(editing ? 0x2E : 0x1A))),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(p, (byte)(editing ? 0xDD : 0x77))),
             BorderThickness = new Thickness(1.5),
             CornerRadius = new CornerRadius((_capSize + 8) / 2),
             Padding = new Thickness(10, 0, 11, 0),
