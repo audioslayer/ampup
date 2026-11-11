@@ -7,6 +7,10 @@ echo.
 
 cd /d "%~dp0"
 
+rem Rainmeter/other launchers may pass a stale PATH; make sure dotnet is reachable
+where dotnet >nul 2>nul || set "PATH=%ProgramFiles%\dotnet;%PATH%"
+
+
 echo [1/5] Pulling latest from GitHub...
 git pull --ff-only
 if errorlevel 1 (

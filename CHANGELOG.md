@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- Macro sequences with pauses: Send keystroke can now chain steps and waits (e.g. Ctrl+1, wait 500ms, 2) using a chip-based builder with Add pause, reorder and delete; sequences run in the background and a press while one is running is ignored.
+
+### Changed
+- Keystroke recorder redesigned: keycap preview and a big Record button now lead the Send keystroke / Hold key options (Turn Up, Stream Controller and multi-action steps), with typing moved to an "Edit as text" fallback. The recorder dialog uses the app's modal style, shows a pulsing recording state, and supports Re-record, Clear, Esc to stop recording, and Save / Cancel.
+
 ## [1.4.5] - 2026-11-10
 
 ### Added

@@ -1460,18 +1460,8 @@ public partial class ButtonsView
         var box = MakeEditorTextBox("ctrl+shift+m  or  f13");
         box.TextChanged += (_, _) => { if (!_loading) QueueSave(); };
 
-        // Text box + "record keystroke" button on one line
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(box, 0);
-        var rec = KeyCaptureDialog.MakeRecordButton(box);
-        rec.Height = 36;
-        rec.Margin = new Thickness(6, 0, 0, 8);
-        Grid.SetColumn(rec, 1);
-        row.Children.Add(box);
-        row.Children.Add(rec);
-        panel.Children.Add(row);
+        // Keycap preview + big Record button first; the text box is the "Edit as text" fallback
+        panel.Children.Add(KeyCaptureDialog.MakeRecorder(box));
         return (panel, box);
     }
 
@@ -4565,7 +4555,7 @@ public partial class ButtonsView
             btn.ActionSequence[idx].MacroKeys = macroBox.Text;
             QueueSave();
         };
-        macroPanel.Children.Add(macroBox);
+        macroPanel.Children.Add(KeyCaptureDialog.MakeRecorder(macroBox));
 
         void RefreshOptionalRows()
         {

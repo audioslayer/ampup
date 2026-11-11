@@ -1662,11 +1662,12 @@ public partial class ButtonsView : UserControl
     // Category groupings for the action picker
     private static readonly (string Category, string[] Values)[] ActionCategories =
     {
+        ("Macro",           new[] { "macro", "macro_hold" }),
         ("Media",           new[] { "media_play_pause", "media_next", "media_prev", "chrome_play_pause", "chrome_next", "chrome_prev" }),
         ("Mute",            new[] { "mute_master", "mute_mic", "mute_program", "mute_active_window", "mute_app_group", "mute_device", "mute_input_device" }),
         ("App Control",     new[] { "launch_exe", "close_program", "add_active_app_to_group", "open_url", "type_text", "screenshot" }),
         ("Device",          new[] { "cycle_output", "cycle_input", "select_output", "select_input" }),
-        ("System",          new[] { "none", "macro", "macro_hold", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
+        ("System",          new[] { "none", "switch_profile", "cycle_profile", "cycle_brightness", "quick_wheel" }),
         ("Advanced",        new[] { "multi_action", "toggle_action", "open_folder" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Room",            new[] { "room_toggle", "room_effect", "room_screen_sync", "room_vu_fill", "room_music_reactive", "room_game_mode" }),
@@ -1688,6 +1689,7 @@ public partial class ButtonsView : UserControl
         string[] Get(string n) => byName.TryGetValue(n, out var v) ? v : Array.Empty<string>();
         return new[]
         {
+            ("Macro", Get("Macro")),
             ("Media", Get("Media")),
             ("Mute", Get("Mute")),
             ("App Control", Get("App Control")),
@@ -1825,23 +1827,15 @@ public partial class ButtonsView : UserControl
             BorderBrush = FindBrush("InputBorderBrush"),
             Padding = new Thickness(6, 4, 6, 4),
             FontSize = 11,
-            ToolTip = "Type a shortcut (e.g. ctrl+shift+m, f13) or click the keyboard button to record it",
+            ToolTip = "Type a shortcut, e.g. ctrl+shift+m or f13",
             VerticalContentAlignment = VerticalAlignment.Center,
         };
         box.Tag = placeholder;
         box.Text = "";
         SetPlaceholder(box);
 
-        // Text box + "record keystroke" button on one line
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(box, 0);
-        var rec = KeyCaptureDialog.MakeRecordButton(box);
-        Grid.SetColumn(rec, 1);
-        row.Children.Add(box);
-        row.Children.Add(rec);
-        container.Children.Add(row);
+        // Keycap preview + big Record button first; the text box is the "Edit as text" fallback
+        container.Children.Add(KeyCaptureDialog.MakeRecorder(box));
         return (container, box);
     }
 

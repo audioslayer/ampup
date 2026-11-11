@@ -1327,8 +1327,12 @@ public class ButtonHandler : IDisposable
     private static void ExecuteMacro(string macroKeys)
     {
         if (string.IsNullOrWhiteSpace(macroKeys)) return;
-        try { KeyboardInjector.Tap(macroKeys); }
-        catch (Exception ex) { Logger.Log($"macro error: {ex.Message}"); }
+        // Sequences ("ctrl+1 wait:500 2") run off the serial/UI thread; a press while one is running is ignored.
+        KeyboardInjector.RunSequenceAsync(macroKeys).ContinueWith(t =>
+        {
+            if (t.IsFaulted) Logger.Log($"macro error: {t.Exception?.GetBaseException().Message}");
+            else if (!t.Result) Logger.Log("macro ignored: previous sequence still running");
+        }, TaskScheduler.Default);
     }
 
     // ── Hold-while-pressed keys (macro_hold) ─────────────────────────
@@ -1346,7 +1350,7 @@ public class ButtonHandler : IDisposable
             lock (_heldKeysLock)
             {
                 if (_heldKeys.ContainsKey(idx)) return;
-                _heldKeys[idx] = KeyboardInjector.Hold(btn.MacroKeys);
+                _heldKeys[idx] = KeyboardInjector.Hold(KeyboardInjector.FirstCombo(btn.MacroKeys));
             }
         }
         catch (Exception ex) { Logger.Log($"macro_hold down error: {ex.Message}"); }

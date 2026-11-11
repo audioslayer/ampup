@@ -73,6 +73,7 @@ public class QuickActionPicker : Border
     // Category "palette" — icons + accent colors to make the chip bar feel lively
     private static readonly Dictionary<string, (MaterialIconKind? Icon, string Fallback, Color Color)> CategoryStyles = new(StringComparer.OrdinalIgnoreCase)
     {
+        { "MACRO",             (MaterialIconKind.Keyboard,       "\u2328", Color.FromRgb(0xFF, 0xD5, 0x4F)) },
         { "MEDIA",             (MaterialIconKind.MusicNote,      "\u266B", Color.FromRgb(0x00, 0xE6, 0x76)) },
         { "MUTE",              (MaterialIconKind.VolumeOff,      "\uD83D\uDD07", Color.FromRgb(0xFF, 0x52, 0x52)) },
         { "APP CONTROL",       (MaterialIconKind.AppsBox,        "\u2B21", Color.FromRgb(0x44, 0x8A, 0xFF)) },

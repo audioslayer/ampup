@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace AmpUp.Services;
 
@@ -126,6 +127,81 @@ public static class KeyboardInjector
         return (mods, keys);
     }
 
+    // ── Sequences ─────────────────────────────────────────────────────
+
+    public const int MinDelayMs = 10;
+    public const int MaxDelayMs = 60000;
+
+    /// <summary>One step of a macro sequence: a combo to tap, or a pause (Combo == null).</summary>
+    public readonly record struct MacroStep(string? Combo, int DelayMs)
+    {
+        public bool IsDelay => Combo == null;
+        public override string ToString() => Combo ?? $"wait:{DelayMs}";
+    }
+
+    public static int ClampDelay(int ms) => Math.Clamp(ms, MinDelayMs, MaxDelayMs);
+
+    /// <summary>
+    /// Split a sequence ("ctrl+1 wait:500 2") into steps. Steps are whitespace-separated; a step is a
+    /// combo or "wait:N" (ms, clamped 10..60000). A single combo with no spaces is a one-step sequence.
+    /// </summary>
+    public static List<MacroStep> ParseSequence(string? seq)
+    {
+        var steps = new List<MacroStep>();
+        if (string.IsNullOrWhiteSpace(seq)) return steps;
+        foreach (var tok in seq.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (tok.StartsWith("wait:", StringComparison.OrdinalIgnoreCase))
+            {
+                if (int.TryParse(tok.AsSpan(5), out int ms)) steps.Add(new MacroStep(null, ClampDelay(ms)));
+                continue;
+            }
+            steps.Add(new MacroStep(tok.ToLowerInvariant(), 0));
+        }
+        return steps;
+    }
+
+    /// <summary>Join steps back into the stored sequence string.</summary>
+    public static string FormatSequence(IEnumerable<MacroStep> steps) => string.Join(" ", steps);
+
+    /// <summary>First combo step of a sequence (used by hold-while-pressed); "" if none.</summary>
+    public static string FirstCombo(string? seq)
+    {
+        foreach (var s in ParseSequence(seq)) if (!s.IsDelay) return s.Combo!;
+        return "";
+    }
+
+    private static int _sequenceRunning;
+
+    public static bool IsSequenceRunning => Volatile.Read(ref _sequenceRunning) != 0;
+
+    /// <summary>
+    /// Run a sequence off the calling thread: taps each combo (chords pressed together) and waits for
+    /// pauses. Returns false without running if another sequence is still in progress (no overlap).
+    /// </summary>
+    public static Task<bool> RunSequenceAsync(string seq, CancellationToken ct = default)
+    {
+        var steps = ParseSequence(seq);
+        if (steps.Count == 0) return Task.FromResult(true);
+        if (Interlocked.CompareExchange(ref _sequenceRunning, 1, 0) != 0) return Task.FromResult(false);
+
+        return Task.Run(async () =>
+        {
+            try
+            {
+                foreach (var step in steps)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    if (step.IsDelay) await Task.Delay(step.DelayMs, ct).ConfigureAwait(false);
+                    else Tap(step.Combo!);
+                }
+            }
+            catch (OperationCanceledException) { }
+            finally { Volatile.Write(ref _sequenceRunning, 0); }
+            return true;
+        });
+    }
+
     // ── Sending ───────────────────────────────────────────────────────
 
     /// <summary>Press and release a combo (modifiers held around the keys).</summary>
@@ -135,12 +211,10 @@ public static class KeyboardInjector
         if (mods.Count == 0 && keys.Count == 0) return;
 
         foreach (var m in mods) { Send(m, false); Thread.Sleep(4); }
-        foreach (var k in keys)
-        {
-            Send(k, false);
-            Thread.Sleep(12);
-            Send(k, true);
-        }
+        // Press every key before releasing any, so "t+y" is a true chord (both down together).
+        foreach (var k in keys) { Send(k, false); Thread.Sleep(4); }
+        Thread.Sleep(12);
+        for (int i = keys.Count - 1; i >= 0; i--) Send(keys[i], true);
         for (int i = mods.Count - 1; i >= 0; i--) Send(mods[i], true);
     }
 
