@@ -1744,7 +1744,6 @@ public partial class ButtonsView : UserControl
                 if (isGovee && !goveeEnabled && !anyGoveeConfigured) continue;
                 if (isObs && !obsEnabled && !anyObsConfigured) continue;
                 if (isVm && !vmEnabled && !anyVmConfigured) continue;
-                if (isDiscord) continue; // RPC voice scopes are partner-only.
                 if (isGroup && !groupsExist && !anyGroupConfigured) continue;
                 if (isScPage && !showScPageActions) continue;
                 if (isN3Composite && !showN3CompositeActions) continue;
@@ -1781,6 +1780,8 @@ public partial class ButtonsView : UserControl
         picker.AddActionGroup("group_chrome", "Chrome Media", "▶",
             Color.FromRgb(0x42, 0x85, 0xF4),
             new[] { "chrome_play_pause", "chrome_next", "chrome_prev" });
+        picker.AddActionGroup("group_discord", "Discord", "D",
+            Color.FromRgb(0x58, 0x65, 0xF2), DiscordActionValues);
         picker.AddActionGroup("group_pocketcasts", "Pocket Casts", "P",
             Color.FromRgb(0xF4, 0x3E, 0x37),
             new[] { "pocketcasts_open", "pocketcasts_play_pause", "pocketcasts_skip_back", "pocketcasts_skip_forward" });
@@ -1807,7 +1808,6 @@ public partial class ButtonsView : UserControl
             picker.AddCategory(category);
             foreach (var value in values)
             {
-                if (IsDiscordAction(value)) continue;
                 if (IsN3CompositeAction(value) && !showN3CompositeActions) continue;
                 if (!ActionLookup.TryGetValue(value, out var action)) continue;
                 var icon = ActionIcons.GetValueOrDefault(value, "—");

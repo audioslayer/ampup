@@ -982,8 +982,8 @@ public partial class ButtonsView
 
         AddIntegrationGroup("group_discord", "Discord", "D",
             Color.FromRgb(0x58, 0x65, 0xF2), "Integrations",
-            "Unavailable: Discord restricts RPC voice controls to approved partners",
-            discordChildren, enabled: false);
+            "Mute, deafen, push-to-talk and more. Needs Discord tester access (Settings > Integrations > Discord)",
+            discordChildren, enabled: true);
 
         AddIntegrationGroup("group_ha", "Home Assistant", "⚡",
             Color.FromRgb(0x26, 0xC6, 0xDA), "Integrations",
