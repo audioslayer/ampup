@@ -215,7 +215,7 @@ public partial class GroupsView : UserControl
             glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty,
                 new System.Windows.Media.Animation.DoubleAnimation(opacity, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
         }
-        card.MouseEnter += (_, _) => Animate(-2, 0.35);
+        card.MouseEnter += (_, _) => Animate(-2, 0.10);
         card.MouseLeave += (_, _) => Animate(0, 0);
     }
 
@@ -243,7 +243,7 @@ public partial class GroupsView : UserControl
             HorizontalAlignment = HorizontalAlignment.Center,
             Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x1E)),
             BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66)),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 0, Opacity = 0.5, Color = a },
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.25, Color = a },
             Child = new MaterialIcon { Kind = icon, Width = 32, Height = 32, Foreground = new SolidColorBrush(a) },
         };
         stack.Children.Add(tile);
@@ -321,7 +321,7 @@ public partial class GroupsView : UserControl
             VerticalAlignment = VerticalAlignment.Top,
             CornerRadius = new CornerRadius(15, 15, 0, 0),
             IsHitTestVisible = false,
-            Background = new LinearGradientBrush(ThemeManager.WithAlpha(color, 0x1C), ThemeManager.WithAlpha(color, 0x00), 90),
+            Background = new LinearGradientBrush(ThemeManager.WithAlpha(color, 0x0A), ThemeManager.WithAlpha(color, 0x00), 90),
         };
         Grid.SetColumnSpan(wash, 2);
         outer.Children.Add(wash);
@@ -332,7 +332,6 @@ public partial class GroupsView : UserControl
             CornerRadius = new CornerRadius(2),
             Margin = new Thickness(0, 16, 0, 16),
             Background = new SolidColorBrush(color),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 10, ShadowDepth = 0, Opacity = 0.6, Color = color },
         };
         outer.Children.Add(bar);
 
@@ -469,111 +468,88 @@ public partial class GroupsView : UserControl
     private FrameworkElement BuildMemberList(string key, IReadOnlyList<MemberRow> rows, string emptyText,
         string addLabel, Action<FrameworkElement> onAdd, Func<MemberRow, FrameworkElement>? rowFactory = null)
     {
-        rowFactory ??= BuildMemberRowElement;
-        var list = new Border
-        {
-            CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(4),
-        };
-        list.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-        list.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        // Members as a wrapping row of compact chips (no table rows), then show-all + add chips.
+        rowFactory ??= BuildMemberChip;
         var stack = new StackPanel();
-        list.Child = stack;
-
         if (rows.Count == 0)
         {
-            var none = new TextBlock { Text = emptyText, FontSize = 11, Margin = new Thickness(10, 8, 10, 8) };
+            var none = new TextBlock { Text = emptyText, FontSize = 11, Margin = new Thickness(2, 0, 0, 8) };
             none.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
             stack.Children.Add(none);
         }
 
+        var wrap = new WrapPanel();
+        stack.Children.Add(wrap);
         bool expanded = _expanded.Contains(key);
         int shown = expanded ? rows.Count : Math.Min(rows.Count, CollapsedRowCount);
         for (int i = 0; i < shown; i++)
-            stack.Children.Add(rowFactory(rows[i]));
+            wrap.Children.Add(rowFactory(rows[i]));
 
         if (rows.Count > CollapsedRowCount)
         {
             var toggle = BuildLinkRow(
                 expanded ? MaterialIconKind.ChevronUp : MaterialIconKind.ChevronDown,
-                expanded ? "Show less" : $"Show all {rows.Count}",
+                expanded ? "Show less" : $"+{rows.Count - CollapsedRowCount} more",
                 accent: false);
+            toggle.Margin = new Thickness(0, 0, 8, 8);
             toggle.MouseLeftButtonUp += (_, _) =>
             {
                 if (!_expanded.Remove(key)) _expanded.Add(key);
                 RebuildGroupPanel();
             };
-            stack.Children.Add(toggle);
+            wrap.Children.Add(toggle);
         }
 
-        var add = BuildLinkRow(MaterialIconKind.Plus, addLabel, accent: true);
-        add.MouseLeftButtonUp += (_, _) => onAdd(add);
-        stack.Children.Add(add);
-        return list;
+        Border? add = null;
+        add = BuildAddAppsChip(addLabel, () => onAdd(add!));
+        wrap.Children.Add(add);
+        return stack;
     }
 
-    private FrameworkElement BuildMemberRowElement(MemberRow r)
+    /// <summary>Compact member chip: type icon, name, type label (clickable when it has an action), x on hover.</summary>
+    private FrameworkElement BuildMemberChip(MemberRow r)
     {
-        var row = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6, 4, 6), Background = Brushes.Transparent };
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.Child = grid;
+        var chip = new Border
+        {
+            CornerRadius = new CornerRadius(12),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 6, 4, 6),
+            Margin = new Thickness(0, 0, 8, 8),
+        };
+        chip.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        chip.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        chip.Child = sp;
 
-        r.Icon.Margin = new Thickness(0, 0, 10, 0);
+        r.Icon.Margin = new Thickness(0, 0, 8, 0);
         r.Icon.VerticalAlignment = VerticalAlignment.Center;
-        grid.Children.Add(r.Icon);
+        sp.Children.Add(r.Icon);
 
-        var nameRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        var name = new TextBlock
-        {
-            Text = r.Name,
-            FontSize = 12,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            FontStyle = r.Dim ? FontStyles.Italic : FontStyles.Normal,
-        };
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var name = new TextBlock { Text = r.Name, FontSize = 12, FontWeight = FontWeights.SemiBold, MaxWidth = 200, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = r.Detail };
         name.SetResourceReference(TextBlock.ForegroundProperty, r.Dim ? "TextSecBrush" : "TextPrimaryBrush");
-        nameRow.Children.Add(name);
-        if (!string.IsNullOrEmpty(r.Detail))
-        {
-            var detail = new TextBlock { Text = r.Detail, FontSize = 10.5, Margin = new Thickness(8, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
-            detail.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-            nameRow.Children.Add(detail);
-        }
-        Grid.SetColumn(nameRow, 1);
-        grid.Children.Add(nameRow);
-
-        var type = new TextBlock
-        {
-            Text = r.TypeText,
-            FontSize = 11,
-            Margin = new Thickness(12, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = r.TypeTooltip,
-        };
+        text.Children.Add(name);
+        var type = new TextBlock { Text = r.TypeText, FontSize = 10.5, MaxWidth = 200, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = r.TypeTooltip };
         type.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         if (r.OnTypeClick != null)
         {
             type.Cursor = Cursors.Hand;
-            type.MouseEnter += (_, _) => type.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            type.MouseEnter += (_, _) => type.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
             type.MouseLeave += (_, _) => type.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
             type.MouseLeftButtonUp += (_, e) => { e.Handled = true; r.OnTypeClick(); };
         }
-        Grid.SetColumn(type, 2);
-        grid.Children.Add(type);
+        text.Children.Add(type);
+        sp.Children.Add(text);
 
-        var remove = MakeIconButton(MaterialIconKind.Close, r.RemoveTooltip, danger: true, size: 24);
+        var remove = MakeIconButton(MaterialIconKind.Close, r.RemoveTooltip, danger: true, size: 22);
+        remove.Margin = new Thickness(6, 0, 0, 0);
         remove.Opacity = 0;
         remove.MouseLeftButtonUp += (_, e) => { e.Handled = true; r.OnRemove(); };
-        Grid.SetColumn(remove, 3);
-        grid.Children.Add(remove);
+        sp.Children.Add(remove);
 
-        row.MouseEnter += (_, _) => { row.SetResourceReference(Border.BackgroundProperty, "CardBgBrush"); remove.Opacity = 1; };
-        row.MouseLeave += (_, _) => { row.Background = Brushes.Transparent; remove.Opacity = 0; };
-        return row;
+        chip.MouseEnter += (_, _) => { chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x88)); remove.Opacity = 1; };
+        chip.MouseLeave += (_, _) => { chip.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush"); remove.Opacity = 0; };
+        return chip;
     }
 
     private Border BuildLinkRow(MaterialIconKind icon, string text, bool accent)
@@ -1058,13 +1034,15 @@ public partial class GroupsView : UserControl
 
         if (running)
         {
-            var green = Color.FromRgb(0x00, 0xDD, 0x77);
-            sp.Children.Add(new System.Windows.Shapes.Ellipse
+            // Playing now: tiny accent equalizer bars + thin accent ring on the chip.
+            var eq = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Playing audio now" };
+            foreach (var h in new[] { 6.0, 10.0, 7.0 })
             {
-                Width = 7, Height = 7, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-                Fill = new SolidColorBrush(green),
-                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 6, ShadowDepth = 0, Opacity = 0.8, Color = green },
-            });
+                var barEl = new Border { Width = 2, Height = h, CornerRadius = new CornerRadius(1), Margin = new Thickness(0, 0, 1.5, 0), VerticalAlignment = VerticalAlignment.Bottom, Opacity = 0.85 };
+                barEl.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+                eq.Children.Add(barEl);
+            }
+            sp.Children.Add(eq);
         }
 
         var remove = MakeIconButton(MaterialIconKind.Close, "Remove from group", danger: true, size: 22);
@@ -1073,6 +1051,11 @@ public partial class GroupsView : UserControl
         remove.MouseLeftButtonUp += (_, e) => { e.Handled = true; onRemove(); };
         sp.Children.Add(remove);
 
+        void SetRest()
+        {
+            if (running) chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x55));
+            else chip.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+        }
         chip.MouseEnter += (_, _) =>
         {
             chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x88));
@@ -1080,9 +1063,10 @@ public partial class GroupsView : UserControl
         };
         chip.MouseLeave += (_, _) =>
         {
-            chip.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+            SetRest();
             remove.Opacity = 0;
         };
+        SetRest();
         return chip;
     }
 
