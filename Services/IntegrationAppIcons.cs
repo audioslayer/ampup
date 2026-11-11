@@ -137,10 +137,10 @@ public static class IntegrationAppIcons
     }
 
     // Shipped logos for apps that commonly aren't installed on the AmpUp PC
-    // (OBS, VoiceMeeter) so the card still shows the real brand mark.
+    // (OBS, VoiceMeeter, Govee, SignalRGB, Corsair) so the card still shows the real brand mark.
     private static BitmapSource? LoadBundled(string app)
     {
-        if (app is not ("obs" or "voicemeeter")) return null;
+        if (app is not ("obs" or "voicemeeter" or "govee" or "signalrgb" or "corsair")) return null;
         var bmp = new BitmapImage();
         bmp.BeginInit();
         bmp.UriSource = new Uri($"pack://application:,,,/Assets/integrations/{app}.png", UriKind.Absolute);
