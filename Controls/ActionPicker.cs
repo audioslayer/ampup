@@ -721,9 +721,9 @@ public class ActionPicker : System.Windows.Controls.Border
         int restore = prevNavKey != null ? _navRows.FindIndex(r => Equals(r.Row.Tag, prevNavKey)) : -1;
         if (restore < 0 && _query.Length > 0 && _navRows.Count > 0) restore = 0;
         if (restore < 0 && _selectedRowVisual != null) restore = _navRows.FindIndex(r => r.Row == _selectedRowVisual);
-        // Expanding/collapsing a group rebuilds the list: keep the scroll position instead of
-        // letting BringIntoView jump (it fires before layout and lands at the bottom).
-        if (restore >= 0) SetNav(restore, bringIntoView: keepOffset <= 0);
+        // Expanding/collapsing a group rebuilds the list: never scroll here, so opening a
+        // submenu leaves the view where it is. (Opening the flyout scrolls to the selection itself.)
+        if (restore >= 0) SetNav(restore, bringIntoView: false);
 
         if (_scroll != null && keepOffset > 0)
         {

@@ -6,10 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [1.4.5] - 2026-11-10
 
 ### Added
+- Keystroke and hotkey actions send F1-F24 (including F13-F24), numpad, media and punctuation keys, using scan codes so games and apps accept them.
+- Record button in the keystroke editor captures a hotkey for you.
+- Hold-key action keeps keys held while the button is held (push-to-talk).
 - Chrome media button actions (Play/Pause, Next, Prev) control only Chrome's media session (e.g. YouTube), so they no longer grab Spotify the way the global media key can. Spotify actions already use the Spotify API directly.
+
+### Changed
+- The macro action is now labeled "Send keystroke / hotkey" and runs on the new input engine.
 
 ## [1.4.4] - 2026-10-27
 
