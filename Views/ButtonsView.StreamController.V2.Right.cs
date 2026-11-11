@@ -971,7 +971,7 @@ public partial class ButtonsView
             spotifyChildren, enabled: true);
 
         AddIntegrationGroup("group_chrome", "Chrome Media", "▶",
-            Color.FromRgb(0x42, 0x85, 0xF4), "Integrations",
+            Color.FromRgb(0x42, 0x85, 0xF4), "Media",
             "Play / pause and skip Chrome's media session (YouTube etc.) only",
             chromeChildren, enabled: true);
 
