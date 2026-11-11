@@ -3,8 +3,11 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using AmpUp.Controls;
 using Material.Icons;
+using Material.Icons.WPF;
 
 namespace AmpUp.Views;
 
@@ -99,6 +102,10 @@ public class BindingsView : UserControl
 
         Content = _scroll;
 
+        // View lives for the app's lifetime (MainWindow field), so a permanent subscription is fine.
+        ThemeManager.OnAccentChanged += OnThemeChanged;
+        ThemeManager.OnCardThemeChanged += OnThemeChanged;
+
         _colorTimer = new System.Windows.Threading.DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(100)
@@ -112,7 +119,12 @@ public class BindingsView : UserControl
                 UpdateCardColors();
         };
 
-        Loaded += (_, _) => { HookOwnerWindow(); UpdateColorTimerForWindowState(); };
+        Loaded += (_, _) =>
+        {
+            HookOwnerWindow();
+            UpdateColorTimerForWindowState();
+            if (_themeDirty) Rebuild();
+        };
         Unloaded += (_, _) => { UnhookOwnerWindow(); _colorTimer.Stop(); };
     }
 
@@ -195,80 +207,660 @@ public class BindingsView : UserControl
         Rebuild();
     }
 
+    /// <summary>
+    /// Live device status for the hero pills and device cards. Called by
+    /// MainWindow whenever either device connects or disconnects; repaints
+    /// the pills in place (no full rebuild).
+    /// </summary>
+    public void SetDeviceConnection(bool turnUpConnected, bool streamControllerConnected)
+    {
+        _turnUpConnected = turnUpConnected;
+        _streamControllerConnected = streamControllerConnected;
+        foreach (var paint in _connectionPainters) paint();
+    }
+
+    private bool _turnUpConnected, _streamControllerConnected;
+    private readonly List<Action> _connectionPainters = new();
+    private bool _themeDirty;
+
+    // Accent / card theme changed: rebuild now if on screen, otherwise on next Loaded.
+    private void OnThemeChanged()
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (IsLoaded) Rebuild();
+            else _themeDirty = true;
+        }));
+    }
+
     private void Rebuild()
     {
         if (_config == null) return;
+        _themeDirty = false;
         _root.Children.Clear();
         Array.Clear(_knobCards);
+        _connectionPainters.Clear();
+        DetachHardwareWidget();
 
-        _root.Children.Add(UiKit.PageHeader("Overview", "Every assignment across all your profiles",
-            icon: Material.Icons.MaterialIconKind.ViewDashboardOutline));
+        bool showTurnUp = ShouldShowTurnUpOverview();
+        bool showSc = ShouldShowStreamControllerOverview();
 
-        // Interactive hardware device visualization — the widget only
-        // renders the 5-knob Turn Up device, so hide it entirely when
-        // the user's Active Surface isn't showing Turn Up.
-        if (ShouldShowTurnUpOverview())
-        {
-            _hardwareWidget.LoadConfig(_config);
-            _root.Children.Add(_hardwareWidget);
-        }
-
-        // Render current profile first, then other profiles
-        var profiles = new List<string> { _config.ActiveProfile };
+        // Load every profile once (active first) — shared by device stats and profile cards.
+        var profiles = new List<(string Name, AppConfig Config)> { (_config.ActiveProfile, _config) };
         foreach (var p in _config.Profiles)
         {
-            if (p != _config.ActiveProfile) profiles.Add(p);
+            if (p == _config.ActiveProfile) continue;
+            // Profile file doesn't exist yet — use defaults
+            profiles.Add((p, ConfigManager.LoadProfile(p) ?? new AppConfig()));
         }
 
-        foreach (var profileName in profiles)
-        {
-            AppConfig profileConfig;
-            if (profileName == _config.ActiveProfile)
-            {
-                profileConfig = _config;
-            }
-            else
-            {
-                var loaded = ConfigManager.LoadProfile(profileName);
-                if (loaded == null)
-                {
-                    // Profile file doesn't exist yet — use defaults
-                    loaded = new AppConfig();
-                }
-                profileConfig = loaded;
-            }
+        _root.Children.Add(BuildHero(showTurnUp, showSc));
 
-            _root.Children.Add(BuildProfileSection(profileName, profileConfig));
+        if (!showTurnUp && !showSc)
+        {
+            _root.Children.Add(UiKit.EmptyState(MaterialIconKind.Devices, "No device selected",
+                "Pick Turn Up or Stream Controller as your Active Surface in Settings › Devices to see its assignments here."));
+            return;
+        }
+
+        // Device sections — photo centerpiece + live widget / stats for the active profile.
+        if (showTurnUp)
+        {
+            int assigned = CountTurnUpAssigned(_config);
+            _root.Children.Add(MakeSectionLabel("TURN UP", $"5 knobs · 5 buttons · {assigned} assigned"));
+            _root.Children.Add(BuildTurnUpDeviceCard());
+        }
+        if (showSc)
+        {
+            int assigned = CountStreamControllerAssigned(_config);
+            _root.Children.Add(MakeSectionLabel("STREAM CONTROLLER", $"6 keys · 3 buttons · 3 dials · {assigned} assigned"));
+            _root.Children.Add(BuildStreamControllerDeviceCard(_config));
+        }
+
+        // Profiles — active profile expanded, the rest as compact chip summaries.
+        var profilesHeader = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+        profilesHeader.Children.Add(MakeSectionLabel("PROFILES", profiles.Count.ToString()));
+        var tip = UiKit.HelpTip("Click a profile name to switch to it. Click any knob, button or key to edit it in that profile. "
+            + "The active profile shows full details; others show a compact summary.", "Profiles");
+        tip.Margin = new Thickness(8, -6, 0, 0);
+        profilesHeader.Children.Add(tip);
+        _root.Children.Add(profilesHeader);
+
+        foreach (var (name, cfg) in profiles)
+            _root.Children.Add(BuildProfileSection(name, cfg, showTurnUp, showSc));
+    }
+
+    // The widget instance is reused across rebuilds; WPF throws if it still has a parent.
+    private void DetachHardwareWidget()
+    {
+        switch (_hardwareWidget.Parent)
+        {
+            case Decorator d: d.Child = null; break;
+            case Panel p: p.Children.Remove(_hardwareWidget); break;
         }
     }
 
-    private UIElement BuildProfileSection(string profileName, AppConfig config)
+    // ── Hero ────────────────────────────────────────────────────────────
+
+    private UIElement BuildHero(bool showTurnUp, bool showSc)
     {
-        bool isActive = _config?.ActiveProfile == profileName;
+        var activeName = _config!.ActiveProfile;
+        var (profileColor, profileKind) = GetProfileVisuals(activeName);
+        var accent = ThemeManager.Accent;
 
-        var iconCfg = _config?.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
-        Color accentColor;
-        try { accentColor = (Color)ColorConverter.ConvertFromString(iconCfg.Color); }
-        catch { accentColor = ThemeManager.Accent; }
-
-        var capturedName = profileName;
-
-        // Right side actions — reorder, duplicate, preview OSD (icon buttons like Groups cards).
-        var actionRow = new StackPanel
+        var hero = new Border
         {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center
+            CornerRadius = new CornerRadius(16),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(20, 18, 20, 18),
+            Margin = new Thickness(0, 0, 0, 18),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x55)),
+            Background = new LinearGradientBrush(
+                new GradientStopCollection
+                {
+                    new GradientStop(Color.FromArgb(0x2A, 0xFF, 0xFF, 0xFF), 0),
+                    new GradientStop(ThemeManager.WithAlpha(accent, 0x10), 0.55),
+                    new GradientStop(Color.FromArgb(0x06, 0xFF, 0xFF, 0xFF), 1),
+                },
+                new Point(0, 0), new Point(1, 1)),
         };
 
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        hero.Child = grid;
+
+        // Glass icon tile in the active profile's colour, with a soft glow.
+        var tile = new Border
+        {
+            Width = 56, Height = 56,
+            CornerRadius = new CornerRadius(15),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 16, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(ThemeManager.WithAlpha(profileColor, 0x26)),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(profileColor, 0x77)),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+                { BlurRadius = 22, ShadowDepth = 0, Opacity = 0.55, Color = profileColor },
+            Child = new MaterialIcon { Kind = profileKind, Width = 28, Height = 28, Foreground = new SolidColorBrush(profileColor) },
+        };
+        grid.Children.Add(tile);
+
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var caption = new TextBlock { Text = "OVERVIEW · ACTIVE PROFILE", FontSize = 10, FontWeight = FontWeights.SemiBold };
+        caption.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        text.Children.Add(caption);
+        var title = new TextBlock
+        {
+            Text = activeName, FontSize = 22, FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 1, 0, 8), TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        text.Children.Add(title);
+
+        var pills = new WrapPanel();
+        bool hwAllowsTurnUp = _config.HardwareMode != HardwareMode.StreamControllerOnly;
+        bool hwAllowsSc = _config.HardwareMode != HardwareMode.TurnUpOnly;
+        if (hwAllowsTurnUp)
+            pills.Children.Add(BuildConnectionPill("Turn Up", () => _turnUpConnected, showTurnUp));
+        if (hwAllowsSc)
+            pills.Children.Add(BuildConnectionPill("Stream Controller", () => _streamControllerConnected, showSc));
+        int count = _config.Profiles.Count;
+        pills.Children.Add(Pill($"{count} profile{(count == 1 ? "" : "s")}", ThemeManager.Accent, MaterialIconKind.AccountMultiple));
+        text.Children.Add(pills);
+        Grid.SetColumn(text, 1);
+        grid.Children.Add(text);
+
+        // Quick actions.
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) };
+        actions.Children.Add(HeroButton(MaterialIconKind.EyeOutline, "Preview OSD", "Show the OSD for the active profile",
+            _ => _onPreviewOsd?.Invoke(activeName)));
+        if (count > 1)
+        {
+            var switchBtn = HeroButton(MaterialIconKind.AccountSwitchOutline, "Switch", "Switch to another profile",
+                anchor => GlassContextMenuHost.Show(anchor, BuildSwitchMenu()));
+            switchBtn.Margin = new Thickness(8, 0, 0, 0);
+            actions.Children.Add(switchBtn);
+        }
+        Grid.SetColumn(actions, 2);
+        grid.Children.Add(actions);
+
+        return hero;
+    }
+
+    private IReadOnlyList<GlassMenuItem> BuildSwitchMenu()
+    {
+        var items = new List<GlassMenuItem>();
+        if (_config == null) return items;
+        foreach (var p in _config.Profiles)
+        {
+            var name = p;
+            bool active = name == _config.ActiveProfile;
+            items.Add(new GlassMenuItem(name, GetProfileVisuals(name).Kind,
+                active ? null : new Action(() => _onSwitchProfile?.Invoke(name)), IsChecked: active));
+        }
+        return items;
+    }
+
+    private static Border HeroButton(MaterialIconKind kind, string label, string tooltip, Action<FrameworkElement> onClick)
+    {
+        var icon = new MaterialIcon { Kind = kind, Width = 16, Height = 16, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) };
+        icon.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
+        var tb = new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        tb.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        sp.Children.Add(icon);
+        sp.Children.Add(tb);
+
+        var a = ThemeManager.Accent;
+        var b = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(12, 7, 14, 7),
+            Cursor = Cursors.Hand,
+            ToolTip = tooltip,
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x1A)),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x55)),
+            Child = sp,
+        };
+        b.MouseEnter += (_, _) =>
+        {
+            b.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x33));
+            b.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0xAA));
+        };
+        b.MouseLeave += (_, _) =>
+        {
+            b.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x1A));
+            b.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x55));
+        };
+        b.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(b); };
+        AddHoverLift(b, 1.5);
+        return b;
+    }
+
+    /// <summary>Dot + label pill that repaints itself when connection state changes.</summary>
+    private Border BuildConnectionPill(string deviceName, Func<bool> isConnected, bool shownOnSurface)
+    {
+        var dot = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        var tb = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        sp.Children.Add(dot);
+        sp.Children.Add(tb);
+        var pill = new Border
+        {
+            CornerRadius = new CornerRadius(11),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(9, 3, 10, 3),
+            Margin = new Thickness(0, 0, 6, 4),
+            Child = sp,
+            ToolTip = shownOnSurface ? null : $"{deviceName} is hidden by your Active Surface choice",
+        };
+        void Paint()
+        {
+            bool on = isConnected();
+            var c = on ? Color.FromRgb(0x00, 0xE6, 0x76) : Color.FromRgb(0x9E, 0x9E, 0x9E);
+            if (TryFindResource(on ? "SuccessGrnBrush" : "TextDimBrush") is SolidColorBrush rb) c = rb.Color;
+            tb.Text = $"{deviceName} · {(on ? "Connected" : "Offline")}";
+            tb.Foreground = new SolidColorBrush(c);
+            dot.Fill = new SolidColorBrush(c);
+            dot.Effect = on ? new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 8, ShadowDepth = 0, Opacity = 0.8, Color = c } : null;
+            pill.Background = new SolidColorBrush(ThemeManager.WithAlpha(c, 0x18));
+            pill.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(c, 0x55));
+            pill.Opacity = shownOnSurface ? 1.0 : 0.6;
+        }
+        Paint();
+        _connectionPainters.Add(Paint);
+        return pill;
+    }
+
+    private static Border Pill(string text, Color color, MaterialIconKind? icon = null)
+    {
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        if (icon is { } kind)
+            sp.Children.Add(new MaterialIcon { Kind = kind, Width = 12, Height = 12, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(color) });
+        sp.Children.Add(new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(color) });
+        return new Border
+        {
+            CornerRadius = new CornerRadius(11),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(9, 3, 10, 3),
+            Margin = new Thickness(0, 0, 6, 4),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x18)),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x55)),
+            Child = sp,
+        };
+    }
+
+    // ── Device sections ─────────────────────────────────────────────────
+
+    /// <summary>Big glass card: device photo stage on the left, content on the right (stacks when narrow).</summary>
+    private Border BuildDeviceCard(string deviceId, string deviceName, Func<bool> isConnected, FrameworkElement content)
+    {
+        var accent = ThemeManager.Accent;
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(16),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 18),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x40)),
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+
+        var glass = new Border
+        {
+            CornerRadius = new CornerRadius(15),
+            Padding = new Thickness(18),
+            Background = new LinearGradientBrush(Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 90),
+        };
+        card.Child = glass;
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        glass.Child = grid;
+
+        // Stage: accent radial glow behind the photo.
+        var stage = new Grid { Width = 240, Height = 190, VerticalAlignment = VerticalAlignment.Center };
+        stage.Children.Add(new Border
+        {
+            CornerRadius = new CornerRadius(14),
+            Background = new RadialGradientBrush(ThemeManager.WithAlpha(accent, 0x38), ThemeManager.WithAlpha(accent, 0x00))
+            {
+                Center = new Point(0.5, 0.48), GradientOrigin = new Point(0.5, 0.45), RadiusX = 0.6, RadiusY = 0.6,
+            },
+        });
+        var photo = LoadDeviceImage(deviceId);
+        if (photo != null)
+        {
+            stage.Children.Add(new Image
+            {
+                Source = photo,
+                Stretch = System.Windows.Media.Stretch.Uniform,
+                Margin = new Thickness(14, 10, 14, 30),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect
+                    { BlurRadius = 26, ShadowDepth = 0, Opacity = 0.45, Color = accent },
+            });
+        }
+        else
+        {
+            var fallback = UiKit.IconTile(accent, deviceId == "n3" ? MaterialIconKind.ViewGridOutline : MaterialIconKind.Knob, 72);
+            fallback.HorizontalAlignment = HorizontalAlignment.Center;
+            fallback.Margin = new Thickness(0, 0, 0, 24);
+            stage.Children.Add(fallback);
+        }
+        var label = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center };
+        var nameTb = new TextBlock { Text = deviceName, FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
+        nameTb.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        label.Children.Add(nameTb);
+        var statusTb = new TextBlock { FontSize = 10, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0) };
+        void PaintStatus()
+        {
+            bool on = isConnected();
+            statusTb.Text = on ? "● CONNECTED" : "○ OFFLINE";
+            statusTb.SetResourceReference(TextBlock.ForegroundProperty, on ? "SuccessGrnBrush" : "TextDimBrush");
+        }
+        PaintStatus();
+        _connectionPainters.Add(PaintStatus);
+        label.Children.Add(statusTb);
+        stage.Children.Add(label);
+        grid.Children.Add(stage);
+
+        var contentHost = new Border { Child = content, VerticalAlignment = VerticalAlignment.Center };
+        grid.Children.Add(contentHost);
+
+        bool? wide = null;
+        void Layout(double width)
+        {
+            bool w = width >= 640;
+            if (wide == w) return;
+            wide = w;
+            Grid.SetColumn(contentHost, w ? 1 : 0);
+            Grid.SetRow(contentHost, w ? 0 : 1);
+            Grid.SetColumnSpan(contentHost, w ? 1 : 2);
+            Grid.SetColumnSpan(stage, w ? 1 : 2);
+            stage.HorizontalAlignment = w ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+            contentHost.Margin = w ? new Thickness(18, 0, 0, 0) : new Thickness(0, 14, 0, 0);
+        }
+        Layout(1000);
+        grid.SizeChanged += (_, e) => Layout(e.NewSize.Width);
+        return card;
+    }
+
+    private UIElement BuildTurnUpDeviceCard()
+    {
+        _hardwareWidget.LoadConfig(_config!);
+        // The widget is a fixed 620x250 drawing; scale down (never up) to fit the card.
+        var viewbox = new Viewbox
+        {
+            Stretch = System.Windows.Media.Stretch.Uniform,
+            StretchDirection = StretchDirection.DownOnly,
+            Child = _hardwareWidget,
+        };
+        return BuildDeviceCard("turnup", "Turn Up", () => _turnUpConnected, viewbox);
+    }
+
+    private UIElement BuildStreamControllerDeviceCard(AppConfig config)
+    {
+        int keys = Enumerable.Range(0, 6).Count(i => IsDisplayKeyDesigned(config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i)));
+        int keyActions = Enumerable.Range(0, 6).Count(i => HasAnyAction(config.N3.Buttons.FirstOrDefault(b => b.Idx == 100 + i)));
+        int sides = Enumerable.Range(0, 3).Count(i => HasAnyAction(config.N3.Buttons.FirstOrDefault(b => b.Idx == 10000 + i)));
+        int dials = Enumerable.Range(0, 3).Count(i => HasAnyAction(config.N3.Buttons.FirstOrDefault(b => b.Idx == 10003 + i)));
+
+        var stats = new UniformGrid { Columns = 2 };
+        stats.Children.Add(StatTile(MaterialIconKind.ViewGridOutline, "LCD keys designed", $"{keys} / 6"));
+        stats.Children.Add(StatTile(MaterialIconKind.GestureTapButton, "Key actions", $"{keyActions} / 6"));
+        stats.Children.Add(StatTile(MaterialIconKind.CircleOutline, "Side buttons", $"{sides} / 3"));
+        stats.Children.Add(StatTile(MaterialIconKind.Knob, "Dial presses", $"{dials} / 3"));
+
+        var wrap = new StackPanel();
+        wrap.Children.Add(stats);
+        var edit = UiKit.LinkRow(MaterialIconKind.PencilOutline, "Edit keys and controls", true,
+            () => _onNavigateToButtons?.Invoke(_config?.ActiveProfile ?? "Default"));
+        edit.Margin = new Thickness(4, 8, 0, 0);
+        edit.HorizontalAlignment = HorizontalAlignment.Left;
+        wrap.Children.Add(edit);
+
+        return BuildDeviceCard("n3", "Stream Controller", () => _streamControllerConnected, wrap);
+    }
+
+    private static Border StatTile(MaterialIconKind kind, string label, string value)
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var tile = UiKit.IconTile(ThemeManager.Accent, kind, 32);
+        tile.Margin = new Thickness(0, 0, 10, 0);
+        grid.Children.Add(tile);
+        var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var v = new TextBlock { Text = value, FontSize = 16, FontWeight = FontWeights.SemiBold };
+        v.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        var l = new TextBlock { Text = label, FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis };
+        l.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        sp.Children.Add(v);
+        sp.Children.Add(l);
+        Grid.SetColumn(sp, 1);
+        grid.Children.Add(sp);
+
+        var b = new Border
+        {
+            CornerRadius = new CornerRadius(12),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(12, 10, 12, 10),
+            Margin = new Thickness(4),
+            Child = grid,
+        };
+        b.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        b.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return b;
+    }
+
+    /// <summary>
+    /// Assets/devices/&lt;deviceId&gt;.png (WPF Resource) when bundled; null otherwise so the
+    /// caller can draw a placeholder. Mirrors SettingsView.LoadDeviceImage.
+    /// </summary>
+    private static ImageSource? LoadDeviceImage(string deviceId)
+    {
+        try
+        {
+            var uri = new Uri($"pack://application:,,,/Assets/devices/{deviceId}.png", UriKind.Absolute);
+            if (Application.GetResourceStream(uri) is not { } info) return null;
+            info.Stream.Dispose();
+
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.UriSource = uri;
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.DecodePixelWidth = 600;
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // ── Assignment counting ─────────────────────────────────────────────
+
+    private static bool IsKnobAssigned(KnobConfig? k)
+        => k != null && !string.IsNullOrEmpty(k.Target) && k.Target != "none";
+
+    private static bool HasAnyAction(ButtonConfig? b)
+        => b != null && (IsSet(b.Action) || IsSet(b.DoublePressAction) || IsSet(b.HoldAction));
+
+    private static bool IsSet(string? action) => !string.IsNullOrEmpty(action) && action != "none";
+
+    private static bool IsDisplayKeyDesigned(StreamControllerDisplayKeyConfig? key)
+        => key != null && (!string.IsNullOrWhiteSpace(key.Title)
+                           || !string.IsNullOrWhiteSpace(key.ImagePath)
+                           || !string.IsNullOrWhiteSpace(key.PresetIconKind)
+                           || key.DisplayType != DisplayKeyType.Normal);
+
+    private static int CountTurnUpAssigned(AppConfig c)
+        => Enumerable.Range(0, 5).Count(i => IsKnobAssigned(c.Knobs.FirstOrDefault(k => k.Idx == i)))
+         + Enumerable.Range(0, 5).Count(i => HasAnyAction(c.Buttons.FirstOrDefault(b => b.Idx == i)));
+
+    private static int CountStreamControllerAssigned(AppConfig c)
+        => Enumerable.Range(0, 6).Count(i => IsDisplayKeyDesigned(c.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i))
+                                             || HasAnyAction(c.N3.Buttons.FirstOrDefault(b => b.Idx == 100 + i)))
+         + Enumerable.Range(0, 6).Count(i => HasAnyAction(c.N3.Buttons.FirstOrDefault(b => b.Idx == 10000 + i)));
+
+    private (Color Color, MaterialIconKind Kind) GetProfileVisuals(string profileName)
+    {
+        var iconCfg = _config?.ProfileIcons.GetValueOrDefault(profileName) ?? new ProfileIconConfig();
+        Color color;
+        try { color = (Color)ColorConverter.ConvertFromString(iconCfg.Color); }
+        catch { color = ThemeManager.Accent; }
+        if (!Enum.TryParse<MaterialIconKind>(iconCfg.Symbol, out var kind))
+            kind = MaterialIconKind.AccountCircleOutline;
+        return (color, kind);
+    }
+
+    private static void AddHoverLift(FrameworkElement el, double lift)
+    {
+        var tt = new TranslateTransform();
+        el.RenderTransform = tt;
+        el.MouseEnter += (_, _) => AnimateLift(tt, -lift);
+        el.MouseLeave += (_, _) => AnimateLift(tt, 0);
+    }
+
+    private static void AnimateLift(TranslateTransform tt, double y)
+    {
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            tt.BeginAnimation(TranslateTransform.YProperty, null);
+            tt.Y = y;
+            return;
+        }
+        tt.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(y, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+    }
+
+    // ── Profile cards ───────────────────────────────────────────────────
+
+    private UIElement BuildProfileSection(string profileName, AppConfig config, bool showTurnUp, bool showSc)
+    {
+        bool isActive = _config?.ActiveProfile == profileName;
+        var (accentColor, profileKind) = GetProfileVisuals(profileName);
+        var capturedName = profileName;
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(16),
+            BorderThickness = new Thickness(isActive ? 1.5 : 1),
+            Margin = new Thickness(0, 0, 0, 14),
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
         if (isActive)
         {
-            var badge = UiKit.StatusBadge(out var setBadge);
-            setBadge("ACTIVE", true);
-            actionRow.Children.Add(badge);
+            card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accentColor, 0xAA));
+            card.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                { BlurRadius = 24, ShadowDepth = 0, Opacity = 0.35, Color = accentColor };
+        }
+        else
+        {
+            card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            card.MouseEnter += (_, _) => card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accentColor, 0x77));
+            card.MouseLeave += (_, _) => card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            AddHoverLift(card, 2);
         }
 
+        var glass = new Border
+        {
+            CornerRadius = new CornerRadius(15),
+            Background = new LinearGradientBrush(
+                isActive ? ThemeManager.WithAlpha(accentColor, 0x16) : Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF),
+                Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 90),
+        };
+        card.Child = glass;
+
+        var outer = new Grid();
+        outer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        glass.Child = outer;
+
+        // Accent strip in the profile's colour, fading towards the bottom.
+        outer.Children.Add(new Border
+        {
+            Width = 4,
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 16, 0, 16),
+            Background = new LinearGradientBrush(accentColor, ThemeManager.WithAlpha(accentColor, 0x22), 90),
+        });
+
+        var stack = new StackPanel { Margin = new Thickness(16, 16, 18, 16) };
+        Grid.SetColumn(stack, 1);
+        outer.Children.Add(stack);
+
+        // Header: icon tile | name + Active pill / summary | actions
+        var header = new Grid();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        stack.Children.Add(header);
+
+        var tile = UiKit.IconTile(accentColor, profileKind, 42);
+        tile.Margin = new Thickness(0, 0, 14, 0);
+        if (isActive)
+            tile.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                { BlurRadius = 16, ShadowDepth = 0, Opacity = 0.6, Color = accentColor };
+        header.Children.Add(tile);
+
+        var names = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+            Background = Brushes.Transparent, // hit-testable across the whole block
+            Cursor = Cursors.Hand,
+            ToolTip = isActive ? null : $"Switch to {profileName}",
+        };
+        names.MouseLeftButtonDown += (_, _) => _onSwitchProfile?.Invoke(capturedName);
+        var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
+        var title = new TextBlock
+        {
+            Text = profileName, FontSize = 16, FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
+        };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        nameRow.Children.Add(title);
+        if (isActive)
+        {
+            var activePill = Pill("Active", accentColor, MaterialIconKind.Check);
+            activePill.Margin = new Thickness(10, 0, 0, 0);
+            activePill.Padding = new Thickness(7, 1, 9, 1);
+            nameRow.Children.Add(activePill);
+        }
+        names.Children.Add(nameRow);
+
+        int assigned = 0, total = 0;
+        if (showTurnUp) { assigned += CountTurnUpAssigned(config); total += 10; }
+        if (showSc) { assigned += CountStreamControllerAssigned(config); total += 12; }
+        var sub = new TextBlock
+        {
+            Text = $"{assigned} of {total} controls assigned" + (isActive ? "" : " · Click to switch"),
+            FontSize = 11, Margin = new Thickness(0, 3, 0, 0),
+        };
+        sub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        names.Children.Add(sub);
+        Grid.SetColumn(names, 1);
+        header.Children.Add(names);
+
+        // Right side actions — preview OSD, duplicate, reorder.
+        var actionRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         int profileIdx = _config?.Profiles.IndexOf(profileName) ?? -1;
         int profileCount = _config?.Profiles.Count ?? 0;
+
+        actionRow.Children.Add(UiKit.IconButton(MaterialIconKind.EyeOutline, "Preview the OSD for this profile",
+            _ => _onPreviewOsd?.Invoke(capturedName)));
+        actionRow.Children.Add(UiKit.IconButton(MaterialIconKind.ContentCopy, "Duplicate this profile",
+            _ => OnDuplicateProfile?.Invoke(capturedName)));
 
         var moveUpBtn = UiKit.IconButton(MaterialIconKind.ArrowUp, "Move up",
             _ => { if (profileIdx > 0) OnMoveProfile?.Invoke(capturedName, -1); });
@@ -282,38 +874,25 @@ public class BindingsView : UserControl
         moveDownBtn.IsEnabled = profileIdx >= 0 && profileIdx < profileCount - 1;
         actionRow.Children.Add(moveDownBtn);
 
-        actionRow.Children.Add(UiKit.IconButton(MaterialIconKind.ContentCopy, "Duplicate this profile",
-            _ => OnDuplicateProfile?.Invoke(capturedName)));
-        actionRow.Children.Add(UiKit.IconButton(MaterialIconKind.EyeOutline, "Preview the OSD for this profile",
-            _ => _onPreviewOsd?.Invoke(capturedName)));
+        Grid.SetColumn(actionRow, 2);
+        header.Children.Add(actionRow);
 
-        if (!Enum.TryParse<Material.Icons.MaterialIconKind>(iconCfg.Symbol, out var profileKind))
-            profileKind = MaterialIconKind.AccountCircleOutline;
+        var sectionContent = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
+        stack.Children.Add(sectionContent);
 
-        var parts = UiKit.Card(accentColor, profileKind, profileName,
-            isActive ? "Active profile" : "Click to switch to this profile", actionRow);
-        parts.Root.Margin = new Thickness(0, 0, 0, 14);
-        parts.Body.Margin = new Thickness(0, 16, 0, 0);
-        if (parts.Title.Parent is FrameworkElement names)
+        if (!isActive)
         {
-            names.Cursor = Cursors.Hand;
-            names.ToolTip = isActive ? null : $"Switch to {profileName}";
-            names.MouseLeftButtonDown += (_, _) => _onSwitchProfile?.Invoke(capturedName);
+            sectionContent.Children.Add(BuildCompactSummary(config, capturedName, showTurnUp, showSc));
+            return card;
         }
-        var sectionContent = parts.Body;
 
-        // Turn Up rows (KNOBS + BUTTONS) follow the Active Surface toggle
-        // — hidden when the user has picked Stream Controller as their
-        // surface, even if a Turn Up is physically connected.
-        if (ShouldShowTurnUpOverview())
+        // Active profile: full detail. Turn Up rows (KNOBS + BUTTONS) follow the
+        // Active Surface toggle — hidden when the user has picked Stream Controller.
+        if (showTurnUp)
         {
             sectionContent.Children.Add(MakeSectionLabel("KNOBS", "5"));
 
-            var knobsRow = new UniformGrid
-            {
-                Columns = 5,
-                Margin = new Thickness(0, 0, 0, 16)
-            };
+            var knobsRow = new UniformGrid { Columns = 5, Margin = new Thickness(0, 0, 0, 16) };
             for (int i = 0; i < 5; i++)
             {
                 var knob = config.Knobs.FirstOrDefault(k => k.Idx == i) ?? new KnobConfig { Idx = i };
@@ -324,11 +903,7 @@ public class BindingsView : UserControl
 
             sectionContent.Children.Add(MakeSectionLabel("BUTTONS", "5"));
 
-            var buttonsRow = new UniformGrid
-            {
-                Columns = 5,
-                Margin = new Thickness(0, 0, 0, 0)
-            };
+            var buttonsRow = new UniformGrid { Columns = 5 };
             for (int i = 0; i < 5; i++)
             {
                 var btn = config.Buttons.FirstOrDefault(b => b.Idx == i) ?? new ButtonConfig { Idx = i };
@@ -340,10 +915,179 @@ public class BindingsView : UserControl
         // Stream Controller block — 2x3 LCD preview grid + 3 side buttons
         // + 3 encoder-press cards. Only rendered when the user has the
         // N3 enabled; hidden for pure Turn Up setups.
-        if (ShouldShowStreamControllerOverview())
+        if (showSc)
             sectionContent.Children.Add(BuildStreamControllerSection(config, capturedName));
 
-        return parts.Root;
+        return card;
+    }
+
+    /// <summary>
+    /// Compact summary for inactive profiles: chips for every assigned knob / button / key.
+    /// Clicking a chip opens that profile in Mixer (knobs) or Buttons (everything else).
+    /// </summary>
+    private UIElement BuildCompactSummary(AppConfig config, string profileName, bool showTurnUp, bool showSc)
+    {
+        var wrap = new WrapPanel();
+        int empty = 0;
+
+        if (showTurnUp)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                var knob = config.Knobs.FirstOrDefault(k => k.Idx == i);
+                if (!IsKnobAssigned(knob)) { empty++; continue; }
+                var light = config.Lights.FirstOrDefault(l => l.Idx == i);
+                Color? led = light != null && (light.R > 10 || light.G > 10 || light.B > 10)
+                    ? Color.FromRgb((byte)Math.Clamp(light.R, 0, 255), (byte)Math.Clamp(light.G, 0, 255), (byte)Math.Clamp(light.B, 0, 255))
+                    : null;
+                var text = string.IsNullOrEmpty(knob!.Label) ? FormatTarget(knob) : knob.Label;
+                wrap.Children.Add(Chip($"K{i + 1}", text, GetTargetIcon(knob.Target), led, null,
+                    () => _onNavigateToMixer?.Invoke(profileName)));
+            }
+            for (int i = 0; i < 5; i++)
+            {
+                var btn = config.Buttons.FirstOrDefault(b => b.Idx == i);
+                if (!HasAnyAction(btn)) { empty++; continue; }
+                wrap.Children.Add(ButtonChip($"B{i + 1}", btn!, profileName));
+            }
+        }
+
+        if (showSc)
+        {
+            for (int i = 0; i < 6; i++)
+            {
+                var key = config.N3.DisplayKeys.FirstOrDefault(k => k.Idx == i);
+                var btn = config.N3.Buttons.FirstOrDefault(b => b.Idx == 100 + i);
+                bool designed = IsDisplayKeyDesigned(key);
+                if (!designed && !HasAnyAction(btn)) { empty++; continue; }
+
+                ImageSource? thumb = null;
+                if (designed)
+                {
+                    try { thumb = StreamControllerDisplayRenderer.CreateEditorPreview(key!, 48); }
+                    catch { /* preview renderer failed — chip without thumbnail */ }
+                }
+                string action = btn?.Action ?? "none";
+                string text = !string.IsNullOrWhiteSpace(key?.Title) ? key!.Title!
+                    : ActionDisplayNames.TryGetValue(action, out var d) ? d : action;
+                wrap.Children.Add(Chip($"K{i + 1}", text, MaterialIconKind.ViewGridOutline, null, thumb,
+                    () => _onNavigateToButtons?.Invoke(profileName)));
+            }
+            for (int i = 0; i < 6; i++)
+            {
+                int idx = i < 3 ? 10000 + i : 10003 + (i - 3); // side buttons, then encoder presses
+                var btn = config.N3.Buttons.FirstOrDefault(b => b.Idx == idx);
+                if (!HasAnyAction(btn)) { empty++; continue; }
+                wrap.Children.Add(ButtonChip(i < 3 ? $"SB{i + 1}" : $"E{i - 2}", btn!, profileName));
+            }
+        }
+
+        if (wrap.Children.Count == 0)
+        {
+            var none = UiKit.MutedText("Nothing assigned yet. Switch to this profile to set it up.");
+            return none;
+        }
+        if (empty > 0)
+        {
+            var more = UiKit.MutedText($"+{empty} empty", 10);
+            more.VerticalAlignment = VerticalAlignment.Center;
+            more.Margin = new Thickness(4, 0, 0, 6);
+            wrap.Children.Add(more);
+        }
+        return wrap;
+    }
+
+    private Border ButtonChip(string slot, ButtonConfig btn, string profileName)
+    {
+        string action = IsSet(btn.Action) ? btn.Action : IsSet(btn.DoublePressAction) ? btn.DoublePressAction : btn.HoldAction;
+        string text = !string.IsNullOrEmpty(btn.Label) ? btn.Label
+            : ActionDisplayNames.TryGetValue(action, out var d) ? d
+            : System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(action.Replace("_", " "));
+        Color? dot = ActionColors.TryGetValue(action, out var c) ? c : null;
+        return Chip(slot, text, MaterialIconKind.GestureTapButton, dot, null,
+            () => _onNavigateToButtons?.Invoke(profileName));
+    }
+
+    /// <summary>Rounded chip: [colour dot | thumbnail | icon] SLOT name. Hover lifts + tints the border.</summary>
+    private static Border Chip(string slot, string text, MaterialIconKind icon, Color? dotColor, ImageSource? thumb, Action onClick)
+    {
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        if (thumb != null)
+        {
+            var img = new Border
+            {
+                Width = 18, Height = 18,
+                CornerRadius = new CornerRadius(4),
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Background = new ImageBrush(thumb) { Stretch = System.Windows.Media.Stretch.UniformToFill },
+            };
+            sp.Children.Add(img);
+        }
+        else
+        {
+            var ic = UiKit.Icon(icon, 13, "TextSecBrush");
+            ic.Margin = new Thickness(0, 0, 6, 0);
+            sp.Children.Add(ic);
+        }
+        var slotTb = new TextBlock { Text = slot, FontSize = 9, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 5, 0) };
+        slotTb.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        sp.Children.Add(slotTb);
+        var tb = new TextBlock { Text = text, FontSize = 11, MaxWidth = 140, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        tb.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        sp.Children.Add(tb);
+        if (dotColor is { } dc)
+        {
+            sp.Children.Add(new System.Windows.Shapes.Ellipse
+            {
+                Width = 7, Height = 7, Margin = new Thickness(7, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Fill = new SolidColorBrush(dc),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 6, ShadowDepth = 0, Opacity = 0.8, Color = dc },
+            });
+        }
+
+        var chip = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(8, 4, 10, 4),
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = Cursors.Hand,
+            ToolTip = $"{slot}: {text}",
+            Child = sp,
+        };
+        chip.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        chip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        var tint = dotColor ?? ThemeManager.Accent;
+        chip.MouseEnter += (_, _) => chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(tint, 0x99));
+        chip.MouseLeave += (_, _) => chip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        chip.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
+        AddHoverLift(chip, 1);
+        return chip;
+    }
+
+    private static MaterialIconKind GetTargetIcon(string? target)
+    {
+        var t = target ?? "";
+        return t switch
+        {
+            "master" => MaterialIconKind.VolumeHigh,
+            "mic" => MaterialIconKind.Microphone,
+            "system" => MaterialIconKind.BellOutline,
+            "any" or "active_window" => MaterialIconKind.Application,
+            "apps" => MaterialIconKind.Apps,
+            "output_device" => MaterialIconKind.Speaker,
+            "input_device" => MaterialIconKind.MicrophoneVariant,
+            "monitor" => MaterialIconKind.MonitorShimmer,
+            "led_brightness" => MaterialIconKind.Brightness6,
+            _ when t.StartsWith("ha_") => MaterialIconKind.HomeAssistant,
+            _ when t.StartsWith("govee") => MaterialIconKind.LightbulbOutline,
+            _ when t.StartsWith("corsair_") => MaterialIconKind.Fan,
+            _ when t.StartsWith("vm_") => MaterialIconKind.TuneVertical,
+            _ when t.StartsWith("obs:") => MaterialIconKind.Broadcast,
+            _ => MaterialIconKind.Knob,
+        };
     }
 
     /// <summary>

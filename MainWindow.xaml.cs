@@ -1935,6 +1935,7 @@ public partial class MainWindow : FluentWindow
         {
             _turnUpConnected = connected;
             _settingsView.UpdateConnectionStatus(connected, portName);
+            _bindingsView.SetDeviceConnection(_turnUpConnected, _streamControllerConnected);
             HwPreview.SetConnected(connected);
             UpdateAggregateConnectionUi();
             RefreshViewsIfEffectiveSurfaceChanged();
@@ -1947,6 +1948,7 @@ public partial class MainWindow : FluentWindow
         {
             _streamControllerConnected = connected;
             _settingsView.UpdateN3ConnectionStatus(connected, deviceName);
+            _bindingsView.SetDeviceConnection(_turnUpConnected, _streamControllerConnected);
             UpdateAggregateConnectionUi();
             RefreshViewsIfEffectiveSurfaceChanged();
         });
