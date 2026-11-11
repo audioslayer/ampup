@@ -1141,10 +1141,11 @@
                                         <ui:Button x:Name="BtnDiscordConnect" Content="Connect" Style="{StaticResource SButton}" />
                                         <ui:Button x:Name="BtnDiscordDisconnect" Content="Disconnect" Style="{StaticResource SButton}" IsEnabled="False" />
                                         <ui:Button x:Name="BtnDiscordJoinCommunity" Content="Join WolfDen Discord" Style="{StaticResource SButton}" />
+                                        <ui:Button x:Name="BtnDiscordSetupGuide" Content="Setup guide" Style="{StaticResource SButton}" Appearance="Primary" />
                                     </WrapPanel>
                                     <TextBlock Style="{StaticResource SHint}" Margin="0,2,0,0">
                                         <Run Text="Tester preview:" FontWeight="SemiBold" />
-                                        <Run Text="Discord only allows approved testers to connect for now. To get access, join the WolfDen Discord and DM audio in the #amp-up channel, then click Connect." />
+                                        <Run Text="Discord only allows approved testers to connect for now. To get access, send a friend request to aud10sayer on Discord asking for Amp Up tester access (use the Setup guide), then click Connect." />
                                     </TextBlock>
                                 </StackPanel>
                             </StackPanel>

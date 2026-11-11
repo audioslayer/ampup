@@ -207,6 +207,7 @@ public partial class SettingsView : UserControl
             : Visibility.Visible;
         TxtSpotifyClientId.TextChanged += OnValueChanged;
         BtnSpotifySetupGuide.Click += OnSpotifySetupGuide;
+        BtnDiscordSetupGuide.Click += OnDiscordSetupGuide;
         BtnSpotifyConnect.Click += OnSpotifyConnect;
         BtnSpotifyDisconnect.Click += OnSpotifyDisconnect;
 
@@ -1973,6 +1974,19 @@ public partial class SettingsView : UserControl
             BtnDiscordConnect.Content = "Connect";
             BtnDiscordDisconnect.IsEnabled = false;
         }
+    }
+
+    private void OnDiscordSetupGuide(object sender, RoutedEventArgs e)
+    {
+        var guide = new AmpUp.Controls.DiscordSetupGuide
+        {
+            Owner = Window.GetWindow(this),
+        };
+        var ok = guide.ShowDialog();
+        if (ok != true || !guide.WasSuccessful) return;
+
+        // Finish means the tester invite was accepted: go straight to Connect.
+        OnDiscordConnect(this, e);
     }
 
     private void OnSpotifySetupGuide(object sender, RoutedEventArgs e)
