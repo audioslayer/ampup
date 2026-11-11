@@ -150,8 +150,12 @@ public partial class GroupsView : UserControl
 
     private void PromptNewAppGroup()
     {
-        var name = GlassDialog.Prompt("Name for the new app group:", "New app group", Window.GetWindow(this));
-        if (string.IsNullOrWhiteSpace(name) || _config == null) return;
+        if (_config == null) return;
+        var name = GroupNameDialog.Prompt(Window.GetWindow(this), "New app group",
+            "Put several apps on one knob, like Spotify + Steam as Music.", "",
+            _config.AppGroups.Select(x => x.Name), "Create",
+            GroupNameDialog.AppGroupSuggestions, MaterialIconKind.Plus);
+        if (string.IsNullOrWhiteSpace(name)) return;
         var g = AppGroupSync.Create(_config, name);
         _focusKey = AppGroupKey(g);
         SaveAppGroups(null);
@@ -640,7 +644,9 @@ public partial class GroupsView : UserControl
         {
             new("Rename", MaterialIconKind.PencilOutline, () =>
             {
-                var name = GlassDialog.Prompt("New name for this group:", "Rename group", Window.GetWindow(this));
+                var name = GroupNameDialog.Prompt(Window.GetWindow(this), "Rename group",
+                    "Knob and button bindings that use this group keep working.", group.Name,
+                    _config?.Groups.Select(x => x.Name) ?? Enumerable.Empty<string>(), "Save");
                 if (!string.IsNullOrWhiteSpace(name)) RenameGroup(groupIndex, name.Trim());
             }),
             new("Color", MaterialIconKind.PaletteOutline, null, colorItems),
@@ -942,7 +948,9 @@ public partial class GroupsView : UserControl
                 new("Add by process name…", MaterialIconKind.FormTextbox, () => PromptAddApp(group)),
                 new("Rename", MaterialIconKind.PencilOutline, () =>
                 {
-                    var name = GlassDialog.Prompt("New name for this app group:", "Rename app group", Window.GetWindow(this), group.Name);
+                    var name = GroupNameDialog.Prompt(Window.GetWindow(this), "Rename app group",
+                        "Knobs and encoders sharing this group keep working.", group.Name,
+                        _config?.AppGroups.Select(x => x.Name) ?? Enumerable.Empty<string>(), "Save");
                     if (!string.IsNullOrWhiteSpace(name)) RenameAppGroup(group, name);
                 }),
                 GlassMenuItem.Sep,

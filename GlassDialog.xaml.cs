@@ -3,6 +3,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
+using AmpUp.Controls;
+using Material.Icons;
 
 namespace AmpUp;
 
@@ -15,27 +18,38 @@ public partial class GlassDialog : Window
     private GlassDialog()
     {
         InitializeComponent();
-        MouseLeftButtonDown += (_, _) => { try { DragMove(); } catch (InvalidOperationException) { } };
+        // Drag to move from the header (same chrome as Controls/TextEditDialog)
+        HeaderGrid.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.OriginalSource is not (Grid or TextBlock)) return;
+            try { DragMove(); } catch (InvalidOperationException) { }
+        };
+        CloseHost.Content = UiKit.IconButton(MaterialIconKind.Close, "Close (Esc)", _ => Close(), size: 26);
+        SetIcon(ThemeManager.Accent, MaterialIconKind.InformationOutline);
 
-        // Apply accent color to border gradient, title, input elements
         var accent = ThemeManager.Accent;
-        var borderBrush = new LinearGradientBrush(
-            ThemeManager.WithAlpha(accent, 0x55),
-            ThemeManager.WithAlpha(accent, 0x22),
-            new System.Windows.Point(0, 0), new System.Windows.Point(1, 1));
-        borderBrush.Freeze();
-        RootPanel.BorderBrush = borderBrush;
-        TitleText.Foreground = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
         InputBox.CaretBrush = new SolidColorBrush(accent);
-        var inputBorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x33));
-        inputBorderBrush.Freeze();
-        InputBorder.BorderBrush = inputBorderBrush;
+        InputBox.GotKeyboardFocus += (_, _) => InputBorder.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x88));
+        InputBox.LostKeyboardFocus += (_, _) => InputBorder.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape) { e.Handled = true; Close(); }
+        };
 
         Loaded += (_, _) =>
         {
             var fadeIn = (Storyboard)FindResource("FadeIn");
             fadeIn.Begin(this);
         };
+    }
+
+    /// <summary>Header icon tile with a soft glow in <paramref name="color"/>.</summary>
+    private void SetIcon(Color color, MaterialIconKind kind)
+    {
+        var tile = UiKit.IconTile(color, kind, 34);
+        tile.Effect = new DropShadowEffect { Color = color, BlurRadius = 16, ShadowDepth = 0, Opacity = 0.35 };
+        IconHost.Content = tile;
     }
 
     private static Style GlassButtonStyle(bool isPrimary, bool isDanger = false)
@@ -52,10 +66,10 @@ public partial class GlassDialog : Window
         style.Setters.Add(new Setter(BorderBrushProperty, new SolidColorBrush((Color)ColorConverter.ConvertFromString(borderColor))));
         style.Setters.Add(new Setter(BorderThicknessProperty, new Thickness(1)));
         style.Setters.Add(new Setter(FontFamilyProperty, new FontFamily("Segoe UI")));
-        style.Setters.Add(new Setter(FontSizeProperty, 13.0));
-        style.Setters.Add(new Setter(FontWeightProperty, isPrimary ? FontWeights.SemiBold : FontWeights.Regular));
-        style.Setters.Add(new Setter(PaddingProperty, new Thickness(20, 8, 20, 8)));
-        style.Setters.Add(new Setter(MarginProperty, new Thickness(6, 0, 0, 0)));
+        style.Setters.Add(new Setter(FontSizeProperty, 12.0));
+        style.Setters.Add(new Setter(FontWeightProperty, FontWeights.SemiBold));
+        style.Setters.Add(new Setter(PaddingProperty, new Thickness(16, 8, 16, 8)));
+        style.Setters.Add(new Setter(MarginProperty, new Thickness(8, 0, 0, 0)));
         style.Setters.Add(new Setter(CursorProperty, Cursors.Hand));
 
         var template = new ControlTemplate(typeof(Button));
@@ -65,7 +79,7 @@ public partial class GlassDialog : Window
         border.SetValue(Border.BackgroundProperty, new SolidColorBrush((Color)ColorConverter.ConvertFromString(bg)));
         border.SetValue(Border.BorderBrushProperty, new SolidColorBrush((Color)ColorConverter.ConvertFromString(borderColor)));
         border.SetValue(Border.BorderThicknessProperty, new Thickness(1));
-        border.SetValue(Border.PaddingProperty, new Thickness(20, 8, 20, 8));
+        border.SetValue(Border.PaddingProperty, new Thickness(16, 8, 16, 8));
 
         var cp = new FrameworkElementFactory(typeof(ContentPresenter));
         cp.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
@@ -90,7 +104,7 @@ public partial class GlassDialog : Window
     public static void ShowInfo(string message, string title = "AMP UP", Window? owner = null)
     {
         var dlg = new GlassDialog();
-        dlg.TitleText.Text = title.ToUpperInvariant();
+        dlg.TitleText.Text = title;
         dlg.MessageText.Text = message;
         if (owner != null) dlg.Owner = owner;
 
@@ -104,7 +118,7 @@ public partial class GlassDialog : Window
     public static void ShowInfo(string title, UIElement content, Window? owner = null)
     {
         var dlg = new GlassDialog();
-        dlg.TitleText.Text = title.ToUpperInvariant();
+        dlg.TitleText.Text = title;
         dlg.MessageText.Visibility = Visibility.Collapsed;
         dlg.ContentArea.Children.Add(content);
         if (owner != null) dlg.Owner = owner;
@@ -122,8 +136,8 @@ public partial class GlassDialog : Window
     public static void ShowWarning(string message, string title = "AMP UP", Window? owner = null)
     {
         var dlg = new GlassDialog();
-        dlg.TitleText.Text = title.ToUpperInvariant();
-        dlg.TitleText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#66FFB800"));
+        dlg.TitleText.Text = title;
+        dlg.SetIcon(Color.FromRgb(0xFF, 0xB8, 0x00), MaterialIconKind.AlertOutline);
         dlg.MessageText.Text = message;
         if (owner != null) dlg.Owner = owner;
 
@@ -140,9 +154,9 @@ public partial class GlassDialog : Window
     public static bool Confirm(string message, string title = "AMP UP", bool dangerYes = false, Window? owner = null)
     {
         var dlg = new GlassDialog();
-        dlg.TitleText.Text = title.ToUpperInvariant();
-        if (dangerYes)
-            dlg.TitleText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#66FF4444"));
+        dlg.TitleText.Text = title;
+        dlg.SetIcon(dangerYes ? Color.FromRgb(0xFF, 0x44, 0x44) : ThemeManager.Accent,
+            dangerYes ? MaterialIconKind.AlertOutline : MaterialIconKind.HelpCircleOutline);
         dlg.MessageText.Text = message;
         if (owner != null) dlg.Owner = owner;
 
@@ -168,8 +182,9 @@ public partial class GlassDialog : Window
     public static string? Prompt(string message, string title = "AMP UP", Window? owner = null, string initialText = "")
     {
         var dlg = new GlassDialog();
-        dlg.TitleText.Text = title.ToUpperInvariant();
+        dlg.TitleText.Text = title;
         dlg.MessageText.Text = message;
+        dlg.SetIcon(ThemeManager.Accent, MaterialIconKind.PencilOutline);
         dlg.InputBorder.Visibility = Visibility.Visible;
         dlg.InputBox.Text = initialText;
         if (owner != null) dlg.Owner = owner;
