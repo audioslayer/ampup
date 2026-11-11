@@ -72,11 +72,12 @@ public partial class GroupsView : UserControl
             _config.Groups.Count == 0 ? "" : $"{_config.Groups.Count}"));
         if (_config.Groups.Count == 0)
         {
-            GroupPanel.Children.Add(BuildEmptyState(
+            var first = BuildNewGroupButton(primary: true);
+            ((StackPanel)first.Content).Children.OfType<TextBlock>().First().Text = "Create your first group";
+            GroupPanel.Children.Add(BuildHeroEmptyState(MaterialIconKind.LightbulbGroupOutline,
                 "No device groups yet",
-                "Combine Govee lights, Corsair devices, Home Assistant entities and audio outputs. "
-                + "Point a knob at a group to dim everything at once, or bind a button to toggle it.",
-                withNewButton: true));
+                "Dim Govee, Corsair, Home Assistant and audio outputs together from one knob or button.",
+                first));
         }
         else
         {
@@ -91,28 +92,22 @@ public partial class GroupsView : UserControl
         GroupPanel.Children.Add(appHeader);
         if (appGroups.Count == 0)
         {
-            GroupPanel.Children.Add(BuildEmptyState(
+            var first = MakePillButton("Create your first app group", MaterialIconKind.Plus, null, primary: true);
+            first.Click += (_, _) => PromptNewAppGroup();
+            GroupPanel.Children.Add(BuildHeroEmptyState(MaterialIconKind.Apps,
                 "No app groups yet",
-                "Put several apps on one knob, like Spotify and Steam as Music. "
-                + "Make one here, or set a knob's target to App group in the Mixer.",
-                withNewButton: false));
+                "Put several apps on one knob, like Spotify and Steam as Music.",
+                first));
         }
         else
         {
             foreach (var ag in appGroups.ToList())
                 GroupPanel.Children.Add(BuildAppGroupCard(ag));
+            var newApp = BuildLinkRow(MaterialIconKind.Plus, "New app group", accent: true);
+            newApp.HorizontalAlignment = HorizontalAlignment.Left;
+            newApp.MouseLeftButtonUp += (_, _) => PromptNewAppGroup();
+            GroupPanel.Children.Add(newApp);
         }
-        var newApp = BuildLinkRow(MaterialIconKind.Plus, "New app group", accent: true);
-        newApp.HorizontalAlignment = HorizontalAlignment.Left;
-        newApp.MouseLeftButtonUp += (_, _) =>
-        {
-            var name = GlassDialog.Prompt("Name for the new app group:", "New app group", Window.GetWindow(this));
-            if (string.IsNullOrWhiteSpace(name) || _config == null) return;
-            var g = AppGroupSync.Create(_config, name);
-            _focusKey = AppGroupKey(g);
-            SaveAppGroups(null);
-        };
-        GroupPanel.Children.Add(newApp);
 
         if (_focusKey != null)
         {
@@ -153,9 +148,117 @@ public partial class GroupsView : UserControl
         brush.BeginAnimation(SolidColorBrush.ColorProperty, fade);
     }
 
-    private FrameworkElement BuildPageHeader() =>
-        UiKit.PageHeader("Groups", "Several devices or apps on one knob or button",
-            BuildNewGroupButton(), Material.Icons.MaterialIconKind.Group);
+    private void PromptNewAppGroup()
+    {
+        var name = GlassDialog.Prompt("Name for the new app group:", "New app group", Window.GetWindow(this));
+        if (string.IsNullOrWhiteSpace(name) || _config == null) return;
+        var g = AppGroupSync.Create(_config, name);
+        _focusKey = AppGroupKey(g);
+        SaveAppGroups(null);
+    }
+
+    private FrameworkElement BuildPageHeader()
+    {
+        var actions = new StackPanel { Orientation = Orientation.Horizontal };
+        int total = (_config?.Groups.Count ?? 0) + (_config?.AppGroups.Count ?? 0);
+        var count = MakeCountPill(total == 1 ? "1 group" : $"{total} groups");
+        count.Margin = new Thickness(0, 0, 8, 0);
+        actions.Children.Add(count);
+        var help = UiKit.HelpTip(
+            "Device groups bundle Govee lights, Corsair devices, Home Assistant entities and audio outputs: "
+            + "point a knob at one to dim everything at once, or bind a button to toggle it.\n\n"
+            + "App groups put several apps on one knob (Spotify + Steam as Music). Any knob or encoder can share one from the Mixer.",
+            "Groups");
+        help.Margin = new Thickness(0, 0, 12, 0);
+        actions.Children.Add(help);
+        actions.Children.Add(BuildNewGroupButton());
+        return UiKit.PageHeader("Groups", "Several devices or apps on one knob or button",
+            actions, Material.Icons.MaterialIconKind.Group);
+    }
+
+    /// <summary>Small accent-tinted pill ("3 groups").</summary>
+    private static Border MakeCountPill(string text)
+    {
+        var a = ThemeManager.Accent;
+        var tb = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(a) };
+        return new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(9, 2, 9, 3),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x18)),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x55)),
+            Child = tb,
+        };
+    }
+
+    /// <summary>Card hover: lift 2px and fade in a soft glow in the card's color.</summary>
+    private static void AddHoverLift(Border card, Color glowColor)
+    {
+        var tt = new TranslateTransform();
+        card.RenderTransform = tt;
+        var glow = new System.Windows.Media.Effects.DropShadowEffect
+            { BlurRadius = 22, ShadowDepth = 0, Opacity = 0, Color = glowColor };
+        card.Effect = glow;
+        void Animate(double y, double opacity)
+        {
+            if (!SystemParameters.ClientAreaAnimation)
+            {
+                tt.Y = y;
+                glow.Opacity = opacity;
+                return;
+            }
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            tt.BeginAnimation(TranslateTransform.YProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(y, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease });
+            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(opacity, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+        }
+        card.MouseEnter += (_, _) => Animate(-2, 0.35);
+        card.MouseLeave += (_, _) => Animate(0, 0);
+    }
+
+    /// <summary>Large centered empty state: glowing icon tile, title, one line, call-to-action button.</summary>
+    private Border BuildHeroEmptyState(MaterialIconKind icon, string title, string body, FrameworkElement action)
+    {
+        var a = ThemeManager.Accent;
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(16),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(24, 28, 24, 26),
+            Margin = new Thickness(0, 0, 0, 14),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x33)),
+            Background = new LinearGradientBrush(ThemeManager.WithAlpha(a, 0x10), Color.FromArgb(0x06, 0xFF, 0xFF, 0xFF), 90),
+        };
+        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+        card.Child = stack;
+
+        var tile = new Border
+        {
+            Width = 64, Height = 64,
+            CornerRadius = new CornerRadius(18),
+            BorderThickness = new Thickness(1),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x1E)),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66)),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 0, Opacity = 0.5, Color = a },
+            Child = new MaterialIcon { Kind = icon, Width = 32, Height = 32, Foreground = new SolidColorBrush(a) },
+        };
+        stack.Children.Add(tile);
+
+        var t1 = new TextBlock { Text = title, FontSize = 16, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
+        t1.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        stack.Children.Add(t1);
+        var t2 = new TextBlock { Text = body, FontSize = 12, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, MaxWidth = 420, Margin = new Thickness(0, 4, 0, 16) };
+        t2.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        stack.Children.Add(t2);
+
+        action.HorizontalAlignment = HorizontalAlignment.Center;
+        stack.Children.Add(action);
+        return card;
+    }
 
     private FrameworkElement BuildSectionHeader(string text, string count)
     {
@@ -188,50 +291,6 @@ public partial class GroupsView : UserControl
         return row;
     }
 
-    private Border BuildEmptyState(string title, string body, bool withNewButton)
-    {
-        var card = new Border
-        {
-            CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(20, 18, 20, 18),
-            Margin = new Thickness(0, 0, 0, 12),
-        };
-        card.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        card.Child = grid;
-
-        var icon = MakeIcon(withNewButton ? MaterialIconKind.LightbulbGroupOutline : MaterialIconKind.Apps, 22, "TextDimBrush");
-        icon.Margin = new Thickness(0, 0, 16, 0);
-        icon.VerticalAlignment = VerticalAlignment.Center;
-        grid.Children.Add(icon);
-
-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var t1 = new TextBlock { Text = title, FontSize = 13, FontWeight = FontWeights.SemiBold };
-        t1.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        var t2 = new TextBlock { Text = body, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) };
-        t2.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
-        stack.Children.Add(t1);
-        stack.Children.Add(t2);
-        Grid.SetColumn(stack, 1);
-        grid.Children.Add(stack);
-
-        if (withNewButton)
-        {
-            var btn = BuildNewGroupButton(primary: false);
-            btn.Margin = new Thickness(16, 0, 0, 0);
-            btn.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(btn, 2);
-            grid.Children.Add(btn);
-        }
-        return card;
-    }
-
     // ── Generic card shell ───────────────────────────────────────────
 
     /// <summary>
@@ -244,25 +303,40 @@ public partial class GroupsView : UserControl
         var card = new Border
         {
             Style = FindResource("CardPanel") as Style,
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 0, 0, 14),
             Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(16),
         };
+        AddHoverLift(card, color);
 
         var outer = new Grid();
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         card.Child = outer;
 
+        // Tinted glass header wash in the group's color, fading out down the card.
+        var wash = new Border
+        {
+            Height = 72,
+            VerticalAlignment = VerticalAlignment.Top,
+            CornerRadius = new CornerRadius(15, 15, 0, 0),
+            IsHitTestVisible = false,
+            Background = new LinearGradientBrush(ThemeManager.WithAlpha(color, 0x1C), ThemeManager.WithAlpha(color, 0x00), 90),
+        };
+        Grid.SetColumnSpan(wash, 2);
+        outer.Children.Add(wash);
+
         var bar = new Border
         {
-            Width = 3,
+            Width = 4,
             CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 14, 0, 14),
+            Margin = new Thickness(0, 16, 0, 16),
             Background = new SolidColorBrush(color),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 10, ShadowDepth = 0, Opacity = 0.6, Color = color },
         };
         outer.Children.Add(bar);
 
-        var body = new StackPanel { Margin = new Thickness(14, 14, 16, 14) };
+        var body = new StackPanel { Margin = new Thickness(16, 16, 18, 16) };
         Grid.SetColumn(body, 1);
         outer.Children.Add(body);
 
@@ -275,15 +349,15 @@ public partial class GroupsView : UserControl
 
         var tile = new Border
         {
-            Width = 34, Height = 34,
-            CornerRadius = new CornerRadius(9),
+            Width = 40, Height = 40,
+            CornerRadius = new CornerRadius(11),
             Background = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x22)),
             BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x55)),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 0, 12, 0),
             VerticalAlignment = VerticalAlignment.Center,
             ToolTip = tileTooltip,
-            Child = new MaterialIcon { Kind = tileIcon, Width = 18, Height = 18, Foreground = new SolidColorBrush(color) },
+            Child = new MaterialIcon { Kind = tileIcon, Width = 20, Height = 20, Foreground = new SolidColorBrush(color) },
         };
         if (onTileClick != null)
         {
@@ -830,33 +904,47 @@ public partial class GroupsView : UserControl
         try { running = _mixer?.GetRunningAudioApps() ?? new List<string>(); }
         catch { running = new List<string>(); }
 
-        var rows = new List<MemberRow>();
+        // Member apps as a wrapping row of chips, then an "Add apps" chip.
+        var chips = new WrapPanel();
+        int playing = 0;
         foreach (var app in group.Apps.ToList())
         {
             bool isRunning = running.Contains(app, StringComparer.OrdinalIgnoreCase);
+            if (isRunning) playing++;
             var appCapture = app;
-            rows.Add(new MemberRow(
-                MakeAppIcon(app, isRunning),
-                MixerView.FormatTargetName(app), app,
-                isRunning ? "Playing audio now" : "Not running",
-                null, null,
-                () =>
-                {
-                    group.Apps.RemoveAll(a => a.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
-                    SaveAppGroups(group);
-                },
-                "Remove from group",
-                Dim: !isRunning));
+            chips.Children.Add(BuildAppChip(app, isRunning, () =>
+            {
+                group.Apps.RemoveAll(a => a.Equals(appCapture, StringComparison.OrdinalIgnoreCase));
+                SaveAppGroups(group);
+            }));
         }
+        Border? addChip = null;
+        addChip = BuildAddAppsChip(group.Apps.Count == 0 ? "Add your first app" : "Add apps",
+            () => ShowAddAppMenu(addChip!, group));
+        chips.Children.Add(addChip);
 
         var users = AppGroupUsers(group);
         int n = group.Apps.Count;
         string apps = n == 0 ? "Empty" : $"{n} app{(n == 1 ? "" : "s")}";
-        string usedBy = users.Count == 0 ? "not on a knob yet" : "used by " + string.Join(", ", users.Select(u => u.Label));
-        string subtitle = $"{apps} · {usedBy}";
+        string subtitle = playing > 0 ? $"{apps} · {playing} playing now" : apps;
 
-        var list = BuildMemberList(key, rows, "No apps yet. Add one below.", "Add app",
-            anchor => ShowAddAppMenu(anchor, group), BuildAppMemberRow);
+        var list = new StackPanel();
+        list.Children.Add(chips);
+
+        // Which knobs / encoders use this group, as small pills (click opens it in the Mixer).
+        var usedRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+        var usedLabel = new TextBlock { Text = "USED BY", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(2, 0, 8, 4), VerticalAlignment = VerticalAlignment.Center };
+        usedLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        usedRow.Children.Add(usedLabel);
+        if (users.Count == 0)
+        {
+            var none = new TextBlock { Text = "Not on a knob yet. Pick it as a knob's target in the Mixer.", FontSize = 11, Margin = new Thickness(0, 0, 0, 4), VerticalAlignment = VerticalAlignment.Center };
+            none.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            usedRow.Children.Add(none);
+        }
+        foreach (var u in users)
+            usedRow.Children.Add(BuildUserPill(u.Label, u.IsStreamController, u.Idx));
+        list.Children.Add(usedRow);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         if (users.Count > 0)
@@ -874,6 +962,7 @@ public partial class GroupsView : UserControl
             GlassContextMenuHost.Show(more, new List<GlassMenuItem>
             {
                 new("Add app", MaterialIconKind.Plus, () => ShowAddAppMenu(more, group)),
+                new("Browse installed apps…", MaterialIconKind.Magnify, () => PickInstalledApp(group)),
                 new("Add by process name…", MaterialIconKind.FormTextbox, () => PromptAddApp(group)),
                 new("Rename", MaterialIconKind.PencilOutline, () =>
                 {
@@ -938,65 +1027,150 @@ public partial class GroupsView : UserControl
         }, emptyText: "No other apps are playing audio. Type a process name to add one anyway.");
     }
     /// <summary>
-    /// App row in the Mixer dropdown style: tinted icon tile with the real app icon,
-    /// friendly name + status line, remove button on hover.
+    /// App chip: real app icon + friendly name, green dot while it's playing audio,
+    /// remove x that fades in on hover.
     /// </summary>
-    private FrameworkElement BuildAppMemberRow(MemberRow r)
+    private Border BuildAppChip(string app, bool running, Action onRemove)
     {
-        var row = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(6, 5, 4, 5), Background = Brushes.Transparent };
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.Child = grid;
-
-        var tile = new Border
+        var chip = new Border
         {
-            Width = 34, Height = 34,
-            CornerRadius = new CornerRadius(9),
+            CornerRadius = new CornerRadius(18),
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 12, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Opacity = r.Dim ? 0.6 : 1,
-            Child = r.Icon,
+            Padding = new Thickness(6, 5, 4, 5),
+            Margin = new Thickness(0, 0, 8, 8),
+            ToolTip = $"{app}.exe \u00b7 {(running ? "Playing audio now" : "Not running")}",
         };
-        tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        tile.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
-        r.Icon.HorizontalAlignment = HorizontalAlignment.Center;
-        r.Icon.VerticalAlignment = VerticalAlignment.Center;
-        grid.Children.Add(tile);
+        chip.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        chip.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
 
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var name = new TextBlock { Text = r.Name, FontSize = 12.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = r.Detail };
-        name.SetResourceReference(TextBlock.ForegroundProperty, r.Dim ? "TextSecBrush" : "TextPrimaryBrush");
-        text.Children.Add(name);
-        var sub = new TextBlock { Text = r.TypeText, FontSize = 10.5, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
-        sub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        text.Children.Add(sub);
-        Grid.SetColumn(text, 1);
-        grid.Children.Add(text);
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        chip.Child = sp;
 
-        // Live status: green when the app is playing audio right now
-        var dot = new System.Windows.Shapes.Ellipse
+        var icon = MakeAppIcon(app, running);
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        icon.Margin = new Thickness(2, 0, 8, 0);
+        icon.Opacity = running ? 1 : 0.6;
+        sp.Children.Add(icon);
+
+        var name = new TextBlock { Text = MixerView.FormatTargetName(app), FontSize = 12.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 180, TextTrimming = TextTrimming.CharacterEllipsis };
+        name.SetResourceReference(TextBlock.ForegroundProperty, running ? "TextPrimaryBrush" : "TextSecBrush");
+        sp.Children.Add(name);
+
+        if (running)
         {
-            Width = 7, Height = 7, Margin = new Thickness(8, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
-            Fill = r.Dim ? FindBrush("TextDimBrush") : new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77)),
-            Opacity = r.Dim ? 0.4 : 1,
-            ToolTip = r.TypeText,
-        };
-        Grid.SetColumn(dot, 2);
-        grid.Children.Add(dot);
+            var green = Color.FromRgb(0x00, 0xDD, 0x77);
+            sp.Children.Add(new System.Windows.Shapes.Ellipse
+            {
+                Width = 7, Height = 7, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                Fill = new SolidColorBrush(green),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 6, ShadowDepth = 0, Opacity = 0.8, Color = green },
+            });
+        }
 
-        var remove = MakeIconButton(MaterialIconKind.Close, r.RemoveTooltip, danger: true, size: 26);
+        var remove = MakeIconButton(MaterialIconKind.Close, "Remove from group", danger: true, size: 22);
+        remove.Margin = new Thickness(4, 0, 0, 0);
         remove.Opacity = 0;
-        remove.MouseLeftButtonUp += (_, e) => { e.Handled = true; r.OnRemove(); };
-        Grid.SetColumn(remove, 3);
-        grid.Children.Add(remove);
+        remove.MouseLeftButtonUp += (_, e) => { e.Handled = true; onRemove(); };
+        sp.Children.Add(remove);
 
-        row.MouseEnter += (_, _) => { row.SetResourceReference(Border.BackgroundProperty, "CardBgBrush"); remove.Opacity = 1; };
-        row.MouseLeave += (_, _) => { row.Background = Brushes.Transparent; remove.Opacity = 0; };
-        return row;
+        chip.MouseEnter += (_, _) =>
+        {
+            chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x88));
+            remove.Opacity = 1;
+        };
+        chip.MouseLeave += (_, _) =>
+        {
+            chip.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+            remove.Opacity = 0;
+        };
+        return chip;
+    }
+
+    /// <summary>Accent-tinted chip that opens the app chooser.</summary>
+    private Border BuildAddAppsChip(string text, Action onClick)
+    {
+        var a = ThemeManager.Accent;
+        var ic = new MaterialIcon { Kind = MaterialIconKind.Plus, Width = 15, Height = 15, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(a) };
+        var tb = new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(a) };
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        sp.Children.Add(ic);
+        sp.Children.Add(tb);
+        var chip = new Border
+        {
+            CornerRadius = new CornerRadius(18),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(12, 8, 14, 8),
+            Margin = new Thickness(0, 0, 8, 8),
+            Cursor = Cursors.Hand,
+            ToolTip = "Add apps that are playing audio, or type a process name",
+            Child = sp,
+        };
+        void Paint(bool hover)
+        {
+            chip.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, (byte)(hover ? 0x2A : 0x10)));
+            chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, (byte)(hover ? 0xCC : 0x55)));
+        }
+        Paint(false);
+        chip.MouseEnter += (_, _) => Paint(true);
+        chip.MouseLeave += (_, _) => Paint(false);
+        chip.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
+        return chip;
+    }
+
+    /// <summary>Small pill naming a knob/encoder that uses the group; click opens it in the Mixer.</summary>
+    private Border BuildUserPill(string label, bool isStreamController, int idx)
+    {
+        var ic = MakeIcon(isStreamController ? MaterialIconKind.TuneVertical : MaterialIconKind.Knob, 12, "TextSecBrush");
+        ic.Margin = new Thickness(0, 0, 5, 0);
+        ic.VerticalAlignment = VerticalAlignment.Center;
+        var tb = new TextBlock { Text = label, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+        tb.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        sp.Children.Add(ic);
+        sp.Children.Add(tb);
+        var pill = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(8, 2, 9, 3),
+            Margin = new Thickness(0, 0, 6, 4),
+            Cursor = Cursors.Hand,
+            ToolTip = $"Open {label} in the Mixer",
+            Child = sp,
+        };
+        pill.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        pill.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        pill.MouseEnter += (_, _) =>
+        {
+            pill.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x88));
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        };
+        pill.MouseLeave += (_, _) =>
+        {
+            pill.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        };
+        pill.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOpenInMixer?.Invoke(isStreamController, idx); };
+        return pill;
+    }
+
+    /// <summary>Add an installed/common app via the shared app picker dialog.</summary>
+    private void PickInstalledApp(AppGroupDef group)
+    {
+        var picker = new AppPickerDialog { Owner = Window.GetWindow(this) };
+        if (picker.ShowDialog() != true) return;
+        var name = picker.SelectedProcessName;
+        if (string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(picker.SelectedPath))
+        {
+            try { name = System.IO.Path.GetFileNameWithoutExtension(Environment.ExpandEnvironmentVariables(picker.SelectedPath.Trim().Trim('"'))); }
+            catch { name = null; }
+        }
+        if (string.IsNullOrWhiteSpace(name)) return;
+        name = name.Trim();
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
+        name = name.ToLowerInvariant();
+        if (!group.Apps.Contains(name, StringComparer.OrdinalIgnoreCase)) group.Apps.Add(name);
+        SaveAppGroups(group);
     }
 
     private void PromptAddApp(AppGroupDef group)
