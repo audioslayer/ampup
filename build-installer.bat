@@ -57,20 +57,18 @@ echo.
 
 :: Build installer with Inno Setup
 echo [2/2] Building installer...
-where iscc >nul 2>nul
-if errorlevel 1 (
-    :: Try default Inno Setup install path
-    if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
-        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\ampup-setup.iss
-    ) else (
-        echo ERROR: Inno Setup not found! Install from https://jrsoftware.org/isinfo.php
-        echo        Then re-run this script.
-        pause
-        exit /b 1
-    )
-) else (
-    iscc installer\ampup-setup.iss
+set "ISCC="
+for /f "delims=" %%I in ('where iscc 2^>nul') do if not defined ISCC set "ISCC=%%I"
+if not defined ISCC if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+if not defined ISCC if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
+if not defined ISCC (
+    echo ERROR: Inno Setup not found! Install from https://jrsoftware.org/isinfo.php
+    echo        Then re-run this script.
+    pause
+    exit /b 1
 )
+"%ISCC%" installer\ampup-setup.iss
 
 if errorlevel 1 (
     echo ERROR: Installer build failed!

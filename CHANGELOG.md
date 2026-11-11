@@ -6,14 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [1.4.5] - 2026-11-10
 
 ### Added
+- Keystroke and hotkey actions send F1-F24 (including F13-F24), numpad, media and punctuation keys, using scan codes so games and apps accept them.
+- Record button in the keystroke editor captures a hotkey for you.
+- Hold-key action keeps keys held while the button is held (push-to-talk).
+- Chrome media button actions (Play/Pause, Next, Prev) control only Chrome's media session (e.g. YouTube), so they no longer grab Spotify the way the global media key can. Spotify actions already use the Spotify API directly.
 - Macro sequences with pauses: Send keystroke can now chain steps and waits (e.g. Ctrl+1, wait 500ms, 2) using a timeline builder: hover between steps to record keys or drop in a pause (100ms to 2s presets or a custom length) at exactly that spot, click a pause to edit it or scroll to adjust, drag steps to reorder, × to delete, plus a step count / total duration footer; sequences run in the background and a press while one is running is ignored.
 - Discord setup guide (Settings → Integrations → Discord → Setup guide): walks you through getting tester access (friend-request audio, wait for the tester invite, accept it) and then connects.
 - More Discord controls (tester preview): Discord input volume (0-100%) and output volume (0-200%, knob center = 100%) as knob and N3 encoder targets with OSD and Mixer readout; new button actions Toggle Push to Talk, Toggle Auto Gain Control and Toggle Echo Cancellation; Discord mute/deafen/PTT/AGC/echo/noise state now stays live (checked every 2s while Discord is in use), so N3 keys glow and knob mute lights follow changes made in Discord.
 
 ### Changed
+- The macro action is now labeled "Send keystroke / hotkey" and runs on the new input engine.
 - New app group and Rename group dialogs redesigned in the app's modern modal style: glowing accent icon header, large name field with placeholder, inline red hint for blank or duplicate names (Create / Save stays disabled until the name is valid), quick-pick chips for new app groups (Games, Browsers, Music, Chat, Streaming), Enter to confirm and Esc to cancel. Info, warning, confirm and prompt dialogs across the app now use the same chrome (theme colours, icon tile, close button) instead of the old green glass look.
 - Groups page redesigned: header with group count pill, help tip and New group button; larger rounded glass group cards with a color-tinted header, glowing color strip and hover lift; members of every group shown as compact wrapping chips instead of table rows (app chips show the real app icon and a subtle accent equalizer + ring while playing, × on hover) with an Add apps chip, a Browse installed apps… option, and clickable "Used by" knob/encoder pills that open the Mixer; big friendly empty states with Create your first group buttons.
 - Overview page redesigned: hero header with the active profile, live device status pills and Preview OSD / Switch profile quick actions; Turn Up and Stream Controller sections with large device photos and accent glow; glass profile cards with an LED-colour strip, a glowing Active pill, hover lift, full detail for the active profile and compact knob/button/key chips for the rest (click any chip to edit it in that profile).
@@ -22,17 +27,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Settings: the General and Profiles pages match the new Devices look, with a hero header, large glass cards, setting rows with hints, a polished About card with the app icon, and side-by-side Discord / coffee community cards.
 - Settings → Devices redesigned: a header shows your current setup and connection status, Hardware mode is now four large cards with the active one highlighted, and Turn Up and Stream Controller each get a large card with a device picture, Connected / Not found status, and their port, detect and screen-sleep settings. Real product photos appear automatically once added to Assets/devices.
 - Keystroke recorder redesigned: keycap preview and a big Record button now lead the Send keystroke / Hold key options (Turn Up, Stream Controller and multi-action steps), with typing moved to an "Edit as text" fallback. The recorder dialog uses the app's modal style, shows a pulsing recording state, and supports Re-record, Clear, Esc to stop recording, and Save / Cancel.
-
-## [1.4.5] - 2026-11-10
-
-### Added
-- Keystroke and hotkey actions send F1-F24 (including F13-F24), numpad, media and punctuation keys, using scan codes so games and apps accept them.
-- Record button in the keystroke editor captures a hotkey for you.
-- Hold-key action keeps keys held while the button is held (push-to-talk).
-- Chrome media button actions (Play/Pause, Next, Prev) control only Chrome's media session (e.g. YouTube), so they no longer grab Spotify the way the global media key can. Spotify actions already use the Spotify API directly.
-
-### Changed
-- The macro action is now labeled "Send keystroke / hotkey" and runs on the new input engine.
 
 ## [1.4.4] - 2026-10-27
 

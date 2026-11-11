@@ -51,6 +51,12 @@ Updates can be started from the version label, **Settings → Check for Updates*
 
 ## Supported hardware
 
+<p align="center">
+  <img src="Assets/devices/turnup.png" height="170" alt="Turn Up USB mixer" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="Assets/devices/n3.png" height="170" alt="TreasLin N3 stream controller" />
+</p>
+
 | Device | Status | Support |
 | --- | --- | --- |
 | **Original Turn Up USB mixer** | Stable / primary | 5 knobs, 5 buttons, 15 RGB LEDs, native CH343 serial protocol, profiles, app groups, actions, and lighting |
@@ -65,6 +71,10 @@ The experimental macOS port has been discontinued. Current releases support **64
 ### A modern interface
 
 - A slim sidebar that expands on hover, with sections for Hardware, Lighting, and App and the profile switcher at the top.
+- **Overview** page with a hero header for the active profile, live device status pills, large device photos, and a glass card for every profile with compact knob, button, and key chips. Click a chip to jump straight to it.
+- **Settings** redesigned in four tabs: **Devices** (big hardware-mode cards and device cards with product photos), **General**, **Profiles**, and **Integrations**.
+- **Integrations hub:** one sidebar lists Govee, Corsair iCUE, SignalRGB, Home Assistant, OBS Studio, VoiceMeeter, Discord, and Spotify with their logos and a Connected / On / Off status. Pick a service to see its settings, and use its **Setup guide** for a step-by-step walkthrough.
+- **Groups** page with glass cards, app chips with real app icons, and "used by" pills that show which knobs share each group.
 - Compact page headers, and the same cards, switches, sliders, dropdowns, and text boxes on every page.
 - Searchable pickers with sections, friendly names, short descriptions, and real app icons.
 - Small **?** help tips explain each feature on hover instead of filling pages with text.
@@ -87,6 +97,9 @@ The experimental macOS port has been discontinued. Current releases support **64
 - Assign tap, double-press, and hold actions to each Turn Up button.
 - Use media, mute, app, device, profile, macro, URL, text, screenshot, power, integration, toggle, and multi-action commands.
 - Mute the default mic, or a specific microphone or output device, from any button or key.
+- **Macros with pauses:** the **Macro** category at the top of the action list builds multi-step keystroke sequences on a timeline. Record keys, hover between steps to drop in a pause (100 ms to 2 s, or any length), edit pauses in place, and drag steps to reorder. Press several keys together (like `T + Y`) to record a real chord. Sequences run in the background, so a long macro never freezes your knobs.
+- **Keystroke recorder:** press **Record** and tap your hotkey. F1-F24 (including F13-F24), numpad, media, and punctuation keys all work, and **Hold key** keeps keys down while you hold the button for push-to-talk.
+- **Chrome media buttons:** play/pause, next, and previous that control only Chrome (YouTube and friends) so they never grab your Spotify session.
 - Build profiles, import/export configurations, back up settings, and switch profiles manually or by foreground application.
 - Automatically duck selected apps when a voice or priority application becomes active.
 
@@ -169,7 +182,9 @@ To connect, open **Tools → WebSocket Server Settings** in OBS, tick **Enable W
 | **OBS Studio** | Source volume knobs with live OBS meters and two-way sync, scene / mute / source / filter / stream / record / replay / virtual camera actions, On Air lighting, and a scene Quick Wheel, on this PC or a second streaming PC. See [OBS Studio](#obs-studio) |
 | **VoiceMeeter** | Strip and bus gain and mute for Basic, Banana, and Potato; automatic detection or a chosen install folder, with automatic reconnect when VoiceMeeter restarts |
 | **Spotify** | Playback actions, session restore, track state, and N3 now-playing artwork |
-| **Discord RPC** | Mute, deafen, voice-state, leave-channel, and noise-suppression actions. Tester preview until Discord approves public access: join the [WolfDen Discord](https://discord.gg/TDkfWSjqZ) and DM audio in #amp-up to be added |
+| **Discord RPC** | Mute, deafen, push-to-talk, auto gain, echo cancellation, noise suppression, and leave-channel actions, plus Discord **input and output volume** as knob and N3 encoder targets, with live on/off state on N3 keys. Tester preview until Discord approves public access: open **Settings → Integrations → Discord → Setup guide**, send a friend request to **aud10sayer** on Discord asking for Amp Up tester access, and install the tester invite you get back |
+
+Every integration has a **Setup guide** in **Settings → Integrations** that walks through connecting it, including Home Assistant tokens, OBS WebSocket, VoiceMeeter, iCUE, SignalRGB, Spotify, and Discord tester access.
 
 Integration credentials and Amp Up configuration are stored locally under `%APPDATA%\AmpUp`.
 
