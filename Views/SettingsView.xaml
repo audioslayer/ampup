@@ -1515,96 +1515,149 @@
                         </Grid>
                     </Border>
 
-                    <!-- Discord -->
-                    <Border x:Name="DiscordIntegration" Style="{StaticResource SCard}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Style="{StaticResource SBar}" />
-                            <StackPanel Style="{StaticResource SBody}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="DiscordIconHost" Style="{StaticResource STile}">
-                                        <mi:MaterialIcon Kind="Headset" Style="{StaticResource STileIcon}" />
-                                    </Border>
-                                    <StackPanel Style="{StaticResource SHeaderNames}">
-                                        <TextBlock Text="Discord" Style="{StaticResource STitle}" />
-                                        <TextBlock Text="Discord voice controls and connection status." Style="{StaticResource SSub}" />
-                                    </StackPanel>
-                                    <Border Grid.Column="2" Style="{StaticResource SPill}" Margin="0">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Ellipse x:Name="DiscordStatusDot" Style="{StaticResource SDot}" />
-                                            <TextBlock x:Name="TxtDiscordStatus" Text="Unavailable" Style="{StaticResource SStatusText}" />
+                    <!-- Discord: status card with Connect / Disconnect, then the tester-preview callout -->
+                    <Border x:Name="DiscordIntegration">
+                        <StackPanel>
+                            <Border Style="{StaticResource SetCard}">
+                                <Border Style="{StaticResource SetCardGlass}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border x:Name="DiscordIconHost" Style="{StaticResource STile}">
+                                            <mi:MaterialIcon Kind="Headset" Style="{StaticResource STileIcon}" />
+                                        </Border>
+                                        <StackPanel Style="{StaticResource SHeaderNames}">
+                                            <TextBlock Text="Connection" Style="{StaticResource SetCardTitle}" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Ellipse x:Name="DiscordStatusDot" Style="{StaticResource SDot}" />
+                                                <TextBlock x:Name="TxtDiscordStatus" Text="Unavailable" Style="{StaticResource SStatusText}" FontSize="12" />
+                                            </StackPanel>
                                         </StackPanel>
-                                    </Border>
-                                </Grid>
-                                <StackPanel Style="{StaticResource SContent}">
-                                    <WrapPanel Orientation="Horizontal">
-                                        <ui:Button x:Name="BtnDiscordConnect" Content="Connect" Style="{StaticResource SButton}" />
-                                        <ui:Button x:Name="BtnDiscordDisconnect" Content="Disconnect" Style="{StaticResource SButton}" IsEnabled="False" />
-                                        <ui:Button x:Name="BtnDiscordJoinCommunity" Content="Join WolfDen Discord" Style="{StaticResource SButton}" />
-                                        <ui:Button x:Name="BtnDiscordSetupGuide" Content="Setup guide" Style="{StaticResource SButton}" Appearance="Primary" />
-                                    </WrapPanel>
-                                    <TextBlock Style="{StaticResource SHint}" Margin="0,2,0,0">
-                                        <Run Text="Tester preview:" FontWeight="SemiBold" />
-                                        <Run Text="Discord only allows approved testers to connect for now. To get access, send a friend request to aud10sayer on Discord asking for Amp Up tester access (use the Setup guide), then click Connect." />
-                                    </TextBlock>
-                                </StackPanel>
-                            </StackPanel>
-                        </Grid>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ui:Button x:Name="BtnDiscordDisconnect" Content="Disconnect" Style="{StaticResource SButton}" IsEnabled="False" Margin="0,0,8,0" />
+                                            <ui:Button x:Name="BtnDiscordConnect" Content="Connect" Style="{StaticResource SButton}" Appearance="Primary" Margin="0" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Border>
+                            <Border Style="{StaticResource SetCard}">
+                                <Border Style="{StaticResource SetCardGlass}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,14">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource STile}">
+                                                <mi:MaterialIcon Kind="InformationOutline" Style="{StaticResource STileIcon}" />
+                                            </Border>
+                                            <StackPanel Style="{StaticResource SHeaderNames}">
+                                                <TextBlock Text="Tester preview" Style="{StaticResource SetCardTitle}" />
+                                                <TextBlock Text="Discord only allows approved testers to connect for now." Style="{StaticResource SSub}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Border Style="{StaticResource SetRow}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                                    <TextBlock Text="Get tester access" Style="{StaticResource SetRowTitle}" />
+                                                    <TextBlock Text="Send a friend request to aud10sayer on Discord asking for Amp Up tester access, then click Connect. The Setup guide walks you through it."
+                                                               Style="{StaticResource SSub}" />
+                                                </StackPanel>
+                                                <ui:Button x:Name="BtnDiscordSetupGuide" Grid.Column="1" Content="Setup guide" Style="{StaticResource SButton}"
+                                                           Appearance="Primary" Margin="0" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Border>
+                                        <Border Style="{StaticResource SetRow}" Margin="0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                                    <TextBlock Text="WolfDen community" Style="{StaticResource SetRowTitle}" />
+                                                    <TextBlock Text="Get help, share feedback and hear about new builds first." Style="{StaticResource SSub}" />
+                                                </StackPanel>
+                                                <ui:Button x:Name="BtnDiscordJoinCommunity" Grid.Column="1" Content="Join WolfDen Discord" Style="{StaticResource SButton}"
+                                                           Margin="0" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </Border>
+                        </StackPanel>
                     </Border>
 
-                    <!-- Spotify -->
-                    <Border x:Name="SpotifyIntegration" Style="{StaticResource SCard}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Style="{StaticResource SBar}" />
-                            <StackPanel Style="{StaticResource SBody}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border x:Name="SpotifyIconHost" Style="{StaticResource STile}">
-                                        <mi:MaterialIcon Kind="Spotify" Style="{StaticResource STileIcon}" />
-                                    </Border>
-                                    <StackPanel Style="{StaticResource SHeaderNames}">
-                                        <TextBlock Text="Spotify" Style="{StaticResource STitle}" />
-                                        <TextBlock Text="Control playback, likes and shuffle, and show album art on LCD keys." Style="{StaticResource SSub}" />
+                    <!-- Spotify: status card with Connect / Disconnect, then setup + collapsible Client ID card -->
+                    <Border x:Name="SpotifyIntegration">
+                        <StackPanel>
+                            <Border Style="{StaticResource SetCard}">
+                                <Border Style="{StaticResource SetCardGlass}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border x:Name="SpotifyIconHost" Style="{StaticResource STile}">
+                                            <mi:MaterialIcon Kind="Spotify" Style="{StaticResource STileIcon}" />
+                                        </Border>
+                                        <StackPanel Style="{StaticResource SHeaderNames}">
+                                            <TextBlock Text="Connection" Style="{StaticResource SetCardTitle}" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Ellipse x:Name="SpotifyStatusDot" Style="{StaticResource SDot}" />
+                                                <TextBlock x:Name="TxtSpotifyStatus" Text="Not connected" Style="{StaticResource SStatusText}" FontSize="12" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ui:Button x:Name="BtnSpotifyDisconnect" Content="Disconnect" Style="{StaticResource SButton}" IsEnabled="False" Margin="0,0,8,0" />
+                                            <ui:Button x:Name="BtnSpotifyConnect" Content="Connect" Style="{StaticResource SButton}" Appearance="Primary" Margin="0" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Border>
+                            <Border Style="{StaticResource SetCard}">
+                                <Border Style="{StaticResource SetCardGlass}">
+                                    <StackPanel>
+                                        <Border Style="{StaticResource SetRow}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                                    <TextBlock Text="First-time setup" Style="{StaticResource SetRowTitle}" />
+                                                    <TextBlock Text="Create a free Spotify app, paste its Client ID, and connect in one go."
+                                                               Style="{StaticResource SSub}" />
+                                                </StackPanel>
+                                                <ui:Button x:Name="BtnSpotifySetupGuide" Grid.Column="1" Content="Setup guide" Style="{StaticResource SButton}"
+                                                           Appearance="Primary" Margin="0" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Border>
+                                        <Border Style="{StaticResource SetRow}" Margin="0">
+                                            <Expander Foreground="{DynamicResource TextSecBrush}" FontSize="12">
+                                                <Expander.Header>
+                                                    <StackPanel Margin="4,0,0,0">
+                                                        <TextBlock Text="Advanced: Client ID" Style="{StaticResource SetRowTitle}" />
+                                                        <TextBlock Text="Already have a Spotify app? Paste its Client ID directly." Style="{StaticResource SSub}" />
+                                                    </StackPanel>
+                                                </Expander.Header>
+                                                <StackPanel Margin="0,12,0,0">
+                                                    <TextBlock Text="Client ID" Style="{StaticResource SField}" />
+                                                    <ui:TextBox x:Name="TxtSpotifyClientId" Style="{StaticResource SInput}" PlaceholderText="Spotify app Client ID" />
+                                                </StackPanel>
+                                            </Expander>
+                                        </Border>
                                     </StackPanel>
-                                    <Border Grid.Column="2" Style="{StaticResource SPill}" Margin="0">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Ellipse x:Name="SpotifyStatusDot" Style="{StaticResource SDot}" />
-                                            <TextBlock x:Name="TxtSpotifyStatus" Text="Not connected" Style="{StaticResource SStatusText}" />
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-                                <StackPanel Style="{StaticResource SContent}">
-                                    <WrapPanel Orientation="Horizontal">
-                                        <ui:Button x:Name="BtnSpotifySetupGuide" Content="Setup guide" Style="{StaticResource SButton}" Appearance="Primary" />
-                                        <ui:Button x:Name="BtnSpotifyConnect" Content="Connect" Style="{StaticResource SButton}" />
-                                        <ui:Button x:Name="BtnSpotifyDisconnect" Content="Disconnect" Style="{StaticResource SButton}" IsEnabled="False" />
-                                    </WrapPanel>
-                                    <Expander Header="Advanced: paste a Client ID directly" Foreground="{DynamicResource TextSecBrush}"
-                                              Margin="0,4,0,0" FontSize="12">
-                                        <StackPanel Margin="0,8,0,0">
-                                            <TextBlock Text="Client ID" Style="{StaticResource SField}" />
-                                            <ui:TextBox x:Name="TxtSpotifyClientId" Style="{StaticResource SInput}" PlaceholderText="Spotify app Client ID" />
-                                        </StackPanel>
-                                    </Expander>
-                                </StackPanel>
-                            </StackPanel>
-                        </Grid>
+                                </Border>
+                            </Border>
+                        </StackPanel>
                     </Border>
                     </StackPanel>
                 </Grid>
