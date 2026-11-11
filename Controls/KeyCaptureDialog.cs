@@ -14,8 +14,9 @@ namespace AmpUp.Controls;
 
 /// <summary>
 /// Macro recorder modal (same chrome as <see cref="TextEditDialog"/>): a glowing stage that
-/// shows the sequence as step chips (<see cref="MacroSequenceBuilder"/>), Record (appends a step or
-/// replaces the selected one), pause / step tools, Cancel / Save. The result uses the sequence format
+/// shows the sequence as a step timeline (<see cref="MacroSequenceBuilder"/>: hover between steps to
+/// insert keys or pauses), Record (appends a step, inserts at the chosen slot, or replaces the selected
+/// one), Cancel / Save. The result uses the sequence format
 /// <see cref="KeyboardInjector.ParseSequence"/> reads (e.g. "ctrl+1 wait:500 2"; one combo = "ctrl+shift+f13").
 /// While recording, Esc stops recording; otherwise Esc cancels and Enter saves.
 /// </summary>
@@ -41,16 +42,17 @@ public sealed class KeyCaptureDialog : Window
 
     /// <summary>
     /// Show the recorder. Returns the sequence on Save ("" when the user cleared it), or null when cancelled.
-    /// <paramref name="selected"/> pre-selects a step so Record replaces it.
+    /// <paramref name="selected"/> pre-selects a step so Record replaces it; <paramref name="insertAt"/>
+    /// (slot index) starts recording right away and inserts the combo there.
     /// </summary>
-    public static string? Capture(DependencyObject anchor, string current, int selected = -1)
+    public static string? Capture(DependencyObject anchor, string current, int selected = -1, int insertAt = -1)
     {
-        var dlg = new KeyCaptureDialog(current, selected) { Owner = Window.GetWindow(anchor) };
+        var dlg = new KeyCaptureDialog(current, selected, insertAt) { Owner = Window.GetWindow(anchor) };
         dlg.ShowDialog();
         return dlg._result;
     }
 
-    private KeyCaptureDialog(string current, int selected)
+    private KeyCaptureDialog(string current, int selected, int insertAt)
     {
         _builder = new MacroSequenceBuilder(30);
         _builder.Load(current);
@@ -76,13 +78,13 @@ public sealed class KeyCaptureDialog : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var tile = UiKit.IconTile(ThemeManager.Accent, MaterialIconKind.KeyboardOutline, 34);
+        var tile = MacroSequenceBuilder.GlowTile(ThemeManager.Accent, MaterialIconKind.KeyboardOutline, 42);
         tile.Margin = new Thickness(0, 0, 12, 0);
         header.Children.Add(tile);
         var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var t = new TextBlock { Text = "Record macro", FontSize = 14, FontWeight = FontWeights.SemiBold };
         t.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        var st = new TextBlock { Text = "Record keys and add pauses to build a sequence", FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
+        var st = new TextBlock { Text = "Record keys, then hover between steps to add more or a pause", FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
         st.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         titles.Children.Add(t);
         titles.Children.Add(st);
@@ -90,8 +92,9 @@ public sealed class KeyCaptureDialog : Window
         header.Children.Add(titles);
         var help = UiKit.HelpTip(
             "Each Record adds one step: hold Ctrl / Shift / Alt / Win, then press the key. Hold several keys together (like T + Y) for a chord. A modifier on its own works too.\n" +
-            "Add pause inserts a wait (10–60000 ms) after the selected step, so you can build WoW-style macros like Ctrl+1, wait 500ms, 2.\n" +
-            "Click a step to select it: Record replaces it, the arrows move it, Del removes it.\nEsc stops recording, Enter saves.",
+            "Hover between two steps (or at either end) and click + to record keys or drop in a pause (10–60000 ms) right there, so you can build WoW-style macros like Ctrl+1, wait 500ms, 2.\n" +
+            "Click a pause to type its length, or use the mouse wheel (Shift = fine, Ctrl = coarse). Drag steps to reorder; the × removes one.\n" +
+            "Click a key step to select it: Record replaces it, Del removes it.\nEsc stops recording, Enter saves.",
             "Building a macro");
         help.Margin = new Thickness(0, 0, 4, 0);
         help.VerticalAlignment = VerticalAlignment.Top;
@@ -127,7 +130,7 @@ public sealed class KeyCaptureDialog : Window
         var stageBody = new Grid();
         stageBody.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         stageBody.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        _capsHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Focusable = false };
+        _capsHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center, Focusable = false };
         stageBody.Children.Add(_capsHost);
         var statusRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
         _statusDot = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -142,8 +145,7 @@ public sealed class KeyCaptureDialog : Window
         stageGrid.Children.Add(_stage);
         stack.Children.Add(stageGrid);
 
-        // Pause + step tools, then the raw sequence string (what "Edit as text" shows)
-        stack.Children.Add(_builder.Toolbar);
+        // Raw sequence string (what "Edit as text" shows)
         _rawText = new TextBlock
         {
             FontSize = 10.5,
@@ -161,7 +163,7 @@ public sealed class KeyCaptureDialog : Window
         buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var left = new StackPanel { Orientation = Orientation.Horizontal };
-        _recordIcon = new MaterialIcon { Kind = MaterialIconKind.RecordCircleOutline, Width = 15, Height = 15, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        _recordIcon = new MaterialIcon { Kind = MaterialIconKind.RecordCircleOutline, Width = 20, Height = 20, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
         _recordLabel = new TextBlock { Text = "Record", FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         var recordBtn = MakeButton(_recordLabel, _recordIcon, primary: false, ToggleRecording);
         recordBtn.Margin = new Thickness(0);
@@ -181,12 +183,14 @@ public sealed class KeyCaptureDialog : Window
         Closed += (_, _) => StopPulse();
         _builder.Changed += () => Render();
         _builder.SelectionChanged += () => Render();
+        _builder.RecordRequested += _ => StartRecording();
         _builder.Select(selected);
+        _builder.BeginInsert(insertAt);
         Loaded += (_, _) =>
         {
             Focus();
-            // Nothing set yet: start listening right away. Otherwise show the current sequence first.
-            if (_builder.Count == 0) StartRecording();
+            // Nothing set yet or inserting at a slot: start listening right away. Otherwise show the sequence first.
+            if (_builder.Count == 0 || _builder.PendingInsert >= 0) StartRecording();
             else Render();
         };
     }
@@ -206,6 +210,7 @@ public sealed class KeyCaptureDialog : Window
     private void StopRecording()
     {
         _recording = false;
+        _builder.CancelInsert();
         Render();
     }
 
@@ -239,7 +244,9 @@ public sealed class KeyCaptureDialog : Window
             _capsHost.Content = liveMods != null && liveMods.Count > 0
                 ? BuildKeycaps(liveMods, 52, pending: true)
                 : MakeHintText("Press your keys…", 18, "TextPrimaryBrush");
-            _status.Text = _builder.Selected >= 0
+            _status.Text = _builder.PendingInsert >= 0
+                ? $"RECORDING INTO STEP {_builder.PendingInsert + 1} · Esc to stop"
+                : _builder.Selected >= 0
                 ? $"RECORDING STEP {_builder.Selected + 1} · Esc to stop"
                 : "RECORDING · Esc to stop";
             _status.Foreground = new SolidColorBrush(a);
@@ -257,7 +264,7 @@ public sealed class KeyCaptureDialog : Window
             _capsHost.Content = _builder.Chips;
             _status.Text = empty ? "Click Record to capture keys"
                 : sel >= 0 ? $"STEP {sel + 1} SELECTED · Record replaces it"
-                : $"{_builder.Count} STEP{(_builder.Count == 1 ? "" : "S")} · Enter to save";
+                : "Hover between steps to insert · Enter to save";
             _status.SetResourceReference(TextBlock.ForegroundProperty, empty ? "TextDimBrush" : "TextSecBrush");
             _statusDot.Fill = empty
                 ? (Brush)(Application.Current.TryFindResource("TextDimBrush") ?? Brushes.Gray)
@@ -307,6 +314,7 @@ public sealed class KeyCaptureDialog : Window
 
         if (!_recording)
         {
+            if (e.OriginalSource is TextBox) return; // inline pause editor handles its own Enter / Esc
             if (key == Key.Enter) { e.Handled = true; Save(); }
             else if (key == Key.Delete && e.OriginalSource is not TextBox && _builder.Selected >= 0) { e.Handled = true; _builder.DeleteSelected(); }
             else if (key == Key.Escape) { e.Handled = true; Close(); }
@@ -618,8 +626,8 @@ public sealed class KeyCaptureDialog : Window
     // ── Inline recorder for the macro editors ──────────────────────
 
     /// <summary>
-    /// Front-and-centre sequence builder for the "Send keystroke" / "Hold key" editors: step chips with
-    /// pause / step tools (<see cref="MacroSequenceBuilder"/>), a big Record button that opens the
+    /// Front-and-centre sequence builder for the "Send keystroke" / "Hold key" editors: the step
+    /// timeline (<see cref="MacroSequenceBuilder"/>, hover between steps to insert keys or pauses), a big Record button that opens the
     /// recorder dialog, and <paramref name="box"/> (the stored sequence string) demoted to an
     /// "Edit as text" fallback underneath. <paramref name="box"/> must not have a parent yet.
     /// Placeholder text (box.Tag shown in TextDimBrush) counts as empty.
@@ -641,22 +649,31 @@ public sealed class KeyCaptureDialog : Window
         var body = new StackPanel();
         card.Child = body;
 
-        // Step chips (click to select) + pause / move / delete / clear tools
-        var builder = new MacroSequenceBuilder(24);
+        // Header: glowing macro tile + label
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        var headTile = MacroSequenceBuilder.GlowTile(a, MaterialIconKind.KeyboardOutline, 28);
+        headTile.Margin = new Thickness(0, 0, 9, 0);
+        head.Children.Add(headTile);
+        var headText = new TextBlock { Text = "MACRO STEPS", FontSize = 11, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
+        headText.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        head.Children.Add(headText);
+        body.Children.Add(head);
+
+        // Step timeline (click to select, hover slots to insert, footer with Clear all)
+        var builder = new MacroSequenceBuilder(24) { ShowEmptyRecordButton = false };
         builder.Chips.MinHeight = 34;
+        builder.Chips.Margin = new Thickness(0, 0, 0, 10);
         body.Children.Add(builder.Chips);
-        builder.Toolbar.Margin = new Thickness(0, 8, 0, 8);
-        body.Children.Add(builder.Toolbar);
 
         // Big accent Record button
-        var recIcon = new MaterialIcon { Kind = MaterialIconKind.RecordCircleOutline, Width = 18, Height = 18, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+        var recIcon = new MaterialIcon { Kind = MaterialIconKind.RecordCircleOutline, Width = 22, Height = 22, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
         var recLabel = new TextBlock { Text = "Record", FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         var recContent = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         recContent.Children.Add(recIcon);
         recContent.Children.Add(recLabel);
         var rec = new Border
         {
-            Height = 38,
+            Height = 42,
             CornerRadius = new CornerRadius(10),
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
@@ -732,11 +749,13 @@ public sealed class KeyCaptureDialog : Window
         builder.Changed += () => SetBox(box, builder.Sequence);
         builder.SelectionChanged += RefreshLabel;
 
-        void Record()
+        void Record(int insertAt = -1)
         {
-            var result = Capture(box, CurrentValue(box), builder.Selected);
+            var result = Capture(box, CurrentValue(box), insertAt >= 0 ? -1 : builder.Selected, insertAt);
             if (result != null) SetBox(box, result);
+            builder.CancelInsert();
         }
+        builder.RecordRequested += idx => Record(idx);
         rec.MouseLeftButtonUp += (_, e) => { e.Handled = true; Record(); };
 
         // Callers set Text and Foreground separately (placeholder handling), so refresh after both land.
