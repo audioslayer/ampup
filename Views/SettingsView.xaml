@@ -1095,12 +1095,45 @@
                 </Border>
 
                 <!-- â•â•â• INTEGRATIONS â•â•â• -->
-                <StackPanel x:Name="IntegrationsCard">
-                    <StackPanel Orientation="Horizontal" Margin="0,4,0,10">
-                        <Border Width="3" Height="14" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" VerticalAlignment="Center" />
-                        <TextBlock x:Name="IntegrationHeaderText" Text="INTEGRATIONS" FontSize="12" FontWeight="Bold"
-                                   Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
-                    </StackPanel>
+                <!-- Master-detail: the sidebar rows (built in SettingsView.Integrations.cs) choose which
+                     section Border below is visible. The sections themselves are unchanged. -->
+                <Grid x:Name="IntegrationsCard">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="230" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource SetCard}" VerticalAlignment="Top">
+                        <Border Style="{StaticResource SetCardGlass}" Padding="10,14,10,14">
+                            <StackPanel x:Name="IntegrationNavList" />
+                        </Border>
+                    </Border>
+
+                    <StackPanel Grid.Column="2">
+                    <Border Style="{StaticResource SetHero}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="IntegrationDetailIconHost" Style="{StaticResource SetHeroTile}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,12,0">
+                                <TextBlock x:Name="IntegrationDetailTitle" Text="" Style="{StaticResource SetHeroTitle}" />
+                                <TextBlock x:Name="IntegrationDetailDescription" Text="" Style="{StaticResource SSub}" FontSize="12" />
+                            </StackPanel>
+                            <Border Grid.Column="2" Style="{StaticResource SPill}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse x:Name="IntegrationDetailStatusDot" Style="{StaticResource SDot}" />
+                                    <TextBlock x:Name="IntegrationDetailStatusText" Text="" Style="{StaticResource SStatusText}" />
+                                </StackPanel>
+                            </Border>
+                            <ui:Button x:Name="BtnIntegrationSetupGuide" Grid.Column="3" Content="Setup guide" Style="{StaticResource SButton}"
+                                       Appearance="Primary" Margin="0" VerticalAlignment="Center"
+                                       ToolTip="Step-by-step setup for this integration" />
+                        </Grid>
+                    </Border>
 
                     <!-- Home Assistant -->
                     <Border x:Name="HomeAssistantIntegration" Style="{StaticResource SCard}">
@@ -1364,19 +1397,7 @@
                                         <ui:Button x:Name="BtnVmAutomatic" Content="Use automatic" Style="{StaticResource SButton}" />
                                     </WrapPanel>
                                     <TextBlock x:Name="TxtVmInstallHint" Text="Amp Up finds VoiceMeeter automatically. Choose its install folder if detection fails."
-                                               Style="{StaticResource SHint}" Margin="0,0,0,12" />
-                                    <Expander x:Name="VmSetupGuide" Header="Setup guide" Foreground="{DynamicResource TextSecBrush}" FontSize="12">
-                                        <StackPanel Margin="0,8,0,0">
-                                            <TextBlock Text="1. Install and open VoiceMeeter Basic, Banana, or Potato."
-                                                       Style="{StaticResource SHint}" FontSize="12" Margin="0,0,0,8" />
-                                            <TextBlock Text="2. Turn on the integration above. Amp Up checks for a connection every five seconds, so either app can start first."
-                                                       Style="{StaticResource SHint}" FontSize="12" Margin="0,0,0,8" />
-                                            <TextBlock Text="3. If the status says Remote API not found, click Browse and select the folder where VoiceMeeter is installed. The usual location is C:\Program Files (x86)\VB\Voicemeeter."
-                                                       Style="{StaticResource SHint}" FontSize="12" Margin="0,0,0,8" />
-                                            <TextBlock Text="4. Once connected, open Mixer to assign a VoiceMeeter strip or bus to a knob. You can also assign mute actions in Buttons."
-                                                       Style="{StaticResource SHint}" FontSize="12" />
-                                        </StackPanel>
-                                    </Expander>
+                                               Style="{StaticResource SHint}" Margin="0" />
                                 </StackPanel>
                             </StackPanel>
                         </Grid>
@@ -1585,7 +1606,8 @@
                             </StackPanel>
                         </Grid>
                     </Border>
-                </StackPanel>
+                    </StackPanel>
+                </Grid>
 
             </StackPanel>
         </ScrollViewer>

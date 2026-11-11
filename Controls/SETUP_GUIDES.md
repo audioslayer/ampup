@@ -28,3 +28,8 @@ Notes:
 - HA and OBS validate on Finish: empty URL/token or host is rejected, and the port must be 1-65535.
   The OBS password may be empty.
 - Not compiled yet (written on Linux). Build on Windows before wiring.
+
+Wiring status: all guides are opened from the single header button `BtnIntegrationSetupGuide` on the
+Settings → Integrations page (`OnIntegrationSetupGuide` in Views/SettingsView.Integrations.cs), which
+dispatches on the selected service. Per-section `BtnXxxSetupGuide` buttons are not used for the five new
+guides; the `VmSetupGuide` Expander was removed.

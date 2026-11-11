@@ -53,11 +53,13 @@ public partial class SettingsView : UserControl
     private bool _streamControllerConnected;
     private readonly List<Border> _settingsTabs = new();
     private int _settingsTabIndex;
+    private const int IntegrationsTabIndex = 3;
 
     public SettingsView()
     {
         InitializeComponent();
         BuildSettingsTabs();
+        InitIntegrationsPage();
         BindReveal(ChkHaEnabled, HaSettingsPanel);
         BindReveal(ChkObsEnabled, ObsSettingsPanel);
         BindReveal(ChkVmEnabled, VmSettingsPanel);
@@ -234,7 +236,7 @@ public partial class SettingsView : UserControl
 
     private void BuildSettingsTabs()
     {
-        string[] tabNames = { "DEVICES", "GENERAL", "PROFILES", "LIGHTING APPS", "CONNECTED APPS" };
+        string[] tabNames = { "DEVICES", "GENERAL", "PROFILES", "INTEGRATIONS" };
         SettingsTabRow.Children.Clear();
         _settingsTabs.Clear();
 
@@ -286,23 +288,12 @@ public partial class SettingsView : UserControl
         AppearanceCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
         ProfilesCard.Visibility = _settingsTabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
         BackupCard.Visibility = _settingsTabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
-        IntegrationsCard.Visibility = _settingsTabIndex is 3 or 4 ? Visibility.Visible : Visibility.Collapsed;
+        IntegrationsCard.Visibility = _settingsTabIndex == IntegrationsTabIndex ? Visibility.Visible : Visibility.Collapsed;
         AboutCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
         CommunityCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
 
-        bool showLighting = _settingsTabIndex == 3;
-        bool showServices = _settingsTabIndex == 4;
-        IntegrationHeaderText.Text = showLighting ? "LIGHTING APPS" : "CONNECTED APPS";
-
-        GoveeIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
-        CorsairIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
-        SignalRgbIntegration.Visibility = showLighting ? Visibility.Visible : Visibility.Collapsed;
-
-        HomeAssistantIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
-        ObsIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
-        VoiceMeeterIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
-        DiscordIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
-        SpotifyIntegration.Visibility = showServices ? Visibility.Visible : Visibility.Collapsed;
+        // Which integration section shows inside IntegrationsCard is SelectIntegration's job
+        // (SettingsView.Integrations.cs); the selection survives tab switches.
 
         if (scrollToTop)
             SettingsScrollViewer.ScrollToTop();
@@ -429,6 +420,7 @@ public partial class SettingsView : UserControl
 
         _loading = false;
         _configLoaded = true;
+        RefreshIntegrationStatuses();
     }
 
     /// <summary>
@@ -489,6 +481,7 @@ public partial class SettingsView : UserControl
                     host.Background = Brushes.Transparent;
                     host.Child = image;
                 }
+                RefreshIntegrationIcons();
             });
         });
     }
