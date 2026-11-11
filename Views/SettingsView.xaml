@@ -199,6 +199,15 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="HwDrivesPill" TargetType="Border">
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Margin" Value="0,14,0,0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
         <Style x:Key="HwDeviceStage" TargetType="Border">
             <Setter Property="Height" Value="200" />
             <Setter Property="CornerRadius" Value="15,15,0,0" />
@@ -420,11 +429,14 @@
                             </Border>
                         </UniformGrid>
 
+                        <!-- Hidden: the "Drives tabs" pills on each device card drive SegActiveSurface -->
+                        <Border Visibility="Collapsed">
                         <StackPanel x:Name="ActiveSurfacePanel" Visibility="Collapsed" Margin="2,12,0,0">
                             <TextBlock Text="Active surface" Style="{StaticResource SField}"
                                        ToolTip="Which surface drives the Mixer, Buttons, and Lights tabs when both devices are available" />
                             <controls:SegmentedControl x:Name="SegActiveSurface" HorizontalAlignment="Left" MinWidth="360" />
                         </StackPanel>
+                        </Border>
 
                         <!-- Device cards -->
                         <StackPanel Orientation="Horizontal" Margin="2,22,0,10">
@@ -526,6 +538,13 @@
                                                         PlaceholderText="115200"
                                                         ToolTip="Communication speed — leave at 115200" />
                                         </StackPanel>
+                                        <Border x:Name="DrivesPillTurnUp" Style="{StaticResource HwDrivesPill}" MouseLeftButtonUp="DrivesPill_Click"
+                                                ToolTip="Which device drives the Mixer, Buttons and Lights tabs">
+                                            <StackPanel Orientation="Horizontal">
+                                                <mi:MaterialIcon x:Name="DrivesIconTurnUp" Kind="CheckCircle" Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="DrivesTextTurnUp" Text="Drives tabs" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -605,6 +624,13 @@
                                                    ToolTip="Open the TreasLin N3 listing on Amazon">
                                             <ui:Button.Icon><ui:SymbolIcon Symbol="Cart24" /></ui:Button.Icon>
                                         </ui:Button>
+                                        <Border x:Name="DrivesPillStreamController" Style="{StaticResource HwDrivesPill}" MouseLeftButtonUp="DrivesPill_Click"
+                                                ToolTip="Which device drives the Mixer, Buttons and Lights tabs">
+                                            <StackPanel Orientation="Horizontal">
+                                                <mi:MaterialIcon x:Name="DrivesIconStreamController" Kind="CheckCircle" Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="DrivesTextStreamController" Text="Drives tabs" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>

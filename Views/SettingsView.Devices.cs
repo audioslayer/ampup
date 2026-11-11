@@ -95,6 +95,12 @@ public partial class SettingsView
         StyleDeviceCard(DevCardTurnUp, _turnUpConnected, turnUpAllowed);
         StyleDeviceCard(DevCardStreamController, _streamControllerConnected, scAllowed);
 
+        // "Drives tabs" pills mirror the hidden SegActiveSurface (0 TurnUp, 1 StreamController, 2 Both).
+        bool dual = mode == HardwareMode.DualMode;
+        int surf = SegActiveSurface.SelectedIndex;
+        StyleDrivesPill(DrivesPillTurnUp, DrivesIconTurnUp, DrivesTextTurnUp, dual, surf is 0 or 2);
+        StyleDrivesPill(DrivesPillStreamController, DrivesIconStreamController, DrivesTextStreamController, dual, surf is 1 or 2);
+
         string modeName = mode switch
         {
             HardwareMode.TurnUpOnly => "Turn Up only",
@@ -110,6 +116,28 @@ public partial class SettingsView
             : $"{connected} of {expected} connected";
         HeroStatusDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty,
             connected == 0 ? "DangerRedBrush" : connected == expected ? "SuccessGrnBrush" : "WarnYellowBrush");
+    }
+
+    private void DrivesPill_Click(object sender, MouseButtonEventArgs e)
+    {
+        int surf = SegActiveSurface.SelectedIndex;
+        bool tu = surf is 0 or 2, sc = surf is 1 or 2;
+        if (sender == DrivesPillTurnUp) tu = !tu;
+        else if (sender == DrivesPillStreamController) sc = !sc;
+        else return;
+        if (!tu && !sc) return; // the last remaining surface can't be switched off
+        SegActiveSurface.SelectAndNotify(tu && sc ? 2 : tu ? 0 : 1);
+        RefreshDevicesPage();
+    }
+
+    private static void StyleDrivesPill(Border pill, Material.Icons.WPF.MaterialIcon icon, TextBlock text, bool visible, bool on)
+    {
+        pill.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        pill.SetResourceReference(Border.BackgroundProperty, on ? "AccentBg30Brush" : "InputBgBrush");
+        pill.SetResourceReference(Border.BorderBrushProperty, on ? "AccentBorder55Brush" : "CardBorderBrush");
+        icon.Kind = on ? Material.Icons.MaterialIconKind.CheckCircle : Material.Icons.MaterialIconKind.CircleOutline;
+        icon.SetResourceReference(Material.Icons.WPF.MaterialIcon.ForegroundProperty, on ? "AccentBrush" : "TextDimBrush");
+        text.SetResourceReference(TextBlock.ForegroundProperty, on ? "TextPrimaryBrush" : "TextSecBrush");
     }
 
     private static void StyleDeviceCard(Border card, bool connected, bool allowed)
