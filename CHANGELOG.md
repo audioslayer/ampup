@@ -13,6 +13,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Discord setup guide (Settings → Integrations → Discord → Setup guide): walks you through getting tester access (friend-request audio, wait for the tester invite, accept it) and then connects.
 
 ### Changed
+- Settings: the General and Profiles pages match the new Devices look, with a hero header, large glass cards, setting rows with hints, a polished About card with the app icon, and side-by-side Discord / coffee community cards.
 - Settings → Devices redesigned: a header shows your current setup and connection status, Hardware mode is now four large cards with the active one highlighted, and Turn Up and Stream Controller each get a large card with a device picture, Connected / Not found status, and their port, detect and screen-sleep settings. Real product photos appear automatically once added to Assets/devices.
 - Keystroke recorder redesigned: keycap preview and a big Record button now lead the Send keystroke / Hold key options (Turn Up, Stream Controller and multi-action steps), with typing moved to an "Edit as text" fallback. The recorder dialog uses the app's modal style, shows a pulsing recording state, and supports Re-record, Clear, Esc to stop recording, and Save / Cancel.
 

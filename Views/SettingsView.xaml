@@ -222,6 +222,65 @@
             </Setter>
         </Style>
 
+        <!-- General / Profiles pages: hero header + large glass cards with setting rows (Devices-page look) -->
+        <Style x:Key="SetHero" TargetType="Border">
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="18,16" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBorder55Brush}" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#2AFFFFFF" Offset="0" />
+                        <GradientStop Color="#06FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SetHeroTile" TargetType="Border" BasedOn="{StaticResource STile}">
+            <Setter Property="Width" Value="52" />
+            <Setter Property="Height" Value="52" />
+            <Setter Property="CornerRadius" Value="14" />
+        </Style>
+        <Style x:Key="SetHeroTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style x:Key="SetCard" TargetType="Border" BasedOn="{StaticResource SCard}">
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+        </Style>
+        <Style x:Key="SetCardGlass" TargetType="Border">
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="22,20,22,22" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#12FFFFFF" Offset="0" />
+                        <GradientStop Color="#00FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SetCardTitle" TargetType="TextBlock" BasedOn="{StaticResource STitle}">
+            <Setter Property="FontSize" Value="16" />
+        </Style>
+        <Style x:Key="SetRow" TargetType="Border">
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Background" Value="{DynamicResource BgDarkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+        </Style>
+        <Style x:Key="SetRowTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+
         <!-- These keyed styles replace WPF-UI's implicit ones, so they carry full
              templates; without them WPF falls back to the grey Windows chrome. -->
         <Style x:Key="SPassword" TargetType="PasswordBox">
@@ -638,323 +697,401 @@
                     </StackPanel>
                 </Border>
 
-                <!-- â•â•â• GENERAL â•â•â• -->
-                <Border x:Name="GeneralCard" Style="{StaticResource SCard}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Style="{StaticResource SBar}" />
-                        <StackPanel Style="{StaticResource SBody}">
+                <!-- === GENERAL === (hero + glass cards; the outer x:Name Borders are what SelectSettingsTab toggles) -->
+                <Border x:Name="GeneralCard">
+                    <StackPanel>
+                        <Border Style="{StaticResource SetHero}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource STile}">
-                                    <mi:MaterialIcon Kind="RocketLaunchOutline" Style="{StaticResource STileIcon}" />
+                                <Border Style="{StaticResource SetHeroTile}">
+                                    <mi:MaterialIcon Kind="CogOutline" Width="26" Height="26" Foreground="{DynamicResource AccentBrush}" />
                                 </Border>
-                                <StackPanel Style="{StaticResource SHeaderNames}">
-                                    <TextBlock Text="Startup" Style="{StaticResource STitle}" />
-                                    <TextBlock Text="How Amp Up starts and helps you set up." Style="{StaticResource SSub}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,12,0">
+                                    <TextBlock Text="General" Style="{StaticResource SetHeroTitle}" />
+                                    <TextBlock Text="Startup, look and feel, updates and community." Style="{StaticResource SSub}" FontSize="12" />
                                 </StackPanel>
                             </Grid>
-                            <StackPanel Style="{StaticResource SContent}">
-                                <local:SettingsSwitch x:Name="ChkStartWithWindows" Text="Start with Windows"
-                                                      Description="Launch Amp Up automatically when you sign in."
-                                                      ToolTip="Launch Amp Up automatically when you log in" />
-                                <Border Style="{StaticResource SDivider}" Margin="0,12,0,12" />
-                                <local:SettingsSwitch x:Name="ChkAutoSuggestLayout" Text="Auto-suggest knob layout"
-                                                      Description="Show a banner in Mixer when known apps are detected and knobs are unassigned."
-                                                      ToolTip="Show a banner in Mixer when known apps are detected and knobs are unassigned" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
+                        </Border>
+                        <Border Style="{StaticResource SetCard}">
+                            <Border Style="{StaticResource SetCardGlass}">
+                                <StackPanel>
+                                <Grid Margin="0,0,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource STile}">
+                                        <mi:MaterialIcon Kind="RocketLaunchOutline" Style="{StaticResource STileIcon}" />
+                                    </Border>
+                                    <StackPanel Style="{StaticResource SHeaderNames}">
+                                        <TextBlock Text="Startup" Style="{StaticResource SetCardTitle}" />
+                                        <TextBlock Text="How Amp Up starts and helps you set up." Style="{StaticResource SSub}" />
+                                    </StackPanel>
+                                </Grid>
+                                <Border Style="{StaticResource SetRow}">
+                                    <local:SettingsSwitch x:Name="ChkStartWithWindows" Text="Start with Windows"
+                                                          Description="Launch Amp Up automatically when you sign in."
+                                                          ToolTip="Launch Amp Up automatically when you log in" />
+                                </Border>
+                                <Border Style="{StaticResource SetRow}" Margin="0">
+                                    <local:SettingsSwitch x:Name="ChkAutoSuggestLayout" Text="Auto-suggest knob layout"
+                                                          Description="Show a banner in Mixer when known apps are detected and knobs are unassigned."
+                                                          ToolTip="Show a banner in Mixer when known apps are detected and knobs are unassigned" />
+                                </Border>
+                                </StackPanel>
+                            </Border>
+                        </Border>
+                    </StackPanel>
                 </Border>
 
-                <Border x:Name="AppearanceCard" Style="{StaticResource SCard}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Style="{StaticResource SBar}" />
-                        <StackPanel Style="{StaticResource SBody}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource STile}">
-                                    <mi:MaterialIcon Kind="PaletteOutline" Style="{StaticResource STileIcon}" />
+                <Border x:Name="AppearanceCard">
+                    <StackPanel>
+                        <Border Style="{StaticResource SetCard}">
+                            <Border Style="{StaticResource SetCardGlass}">
+                                <StackPanel>
+                                <Grid Margin="0,0,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource STile}">
+                                        <mi:MaterialIcon Kind="PaletteOutline" Style="{StaticResource STileIcon}" />
+                                    </Border>
+                                    <StackPanel Style="{StaticResource SHeaderNames}">
+                                        <TextBlock Text="Appearance" Style="{StaticResource SetCardTitle}" />
+                                        <TextBlock Text="Accent colour and background theme for the whole app." Style="{StaticResource SSub}" />
+                                    </StackPanel>
+                                </Grid>
+                                <Border Style="{StaticResource SetRow}">
+                                    <StackPanel>
+                                        <TextBlock Text="Accent colour" Style="{StaticResource SetRowTitle}"
+                                                   ToolTip="App-wide theme color: affects headers, LEDs, and highlights" />
+                                        <TextBlock Text="Headers, LEDs and highlights across the app." Style="{StaticResource SSub}" Margin="0,2,0,12" />
+                                        <WrapPanel x:Name="AccentSwatches" Orientation="Horizontal" />
+                                    </StackPanel>
                                 </Border>
-                                <StackPanel Style="{StaticResource SHeaderNames}">
-                                    <TextBlock Text="Appearance" Style="{StaticResource STitle}" />
-                                    <TextBlock Text="Accent colour and background theme for the whole app." Style="{StaticResource SSub}" />
+                                <Border Style="{StaticResource SetRow}" Margin="0">
+                                    <StackPanel>
+                                        <TextBlock Text="Card theme" Style="{StaticResource SetRowTitle}"
+                                                   ToolTip="Background and card color tint: changes the overall mood of the app" />
+                                        <TextBlock Text="Background and card tint; sets the overall mood." Style="{StaticResource SSub}" Margin="0,2,0,12" />
+                                        <WrapPanel x:Name="CardThemeSwatches" Orientation="Horizontal" />
+                                    </StackPanel>
+                                </Border>
                                 </StackPanel>
-                            </Grid>
-                            <StackPanel Style="{StaticResource SContent}">
-                                <TextBlock Text="Accent colour" Style="{StaticResource SField}" Margin="0,0,0,8"
-                                           ToolTip="App-wide theme color â€” affects headers, LEDs, and highlights" />
-                                <WrapPanel x:Name="AccentSwatches" Orientation="Horizontal" />
-                                <TextBlock Text="Card theme" Style="{StaticResource SField}" Margin="0,16,0,8"
-                                           ToolTip="Background and card color tint â€” changes the overall mood of the app" />
-                                <WrapPanel x:Name="CardThemeSwatches" Orientation="Horizontal" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
+                            </Border>
+                        </Border>
+                    </StackPanel>
                 </Border>
 
-                <Border x:Name="AboutCard" Style="{StaticResource SCard}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Style="{StaticResource SBar}" />
-                        <StackPanel Style="{StaticResource SBody}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource STile}">
-                                    <mi:MaterialIcon Kind="Update" Style="{StaticResource STileIcon}" />
-                                </Border>
-                                <StackPanel Style="{StaticResource SHeaderNames}">
-                                    <TextBlock Text="Version &amp; updates" Style="{StaticResource STitle}" />
-                                    <TextBlock x:Name="TxtVersion" Style="{StaticResource SSub}" />
-                                </StackPanel>
-                                <ui:Button x:Name="BtnCheckUpdate" Grid.Column="2" Content="Check for updates"
-                                           Appearance="Secondary" Height="32" VerticalAlignment="Center" />
-                            </Grid>
-                            <TextBlock x:Name="TxtUpdateStatus" Style="{StaticResource SHint}" FontSize="12" Margin="50,12,0,0"
-                                       Visibility="Collapsed" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <Border x:Name="CommunityCard" Style="{StaticResource SCard}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Style="{StaticResource SBar}" />
-                        <StackPanel Style="{StaticResource SBody}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource STile}">
-                                    <mi:MaterialIcon Kind="HeartOutline" Style="{StaticResource STileIcon}" />
-                                </Border>
-                                <StackPanel Style="{StaticResource SHeaderNames}">
-                                    <TextBlock Text="Community &amp; support" Style="{StaticResource STitle}" />
-                                    <TextBlock Text="Get help, share setups and support development." Style="{StaticResource SSub}" />
-                                </StackPanel>
-                            </Grid>
-                            <StackPanel Style="{StaticResource SContent}">
-                                <Border x:Name="DiscordCommunityTile" CornerRadius="12" MinHeight="132" Cursor="Hand" ClipToBounds="True"
-                                        Margin="0,0,0,12" ToolTip="discord.gg/TDkfWSjqZ">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#6C77FF" Offset="0" />
-                                            <GradientStop Color="#5865F2" Offset="0.45" />
-                                            <GradientStop Color="#3A3FB8" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                    <Border.RenderTransform>
-                                        <TranslateTransform />
-                                    </Border.RenderTransform>
+                <Border x:Name="AboutCard">
+                    <StackPanel>
+                        <Border Style="{StaticResource SetCard}">
+                            <Border Style="{StaticResource SetCardGlass}">
+                                <StackPanel>
+                                <Grid Margin="0,0,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource STile}">
+                                        <mi:MaterialIcon Kind="InformationOutline" Style="{StaticResource STileIcon}" />
+                                    </Border>
+                                    <StackPanel Style="{StaticResource SHeaderNames}">
+                                        <TextBlock Text="About" Style="{StaticResource SetCardTitle}" />
+                                        <TextBlock Text="Version and updates." Style="{StaticResource SSub}" />
+                                    </StackPanel>
+                                </Grid>
+                                <Border Style="{StaticResource SetRow}" Padding="18,16" Margin="0">
                                     <Grid>
-                                        <Path Data="{StaticResource DiscordLogoGeometry}" Fill="White" Opacity="0.16" Stretch="Uniform"
-                                              Width="150" Height="116" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-20,-24"
-                                              IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5">
-                                            <Path.RenderTransform>
-                                                <RotateTransform Angle="-14" />
-                                            </Path.RenderTransform>
-                                        </Path>
-                                        <Rectangle x:Name="DiscordCommunityTileShine" Width="90" HorizontalAlignment="Left" IsHitTestVisible="False" Opacity="0">
-                                            <Rectangle.Fill>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                    <GradientStop Color="#00FFFFFF" Offset="0" />
-                                                    <GradientStop Color="#40FFFFFF" Offset="0.5" />
-                                                    <GradientStop Color="#00FFFFFF" Offset="1" />
-                                                </LinearGradientBrush>
-                                            </Rectangle.Fill>
-                                            <Rectangle.RenderTransform>
-                                                <TransformGroup>
-                                                    <SkewTransform AngleX="-20" />
-                                                    <TranslateTransform X="-120" />
-                                                </TransformGroup>
-                                            </Rectangle.RenderTransform>
-                                        </Rectangle>
-                                        <Border Background="#2EFFFFFF" CornerRadius="10" Padding="9,3" Margin="0,16,16,0"
-                                                HorizontalAlignment="Right" VerticalAlignment="Top">
-                                            <TextBlock Text="#amp-up" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SetHeroTile}" Padding="8">
+                                            <Image Source="pack://application:,,,/Assets/icon/ampup-48.png" Stretch="Uniform"
+                                                   RenderOptions.BitmapScalingMode="HighQuality" />
                                         </Border>
-                                        <StackPanel Margin="20,18,20,18">
-                                            <Path Data="{StaticResource DiscordLogoGeometry}" Fill="White" Stretch="Uniform"
-                                                  Width="30" Height="23" HorizontalAlignment="Left" Margin="0,0,0,10" />
-                                            <TextBlock Text="Join the WolfDen" FontSize="15" FontWeight="Bold" Foreground="White" />
-                                            <TextBlock Text="Get help, share setups, and request Discord tester access in #amp-up."
-                                                       FontSize="12" Foreground="#E3E6FF" TextWrapping="Wrap" Margin="0,4,0,12" />
-                                            <Border Background="White" CornerRadius="15" Padding="14,6" HorizontalAlignment="Left">
-                                                <TextBlock Text="Join Discord  &#x2192;" FontSize="12" FontWeight="Bold" Foreground="#4752C4" />
-                                            </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,12,0">
+                                            <TextBlock Text="Amp Up" Style="{StaticResource SetCardTitle}" FontSize="17" />
+                                            <TextBlock x:Name="TxtVersion" Style="{StaticResource SSub}" FontSize="12" />
+                                            <TextBlock x:Name="TxtUpdateStatus" Style="{StaticResource SHint}" FontSize="12" Margin="0,6,0,0"
+                                                       Visibility="Collapsed" />
                                         </StackPanel>
+                                        <ui:Button x:Name="BtnCheckUpdate" Grid.Column="2" Content="Check for updates"
+                                                   Style="{StaticResource SButton}" Appearance="Primary" Margin="0" VerticalAlignment="Center" />
                                     </Grid>
                                 </Border>
+                                </StackPanel>
+                            </Border>
+                        </Border>
+                    </StackPanel>
+                </Border>
 
-                                <Border x:Name="CoffeeTile" CornerRadius="12" MinHeight="132" Cursor="Hand" ClipToBounds="True"
-                                        ToolTip="buymeacoffee.com/audioslayer">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#FFE45C" Offset="0" />
-                                            <GradientStop Color="#FFC21A" Offset="0.45" />
-                                            <GradientStop Color="#FF7A3D" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                    <Border.RenderTransform>
-                                        <TranslateTransform />
-                                    </Border.RenderTransform>
-                                    <Grid>
-                                        <Path Data="{StaticResource CoffeeLogoGeometry}" Fill="#1A1206" Opacity="0.10" Stretch="Uniform"
-                                              Height="150" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-6,-30"
-                                              IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5">
-                                            <Path.RenderTransform>
-                                                <RotateTransform Angle="12" />
-                                            </Path.RenderTransform>
-                                        </Path>
-                                        <Rectangle x:Name="CoffeeTileShine" Width="90" HorizontalAlignment="Left" IsHitTestVisible="False" Opacity="0">
-                                            <Rectangle.Fill>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                    <GradientStop Color="#00FFFFFF" Offset="0" />
-                                                    <GradientStop Color="#66FFFFFF" Offset="0.5" />
-                                                    <GradientStop Color="#00FFFFFF" Offset="1" />
-                                                </LinearGradientBrush>
-                                            </Rectangle.Fill>
-                                            <Rectangle.RenderTransform>
-                                                <TransformGroup>
-                                                    <SkewTransform AngleX="-20" />
-                                                    <TranslateTransform X="-120" />
-                                                </TransformGroup>
-                                            </Rectangle.RenderTransform>
-                                        </Rectangle>
-                                        <Border Background="#261A1206" CornerRadius="10" Padding="9,3" Margin="0,16,16,0"
-                                                HorizontalAlignment="Right" VerticalAlignment="Top">
-                                            <StackPanel Orientation="Horizontal">
-                                                <mi:MaterialIcon Kind="Heart" Width="11" Height="11" Foreground="#E0245E" Margin="0,0,5,0" VerticalAlignment="Center" />
-                                                <TextBlock Text="Support" FontSize="11" FontWeight="SemiBold" Foreground="#1A1206" />
+                <Border x:Name="CommunityCard">
+                    <StackPanel>
+                        <Border Style="{StaticResource SetCard}">
+                            <Border Style="{StaticResource SetCardGlass}">
+                                <StackPanel>
+                                <Grid Margin="0,0,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource STile}">
+                                        <mi:MaterialIcon Kind="HeartOutline" Style="{StaticResource STileIcon}" />
+                                    </Border>
+                                    <StackPanel Style="{StaticResource SHeaderNames}">
+                                        <TextBlock Text="Community &amp; support" Style="{StaticResource SetCardTitle}" />
+                                        <TextBlock Text="Get help, share setups and support development." Style="{StaticResource SSub}" />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border x:Name="DiscordCommunityTile" CornerRadius="12" MinHeight="150" Cursor="Hand" ClipToBounds="True"
+                                            Margin="0,0,7,0" ToolTip="discord.gg/TDkfWSjqZ">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#6C77FF" Offset="0" />
+                                                <GradientStop Color="#5865F2" Offset="0.45" />
+                                                <GradientStop Color="#3A3FB8" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <Border.RenderTransform>
+                                            <TranslateTransform />
+                                        </Border.RenderTransform>
+                                        <Grid>
+                                            <Path Data="{StaticResource DiscordLogoGeometry}" Fill="White" Opacity="0.16" Stretch="Uniform"
+                                                  Width="150" Height="116" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-20,-24"
+                                                  IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5">
+                                                <Path.RenderTransform>
+                                                    <RotateTransform Angle="-14" />
+                                                </Path.RenderTransform>
+                                            </Path>
+                                            <Rectangle x:Name="DiscordCommunityTileShine" Width="90" HorizontalAlignment="Left" IsHitTestVisible="False" Opacity="0">
+                                                <Rectangle.Fill>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#00FFFFFF" Offset="0" />
+                                                        <GradientStop Color="#40FFFFFF" Offset="0.5" />
+                                                        <GradientStop Color="#00FFFFFF" Offset="1" />
+                                                    </LinearGradientBrush>
+                                                </Rectangle.Fill>
+                                                <Rectangle.RenderTransform>
+                                                    <TransformGroup>
+                                                        <SkewTransform AngleX="-20" />
+                                                        <TranslateTransform X="-120" />
+                                                    </TransformGroup>
+                                                </Rectangle.RenderTransform>
+                                            </Rectangle>
+                                            <Border Background="#2EFFFFFF" CornerRadius="10" Padding="9,3" Margin="0,16,16,0"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Top">
+                                                <TextBlock Text="#amp-up" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                                            </Border>
+                                            <StackPanel Margin="20,18,20,18">
+                                                <Path Data="{StaticResource DiscordLogoGeometry}" Fill="White" Stretch="Uniform"
+                                                      Width="30" Height="23" HorizontalAlignment="Left" Margin="0,0,0,10" />
+                                                <TextBlock Text="Join the WolfDen" FontSize="15" FontWeight="Bold" Foreground="White" />
+                                                <TextBlock Text="Get help, share setups, and request Discord tester access in #amp-up."
+                                                           FontSize="12" Foreground="#E3E6FF" TextWrapping="Wrap" Margin="0,4,0,12" />
+                                                <Border Background="White" CornerRadius="15" Padding="14,6" HorizontalAlignment="Left">
+                                                    <TextBlock Text="Join Discord  &#x2192;" FontSize="12" FontWeight="Bold" Foreground="#4752C4" />
+                                                </Border>
                                             </StackPanel>
-                                        </Border>
-                                        <StackPanel Margin="20,18,20,18">
-                                            <Path Data="{StaticResource CoffeeLogoGeometry}" Fill="#1A1206" Stretch="Uniform"
-                                                  Width="30" Height="23" HorizontalAlignment="Left" Margin="0,0,0,10" />
-                                            <TextBlock Text="Fuel the next update" FontSize="15" FontWeight="Bold" Foreground="#1A1206" />
-                                            <TextBlock Text="Amp Up is free and built by one dev. If it made your setup better, a coffee keeps the updates coming."
-                                                       FontSize="12" Foreground="#4A3510" TextWrapping="Wrap" Margin="0,4,0,12" />
-                                            <Border Background="#1A1206" CornerRadius="15" Padding="14,6" HorizontalAlignment="Left">
-                                                <TextBlock Text="Buy me a coffee  &#x2192;" FontSize="12" FontWeight="Bold" Foreground="#FFDD00" />
+                                        </Grid>
+                                    </Border>
+                                    <Border x:Name="CoffeeTile" Grid.Column="1" CornerRadius="12" MinHeight="150" Margin="7,0,0,0" Cursor="Hand" ClipToBounds="True"
+                                            ToolTip="buymeacoffee.com/audioslayer">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#FFE45C" Offset="0" />
+                                                <GradientStop Color="#FFC21A" Offset="0.45" />
+                                                <GradientStop Color="#FF7A3D" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <Border.RenderTransform>
+                                            <TranslateTransform />
+                                        </Border.RenderTransform>
+                                        <Grid>
+                                            <Path Data="{StaticResource CoffeeLogoGeometry}" Fill="#1A1206" Opacity="0.10" Stretch="Uniform"
+                                                  Height="150" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-6,-30"
+                                                  IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5">
+                                                <Path.RenderTransform>
+                                                    <RotateTransform Angle="12" />
+                                                </Path.RenderTransform>
+                                            </Path>
+                                            <Rectangle x:Name="CoffeeTileShine" Width="90" HorizontalAlignment="Left" IsHitTestVisible="False" Opacity="0">
+                                                <Rectangle.Fill>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#00FFFFFF" Offset="0" />
+                                                        <GradientStop Color="#66FFFFFF" Offset="0.5" />
+                                                        <GradientStop Color="#00FFFFFF" Offset="1" />
+                                                    </LinearGradientBrush>
+                                                </Rectangle.Fill>
+                                                <Rectangle.RenderTransform>
+                                                    <TransformGroup>
+                                                        <SkewTransform AngleX="-20" />
+                                                        <TranslateTransform X="-120" />
+                                                    </TransformGroup>
+                                                </Rectangle.RenderTransform>
+                                            </Rectangle>
+                                            <Border Background="#261A1206" CornerRadius="10" Padding="9,3" Margin="0,16,16,0"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Top">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <mi:MaterialIcon Kind="Heart" Width="11" Height="11" Foreground="#E0245E" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                                    <TextBlock Text="Support" FontSize="11" FontWeight="SemiBold" Foreground="#1A1206" />
+                                                </StackPanel>
                                             </Border>
+                                            <StackPanel Margin="20,18,20,18">
+                                                <Path Data="{StaticResource CoffeeLogoGeometry}" Fill="#1A1206" Stretch="Uniform"
+                                                      Width="30" Height="23" HorizontalAlignment="Left" Margin="0,0,0,10" />
+                                                <TextBlock Text="Fuel the next update" FontSize="15" FontWeight="Bold" Foreground="#1A1206" />
+                                                <TextBlock Text="Amp Up is free and built by one dev. If it made your setup better, a coffee keeps the updates coming."
+                                                           FontSize="12" Foreground="#4A3510" TextWrapping="Wrap" Margin="0,4,0,12" />
+                                                <Border Background="#1A1206" CornerRadius="15" Padding="14,6" HorizontalAlignment="Left">
+                                                    <TextBlock Text="Buy me a coffee  &#x2192;" FontSize="12" FontWeight="Bold" Foreground="#FFDD00" />
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- === PROFILES === -->
+                <Border x:Name="ProfilesCard">
+                    <StackPanel>
+                        <Border Style="{StaticResource SetHero}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource SetHeroTile}">
+                                    <mi:MaterialIcon Kind="AccountSwitchOutline" Width="26" Height="26" Foreground="{DynamicResource AccentBrush}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,12,0">
+                                    <TextBlock Text="Profiles" Style="{StaticResource SetHeroTitle}" />
+                                    <TextBlock Text="Switch, manage and back up your setups." Style="{StaticResource SSub}" FontSize="12" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Style="{StaticResource SetCard}">
+                            <Border Style="{StaticResource SetCardGlass}">
+                                <StackPanel>
+                                <Grid Margin="0,0,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource STile}">
+                                        <mi:MaterialIcon Kind="AccountSwitchOutline" Style="{StaticResource STileIcon}" />
+                                    </Border>
+                                    <StackPanel Style="{StaticResource SHeaderNames}">
+                                        <TextBlock Text="Your profiles" Style="{StaticResource SetCardTitle}" />
+                                        <TextBlock Text="Each profile stores knobs, buttons, lights and settings." Style="{StaticResource SSub}" />
+                                    </StackPanel>
+                                    <ui:Button x:Name="BtnOverview" Grid.Column="2" Content="Overview" Style="{StaticResource SButton}" Margin="0"
+                                               VerticalAlignment="Center" ToolTip="View all knob and button assignments across profiles" />
+                                </Grid>
+                                <Border Style="{StaticResource SetRow}">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                                <TextBlock Text="Active profile" Style="{StaticResource SetRowTitle}" ToolTip="The currently loaded profile" />
+                                                <TextBlock Text="Pick a profile to load or manage." Style="{StaticResource SSub}" />
+                                            </StackPanel>
+                                            <controls:ListPicker x:Name="CmbProfiles" Grid.Column="1" Width="260" VerticalAlignment="Center"
+                                                                 ToolTip="Select a profile to load or manage" />
+                                        </Grid>
+                                        <WrapPanel Orientation="Horizontal" Margin="0,14,0,-8">
+                                            <ui:Button x:Name="BtnSaveProfile" Content="Save" Style="{StaticResource SButton}" Appearance="Primary"
+                                                       ToolTip="Save current settings to this profile" />
+                                            <ui:Button x:Name="BtnLoadProfile" Content="Load" Style="{StaticResource SButton}"
+                                                       ToolTip="Load the selected profile" />
+                                            <ui:Button x:Name="BtnEditProfile" Content="Edit" Style="{StaticResource SButton}"
+                                                       ToolTip="Edit profile name, icon, and color" />
+                                            <ui:Button x:Name="BtnNewProfile" Content="New" Style="{StaticResource SButton}"
+                                                       ToolTip="Create a new profile from current settings" />
+                                            <ui:Button x:Name="BtnDeleteProfile" Content="Delete" Style="{StaticResource SButton}" Appearance="Danger"
+                                                       ToolTip="Delete the selected profile (cannot be undone)" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource SetRow}" Margin="0">
+                                    <StackPanel>
+                                        <TextBlock Text="Profile files" Style="{StaticResource SetRowTitle}" />
+                                        <TextBlock Text="Share a profile as a .json file or bring one in from Turn Up." Style="{StaticResource SSub}" Margin="0,2,0,12" />
+                                        <WrapPanel Orientation="Horizontal" Margin="0,0,0,-8">
+                                            <ui:Button x:Name="BtnExportProfile" Content="Export profile" Style="{StaticResource SButton}"
+                                                       ToolTip="Save the current profile as a .json file" />
+                                            <ui:Button x:Name="BtnImportProfile" Content="Import profile" Style="{StaticResource SButton}"
+                                                       ToolTip="Load a profile from a .json file" />
+                                            <ui:Button x:Name="BtnImportTurnUp" Content="Import from Turn Up" Style="{StaticResource SButton}"
+                                                       ToolTip="Import knob and button settings from the official Turn Up app" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                                </StackPanel>
+                            </Border>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="BackupCard">
+                    <StackPanel>
+                        <Border Style="{StaticResource SetCard}">
+                            <Border Style="{StaticResource SetCardGlass}">
+                                <StackPanel>
+                                <Grid Margin="0,0,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource STile}">
+                                        <mi:MaterialIcon Kind="BackupRestore" Style="{StaticResource STileIcon}" />
+                                    </Border>
+                                    <StackPanel Style="{StaticResource SHeaderNames}">
+                                        <TextBlock Text="Backup &amp; restore" Style="{StaticResource SetCardTitle}" />
+                                        <TextBlock Text="Backups include tokens and API keys, so keep them private." Style="{StaticResource SSub}" />
+                                    </StackPanel>
+                                </Grid>
+                                <Border Style="{StaticResource SetRow}" Margin="0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                            <TextBlock Text="Full settings backup" Style="{StaticResource SetRowTitle}" />
+                                            <TextBlock Text="App settings and every profile in one file." Style="{StaticResource SSub}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ui:Button x:Name="BtnBackupSettings" Content="Back up settings" Style="{StaticResource SButton}" Margin="0,0,8,0"
+                                                       ToolTip="Save a full Amp Up settings backup file" />
+                                            <ui:Button x:Name="BtnRestoreSettings" Content="Restore settings" Style="{StaticResource SButton}" Appearance="Danger" Margin="0"
+                                                       ToolTip="Restore app settings and profiles from a backup file" />
                                         </StackPanel>
                                     </Grid>
                                 </Border>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <!-- â•â•â• PROFILES â•â•â• -->
-                <Border x:Name="ProfilesCard" Style="{StaticResource SCard}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Style="{StaticResource SBar}" />
-                        <StackPanel Style="{StaticResource SBody}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource STile}">
-                                    <mi:MaterialIcon Kind="AccountSwitchOutline" Style="{StaticResource STileIcon}" />
-                                </Border>
-                                <StackPanel Style="{StaticResource SHeaderNames}">
-                                    <TextBlock Text="Profiles" Style="{StaticResource STitle}" />
-                                    <TextBlock Text="Each profile stores knobs, buttons, lights and settings." Style="{StaticResource SSub}" />
                                 </StackPanel>
-                                <ui:Button x:Name="BtnOverview" Grid.Column="2" Content="Overview" Appearance="Secondary" Height="32"
-                                           ToolTip="View all knob and button assignments across profiles" />
-                            </Grid>
-                            <StackPanel Style="{StaticResource SContent}">
-                                <TextBlock Text="Active profile" Style="{StaticResource SField}" ToolTip="The currently loaded profile" />
-                                <controls:ListPicker x:Name="CmbProfiles" Width="260" HorizontalAlignment="Left" Margin="0,0,0,10"
-                                                     ToolTip="Select a profile to load or manage" />
-                                <WrapPanel Orientation="Horizontal">
-                                    <ui:Button x:Name="BtnSaveProfile" Content="Save" Style="{StaticResource SButton}" Appearance="Primary"
-                                               ToolTip="Save current settings to this profile" />
-                                    <ui:Button x:Name="BtnLoadProfile" Content="Load" Style="{StaticResource SButton}"
-                                               ToolTip="Load the selected profile" />
-                                    <ui:Button x:Name="BtnEditProfile" Content="Edit" Style="{StaticResource SButton}"
-                                               ToolTip="Edit profile name, icon, and color" />
-                                    <ui:Button x:Name="BtnNewProfile" Content="New" Style="{StaticResource SButton}"
-                                               ToolTip="Create a new profile from current settings" />
-                                    <ui:Button x:Name="BtnDeleteProfile" Content="Delete" Style="{StaticResource SButton}" Appearance="Danger"
-                                               ToolTip="Delete the selected profile (cannot be undone)" />
-                                </WrapPanel>
-
-                                <Border Style="{StaticResource SDivider}" Margin="0,8,0,16" />
-                                <TextBlock Text="Profile files" Style="{StaticResource SField}" />
-                                <WrapPanel Orientation="Horizontal">
-                                    <ui:Button x:Name="BtnExportProfile" Content="Export profile" Style="{StaticResource SButton}"
-                                               ToolTip="Save the current profile as a .json file" />
-                                    <ui:Button x:Name="BtnImportProfile" Content="Import profile" Style="{StaticResource SButton}"
-                                               ToolTip="Load a profile from a .json file" />
-                                    <ui:Button x:Name="BtnImportTurnUp" Content="Import from Turn Up" Style="{StaticResource SButton}"
-                                               ToolTip="Import knob and button settings from the official Turn Up app" />
-                                </WrapPanel>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <Border x:Name="BackupCard" Style="{StaticResource SCard}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Style="{StaticResource SBar}" />
-                        <StackPanel Style="{StaticResource SBody}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource STile}">
-                                    <mi:MaterialIcon Kind="BackupRestore" Style="{StaticResource STileIcon}" />
-                                </Border>
-                                <StackPanel Style="{StaticResource SHeaderNames}">
-                                    <TextBlock Text="Backup &amp; restore" Style="{StaticResource STitle}" />
-                                    <TextBlock Text="Backups include tokens and API keys, so keep them private." Style="{StaticResource SSub}" />
-                                </StackPanel>
-                            </Grid>
-                            <WrapPanel Orientation="Horizontal" Margin="0,16,0,-8">
-                                <ui:Button x:Name="BtnBackupSettings" Content="Back up settings" Style="{StaticResource SButton}"
-                                           ToolTip="Save a full Amp Up settings backup file" />
-                                <ui:Button x:Name="BtnRestoreSettings" Content="Restore settings" Style="{StaticResource SButton}" Appearance="Danger"
-                                           ToolTip="Restore app settings and profiles from a backup file" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </Grid>
+                            </Border>
+                        </Border>
+                    </StackPanel>
                 </Border>
 
                 <!-- â•â•â• INTEGRATIONS â•â•â• -->
