@@ -304,7 +304,7 @@ public partial class SettingsView
                 bool goveeLive = (lan && (_config?.Ambience.GoveeDevices.Count ?? 0) > 0) || (cloud && Connected(TxtGoveeCloudStatus));
                 return Toggle(lan || cloud, goveeLive);
             case IntegrationId.Corsair:
-                return Toggle(ChkCorsairEnabled.IsChecked == true, false);
+                return Toggle(ChkCorsairEnabled.IsChecked == true, IsICueRunning());
             case IntegrationId.SignalRgb:
                 return Toggle(ChkSignalRgbEnabled.IsChecked == true, TxtSignalRgbStatus.Text == "Receiving");
             case IntegrationId.HomeAssistant:
@@ -321,6 +321,24 @@ public partial class SettingsView
             default:
                 return ("Off", StatusOff);
         }
+    }
+
+    /// <summary>True when the Corsair iCUE app is running (the SDK needs it).</summary>
+    private static bool IsICueRunning()
+    {
+        try
+        {
+            foreach (var p in System.Diagnostics.Process.GetProcessesByName("iCUE"))
+            {
+                p.Dispose();
+                return true;
+            }
+        }
+        catch
+        {
+            // Process list unavailable: report not running.
+        }
+        return false;
     }
 
     private void RefreshIntegrationStatuses()
