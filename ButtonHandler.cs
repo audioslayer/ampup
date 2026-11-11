@@ -264,6 +264,18 @@ public class ButtonHandler : IDisposable
                     if (_discordRpc != null)
                         _ = _discordRpc.ToggleNoiseSuppressionAsync();
                     break;
+                case "discord_toggle_ptt":
+                    if (_discordRpc != null)
+                        _ = _discordRpc.TogglePushToTalkAsync();
+                    break;
+                case "discord_toggle_agc":
+                    if (_discordRpc != null)
+                        _ = _discordRpc.ToggleAutomaticGainControlAsync();
+                    break;
+                case "discord_toggle_echo_cancellation":
+                    if (_discordRpc != null)
+                        _ = _discordRpc.ToggleEchoCancellationAsync();
+                    break;
                 case "add_active_app_to_group":
                     AddForegroundAppToGroup(btn); break;
                 case "mute_device":

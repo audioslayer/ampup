@@ -58,6 +58,8 @@ public partial class MixerView : UserControl
         { "output_device", "Speaker / headset" },
         { "input_device", "Mic device" },
         { "monitor", "Monitor brightness" },
+        { "discord_input_volume", "Discord input volume" },
+        { "discord_output_volume", "Discord output volume" },
         { "sc_space_cycle", "Switch Spaces" },
         { "sc_page_cycle", "Switch pages" },
     };
@@ -1115,7 +1117,10 @@ public partial class MixerView : UserControl
         bool vmEnabled = config.VoiceMeeter.Enabled;
         bool corsairEnabled = config.Corsair.Enabled && config.Corsair.FanEnabled;
         bool obsEnabled = config.Obs.Enabled;
-        bool hasIntegrations = haEnabled || goveeEnabled || vmEnabled || corsairEnabled || obsEnabled;
+        bool discordEnabled = config.DiscordRpc.Enabled
+            && (!string.IsNullOrWhiteSpace(config.DiscordRpc.AccessToken)
+                || config.Knobs.Concat(config.N3.Knobs).Any(k => App.IsDiscordVolumeTarget(k.Target)));
+        bool hasIntegrations = haEnabled || goveeEnabled || vmEnabled || corsairEnabled || obsEnabled || discordEnabled;
 
         var clrGrey = Color.FromRgb(0x88, 0x88, 0x88);
         var clrRoom = Color.FromRgb(0x69, 0xF0, 0xAE);
@@ -1225,6 +1230,15 @@ public partial class MixerView : UserControl
                 picker.AddItem("OBS audio source", "obs_source", MaterialIconKind.Broadcast, clrObs,
                     "Volume of a mic, desktop audio or media source in OBS", keywords: "obs studio stream source gain");
                 picker.RegisterSubMenu("obs_source", () => GetObsSubItems(config, clrObs));
+            }
+
+            if (discordEnabled)
+            {
+                var clrDiscord = Color.FromRgb(0x58, 0x65, 0xF2);
+                picker.AddItem("Discord input volume", App.DiscordInputVolumeTarget, MaterialIconKind.Microphone, clrDiscord,
+                    "Discord's mic input volume (0-100%) over Discord RPC", keywords: "discord voice mic input rpc");
+                picker.AddItem("Discord output volume", App.DiscordOutputVolumeTarget, MaterialIconKind.Headset, clrDiscord,
+                    "Discord's output volume (0-200%, knob center = 100%) over Discord RPC", keywords: "discord voice output rpc");
             }
 
             if (corsairEnabled)

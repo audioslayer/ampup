@@ -15,7 +15,8 @@ namespace AmpUp;
 ///   obs_recording     — OBS is recording
 ///   obs_streaming     — OBS is streaming
 ///   spotify_playing   — Spotify has an active (non-paused) audio session on the default output
-///   discord_mic       — Discord mic muted (NOT implemented — always false for MVP)
+///   discord_mic       — Discord self mute (cached from Discord RPC, polled every 2s)
+///   discord_deafen / discord_ptt / discord_agc / discord_echo_cancellation / discord_noise_suppression
 /// </summary>
 internal static class DynamicKeyStateProvider
 {
@@ -55,11 +56,22 @@ internal static class DynamicKeyStateProvider
                     return IsProcessSessionActive("spotify");
 
                 case "discord_mic":
-                    // TODO: no reliable public API for Discord mic mute — MVP returns false.
                     return App.DiscordRpc?.LastKnownMute == true;
 
                 case "discord_deafen":
                     return App.DiscordRpc?.LastKnownDeafen == true;
+
+                case "discord_ptt":
+                    return App.DiscordRpc?.LastKnownPushToTalk == true;
+
+                case "discord_agc":
+                    return App.DiscordRpc?.LastKnownAutomaticGainControl == true;
+
+                case "discord_echo_cancellation":
+                    return App.DiscordRpc?.LastKnownEchoCancellation == true;
+
+                case "discord_noise_suppression":
+                    return App.DiscordRpc?.LastKnownNoiseSuppression == true;
 
                 case "room_screen_sync":
                     return App.Config?.Ambience.ScreenSync.Enabled == true;
@@ -209,6 +221,10 @@ internal static class DynamicKeyStateProvider
         ("spotify_playing", "Spotify Playing"),
         ("discord_mic",     "Discord Mic Muted"),
         ("discord_deafen",  "Discord Deafened"),
+        ("discord_ptt",     "Discord Push to Talk On"),
+        ("discord_agc",     "Discord Auto Gain Control On"),
+        ("discord_echo_cancellation", "Discord Echo Cancellation On"),
+        ("discord_noise_suppression", "Discord Noise Suppression On"),
         ("room_lights_on",  "Room Lights On"),
         ("room_screen_sync", "Screen Sync On"),
         ("room_vu_fill",    "VU Fill On"),
@@ -244,6 +260,14 @@ internal static class DynamicKeyStateProvider
             case "discord_deafen_on":
             case "discord_deafen_off":
                 return "discord_deafen";
+            case "discord_toggle_ptt":
+                return "discord_ptt";
+            case "discord_toggle_agc":
+                return "discord_agc";
+            case "discord_toggle_echo_cancellation":
+                return "discord_echo_cancellation";
+            case "discord_toggle_noise_suppression":
+                return "discord_noise_suppression";
             case "obs_record":
                 return "obs_recording";
             case "obs_stream":

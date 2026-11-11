@@ -63,6 +63,8 @@ public partial class ButtonsView : UserControl
         ("Discord: Mute On", "discord_mute_on"), ("Discord: Mute Off", "discord_mute_off"),
         ("Discord: Deafen On", "discord_deafen_on"), ("Discord: Deafen Off", "discord_deafen_off"),
         ("Discord: Leave Voice", "discord_leave_voice"), ("Discord: Toggle Noise Suppression", "discord_toggle_noise_suppression"),
+        ("Discord: Toggle Push to Talk", "discord_toggle_ptt"), ("Discord: Toggle Auto Gain Control", "discord_toggle_agc"),
+        ("Discord: Toggle Echo Cancellation", "discord_toggle_echo_cancellation"),
         ("OBS: Record", "obs_record"), ("OBS: Stream", "obs_stream"),
         ("OBS: Scene", "obs_scene"), ("OBS: Mute", "obs_mute"),
         ("OBS: Save Replay", "obs_replay_save"), ("OBS: Replay Buffer", "obs_replay_buffer"),
@@ -89,6 +91,7 @@ public partial class ButtonsView : UserControl
         "discord_mute_on", "discord_mute_off",
         "discord_deafen_on", "discord_deafen_off",
         "discord_leave_voice", "discord_toggle_noise_suppression",
+        "discord_toggle_ptt", "discord_toggle_agc", "discord_toggle_echo_cancellation",
     };
 
     private static readonly (string Display, string Value)[] PowerOptions =
@@ -134,6 +137,7 @@ public partial class ButtonsView : UserControl
         { "discord_mute_on", "D" }, { "discord_mute_off", "D" },
         { "discord_deafen_on", "D" }, { "discord_deafen_off", "D" },
         { "discord_leave_voice", "D" }, { "discord_toggle_noise_suppression", "D" },
+        { "discord_toggle_ptt", "D" }, { "discord_toggle_agc", "D" }, { "discord_toggle_echo_cancellation", "D" },
         { "add_active_app_to_group", "+" },
         { "signalrgb_effect", "S" }, { "signalrgb_effect_cycle", "S" },
         { "signalrgb_blackout", "S" }, { "signalrgb_restore", "S" },
@@ -215,6 +219,9 @@ public partial class ButtonsView : UserControl
         { "discord_deafen_off", Color.FromRgb(0x58, 0x65, 0xF2) },
         { "discord_leave_voice", Color.FromRgb(0x58, 0x65, 0xF2) },
         { "discord_toggle_noise_suppression", Color.FromRgb(0x58, 0x65, 0xF2) },
+        { "discord_toggle_ptt", Color.FromRgb(0x58, 0x65, 0xF2) },
+        { "discord_toggle_agc", Color.FromRgb(0x58, 0x65, 0xF2) },
+        { "discord_toggle_echo_cancellation", Color.FromRgb(0x58, 0x65, 0xF2) },
         { "add_active_app_to_group", Color.FromRgb(0x26, 0xC6, 0xDA) },
         { "signalrgb_effect",   Color.FromRgb(0xFF, 0x9E, 0x55) },
         { "signalrgb_effect_cycle", Color.FromRgb(0xFF, 0xC1, 0x07) },
@@ -1553,6 +1560,9 @@ public partial class ButtonsView : UserControl
         { "discord_deafen_off", "Set Discord self deafen off through local Discord RPC" },
         { "discord_leave_voice", "Leave the current Discord voice channel" },
         { "discord_toggle_noise_suppression", "Toggle Discord noise suppression" },
+        { "discord_toggle_ptt", "Switch Discord input mode between Voice Activity and Push to Talk" },
+        { "discord_toggle_agc", "Toggle Discord automatic gain control" },
+        { "discord_toggle_echo_cancellation", "Toggle Discord echo cancellation" },
         { "signalrgb_effect",   "Switch to a SignalRGB lighting effect using the free signalrgb:// URL handler" },
         { "signalrgb_effect_cycle", "Cycle through SignalRGB effects listed on this button" },
         { "signalrgb_blackout", "Apply SignalRGB Solid Color black using the free signalrgb:// URL handler" },
@@ -1671,7 +1681,7 @@ public partial class ButtonsView : UserControl
         ("Advanced",        new[] { "multi_action", "toggle_action", "open_folder" }),
         ("Power",           new[] { "power_sleep", "power_lock", "power_off", "power_restart", "power_logoff", "power_hibernate" }),
         ("Room",            new[] { "room_toggle", "room_effect", "room_screen_sync", "room_vu_fill", "room_music_reactive", "room_game_mode" }),
-        ("Integrations",    new[] { "group_toggle", "ha_toggle", "ha_scene", "ha_color", "ha_color_temp", "ha_service", "corsair_toggle", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "obs_replay_save", "obs_replay_buffer", "obs_virtualcam", "obs_record_pause", "obs_record_chapter", "obs_studio_transition", "obs_source_toggle", "obs_filter_toggle", "vm_mute_strip", "vm_mute_bus", "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like", "pocketcasts_open", "pocketcasts_play_pause", "pocketcasts_skip_back", "pocketcasts_skip_forward", "discord_toggle_mute", "discord_toggle_deafen", "discord_mute_on", "discord_mute_off", "discord_deafen_on", "discord_deafen_off", "discord_leave_voice", "discord_toggle_noise_suppression", "signalrgb_effect", "signalrgb_effect_cycle", "signalrgb_blackout", "signalrgb_restore" }),
+        ("Integrations",    new[] { "group_toggle", "ha_toggle", "ha_scene", "ha_color", "ha_color_temp", "ha_service", "corsair_toggle", "govee_toggle", "govee_color", "govee_white_toggle", "obs_record", "obs_stream", "obs_scene", "obs_mute", "obs_replay_save", "obs_replay_buffer", "obs_virtualcam", "obs_record_pause", "obs_record_chapter", "obs_studio_transition", "obs_source_toggle", "obs_filter_toggle", "vm_mute_strip", "vm_mute_bus", "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like", "pocketcasts_open", "pocketcasts_play_pause", "pocketcasts_skip_back", "pocketcasts_skip_forward", "discord_toggle_mute", "discord_toggle_deafen", "discord_mute_on", "discord_mute_off", "discord_deafen_on", "discord_deafen_off", "discord_leave_voice", "discord_toggle_noise_suppression", "discord_toggle_ptt", "discord_toggle_agc", "discord_toggle_echo_cancellation", "signalrgb_effect", "signalrgb_effect_cycle", "signalrgb_blackout", "signalrgb_restore" }),
         ("Stream Controller", new[] { "sc_page_next", "sc_page_prev", "sc_page_home", "sc_go_to_page" }),
     };
 

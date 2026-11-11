@@ -65,6 +65,31 @@ public sealed class DiscordRpcIntegration : IDisposable
     public bool IsReady => _authenticated && _pipe?.IsConnected == true;
     public bool? LastKnownMute { get; private set; }
     public bool? LastKnownDeafen { get; private set; }
+    public bool? LastKnownPushToTalk { get; private set; }
+    public bool? LastKnownAutomaticGainControl { get; private set; }
+    public bool? LastKnownEchoCancellation { get; private set; }
+    public bool? LastKnownNoiseSuppression { get; private set; }
+    /// <summary>Discord input volume, 0..100 (Discord's own scale).</summary>
+    public float? LastKnownInputVolume { get; private set; }
+    /// <summary>Discord output volume, 0..200 (100 = normal).</summary>
+    public float? LastKnownOutputVolume { get; private set; }
+
+    /// <summary>Raised (on a background thread) when cached voice settings change.</summary>
+    public event Action? VoiceSettingsChanged;
+
+    // Knob mapping: input 0..100% -> Discord 0..100; output 0..100% -> Discord 0..200
+    // (knob at 50% = Discord's normal 100%).
+    public const float InputVolumeMax = 100f;
+    public const float OutputVolumeMax = 200f;
+
+    private const int StatePollIntervalMs = 2000;
+    private const int ResumeRetryMs = 30000;
+    private float _pendingInputVolume = -1f;
+    private float _pendingOutputVolume = -1f;
+    private int _volumeSending;
+    private int _volumeSkipLogged;
+    private CancellationTokenSource? _pollCts;
+    private long _lastResumeAttemptTick;
 
     public async Task ConnectAsync(CancellationToken ct = default)
     {
@@ -106,6 +131,94 @@ public sealed class DiscordRpcIntegration : IDisposable
 
     public async Task ToggleNoiseSuppressionAsync(CancellationToken ct = default)
         => await ToggleVoiceFlagAsync("noise_suppression", ct);
+
+    public async Task ToggleAutomaticGainControlAsync(CancellationToken ct = default)
+        => await ToggleVoiceFlagAsync("automatic_gain_control", ct);
+
+    public async Task ToggleEchoCancellationAsync(CancellationToken ct = default)
+        => await ToggleVoiceFlagAsync("echo_cancellation", ct);
+
+    /// <summary>Switch Discord input mode between Voice Activity and Push to Talk.</summary>
+    public async Task TogglePushToTalkAsync(CancellationToken ct = default)
+    {
+        if (!VoiceControlAvailable)
+        {
+            ReportUnsupportedAction();
+            return;
+        }
+
+        if (!_config.Enabled)
+            return;
+
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await EnsureAuthenticatedAsync(ct);
+            var settings = await SendCommandAsync("GET_VOICE_SETTINGS", new JObject(), ct);
+            UpdateCachedFlags(settings);
+            var mode = settings["mode"] as JObject;
+            bool isPtt = string.Equals(mode?.Value<string>("type"), "PUSH_TO_TALK", StringComparison.OrdinalIgnoreCase);
+            var args = new JObject
+            {
+                ["mode"] = new JObject { ["type"] = isPtt ? "VOICE_ACTIVITY" : "PUSH_TO_TALK" },
+            };
+            var updated = await SendCommandAsync("SET_VOICE_SETTINGS", args, ct);
+            UpdateCachedFlags(updated);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Discord RPC toggle push to talk failed: {ex.Message}");
+            ClosePipe();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>Knob position (0..1) to Discord input volume (0..100). Latest value wins.</summary>
+    public void SetInputVolume(float normalized)
+    {
+        Interlocked.Exchange(ref _pendingInputVolume, Math.Clamp(normalized, 0f, 1f) * InputVolumeMax);
+        KickVolumeSender();
+    }
+
+    /// <summary>Knob position (0..1) to Discord output volume (0..200, 0.5 = 100). Latest value wins.</summary>
+    public void SetOutputVolume(float normalized)
+    {
+        Interlocked.Exchange(ref _pendingOutputVolume, Math.Clamp(normalized, 0f, 1f) * OutputVolumeMax);
+        KickVolumeSender();
+    }
+
+    /// <summary>Last known Discord input volume as a knob position (0..1).</summary>
+    public bool TryGetInputVolume(out float normalized)
+    {
+        var v = LastKnownInputVolume;
+        normalized = v.HasValue ? Math.Clamp(v.Value / InputVolumeMax, 0f, 1f) : 0f;
+        return v.HasValue;
+    }
+
+    /// <summary>Last known Discord output volume as a knob position (0..1).</summary>
+    public bool TryGetOutputVolume(out float normalized)
+    {
+        var v = LastKnownOutputVolume;
+        normalized = v.HasValue ? Math.Clamp(v.Value / OutputVolumeMax, 0f, 1f) : 0f;
+        return v.HasValue;
+    }
+
+    /// <summary>
+    /// Keep the cached voice settings fresh by polling GET_VOICE_SETTINGS every 2s
+    /// while connected and <paramref name="shouldPoll"/> says a Discord action or
+    /// target is in use. Never opens Discord's Authorize prompt: if not connected it
+    /// only resumes with a still-valid stored token.
+    /// </summary>
+    public void StartStatePolling(Func<bool> shouldPoll)
+    {
+        _pollCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _pollCts = cts;
+        _ = Task.Run(() => StatePollLoopAsync(shouldPoll, cts.Token));
+    }
 
     public async Task LeaveVoiceChannelAsync(CancellationToken ct = default)
     {
@@ -152,6 +265,149 @@ public sealed class DiscordRpcIntegration : IDisposable
         finally
         {
             _gate.Release();
+        }
+    }
+
+    private void KickVolumeSender()
+    {
+        if (Interlocked.CompareExchange(ref _volumeSending, 1, 0) != 0)
+            return;
+        _ = Task.Run(() => VolumeSendLoopAsync());
+    }
+
+    private async Task VolumeSendLoopAsync()
+    {
+        try
+        {
+            while (true)
+            {
+                float input = Interlocked.Exchange(ref _pendingInputVolume, -1f);
+                float output = Interlocked.Exchange(ref _pendingOutputVolume, -1f);
+                if (input < 0f && output < 0f)
+                    break;
+
+                if (!VoiceControlAvailable || !_config.Enabled)
+                    continue;
+
+                // A knob turn must never pop Discord's Authorize dialog; that only
+                // happens from Connect or a button press.
+                if (!IsReady && string.IsNullOrWhiteSpace(_config.AccessToken)
+                    && string.IsNullOrWhiteSpace(_config.RefreshToken))
+                {
+                    if (Interlocked.Exchange(ref _volumeSkipLogged, 1) == 0)
+                        Logger.Log("Discord RPC volume ignored: Discord is not connected (Settings > Integrations > Discord).");
+                    continue;
+                }
+
+                var args = new JObject();
+                if (input >= 0f) args["input"] = new JObject { ["volume"] = Math.Round(input, 1) };
+                if (output >= 0f) args["output"] = new JObject { ["volume"] = Math.Round(output, 1) };
+
+                await _gate.WaitAsync();
+                try
+                {
+                    await EnsureAuthenticatedAsync(CancellationToken.None);
+                    var updated = await SendCommandAsync("SET_VOICE_SETTINGS", args, CancellationToken.None);
+                    UpdateCachedFlags(updated);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Discord RPC set volume failed: {ex.Message}");
+                    ClosePipe();
+                }
+                finally
+                {
+                    _gate.Release();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Discord RPC volume sender failed: {ex.Message}");
+        }
+        finally
+        {
+            Volatile.Write(ref _volumeSending, 0);
+            if (Volatile.Read(ref _pendingInputVolume) >= 0f || Volatile.Read(ref _pendingOutputVolume) >= 0f)
+                KickVolumeSender();
+        }
+    }
+
+    private async Task StatePollLoopAsync(Func<bool> shouldPoll, CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(StatePollIntervalMs, ct);
+                if (!VoiceControlAvailable || !_config.Enabled || !shouldPoll())
+                    continue;
+
+                if (!await _gate.WaitAsync(0, ct))
+                    continue; // a command is running; it refreshes the cache itself
+                try
+                {
+                    if (!IsReady && !await TryResumeAsync(ct))
+                        continue;
+                    var settings = await SendCommandAsync("GET_VOICE_SETTINGS", new JObject(), ct);
+                    UpdateCachedFlags(settings);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Discord RPC state poll failed: {ex.Message}");
+                    ClosePipe();
+                }
+                finally
+                {
+                    _gate.Release();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (ObjectDisposedException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Discord RPC state poll loop error: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>Reconnect with the stored token only (no refresh, no Authorize prompt). Caller holds _gate.</summary>
+    private async Task<bool> TryResumeAsync(CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(_config.AccessToken)
+            || _config.TokenExpiresAtUtc <= DateTime.UtcNow.AddMinutes(5))
+            return false;
+
+        long now = Environment.TickCount64;
+        if (now - Interlocked.Read(ref _lastResumeAttemptTick) < ResumeRetryMs)
+            return false;
+        Interlocked.Exchange(ref _lastResumeAttemptTick, now);
+
+        var clientId = ResolveClientId();
+        if (string.IsNullOrWhiteSpace(clientId))
+            return false;
+
+        try
+        {
+            await ConnectAsync(clientId, ct);
+            await AuthenticateAsync(_config.AccessToken, ct);
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.Log($"Discord RPC resume failed: {ex.Message}");
+            ClosePipe();
+            return false;
         }
     }
 
@@ -538,10 +794,49 @@ public sealed class DiscordRpcIntegration : IDisposable
 
     private void UpdateCachedFlags(JObject settings)
     {
-        if (settings.TryGetValue("mute", out var mute))
-            LastKnownMute = mute.Value<bool>();
-        if (settings.TryGetValue("deaf", out var deaf))
-            LastKnownDeafen = deaf.Value<bool>();
+        bool changed = false;
+        bool? ReadBool(string key, bool? current)
+        {
+            if (settings[key] is JValue { Type: JTokenType.Boolean } token)
+            {
+                bool value = token.Value<bool>();
+                if (current != value) changed = true;
+                return value;
+            }
+            return current;
+        }
+        float? ReadVolume(string key, float? current)
+        {
+            if (settings[key] is JObject obj && obj["volume"] is JValue token
+                && (token.Type == JTokenType.Float || token.Type == JTokenType.Integer))
+            {
+                float value = token.Value<float>();
+                if (!current.HasValue || Math.Abs(current.Value - value) > 0.05f) changed = true;
+                return value;
+            }
+            return current;
+        }
+
+        LastKnownMute = ReadBool("mute", LastKnownMute);
+        LastKnownDeafen = ReadBool("deaf", LastKnownDeafen);
+        LastKnownAutomaticGainControl = ReadBool("automatic_gain_control", LastKnownAutomaticGainControl);
+        LastKnownEchoCancellation = ReadBool("echo_cancellation", LastKnownEchoCancellation);
+        LastKnownNoiseSuppression = ReadBool("noise_suppression", LastKnownNoiseSuppression);
+        LastKnownInputVolume = ReadVolume("input", LastKnownInputVolume);
+        LastKnownOutputVolume = ReadVolume("output", LastKnownOutputVolume);
+
+        if (settings["mode"] is JObject mode && mode.Value<string>("type") is string modeType)
+        {
+            bool ptt = string.Equals(modeType, "PUSH_TO_TALK", StringComparison.OrdinalIgnoreCase);
+            if (LastKnownPushToTalk != ptt) changed = true;
+            LastKnownPushToTalk = ptt;
+        }
+
+        if (changed)
+        {
+            try { VoiceSettingsChanged?.Invoke(); }
+            catch (Exception ex) { Logger.Log($"Discord RPC state handler failed: {ex.Message}"); }
+        }
     }
 
     private void ReportUnsupportedAction()
@@ -603,6 +898,7 @@ public sealed class DiscordRpcIntegration : IDisposable
 
     public void Dispose()
     {
+        _pollCts?.Cancel();
         ClosePipe();
         _gate.Dispose();
         _http.Dispose();

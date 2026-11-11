@@ -184,6 +184,8 @@ public partial class ButtonsView
 
         picker.AddCategory("Lights & Integrations");
         picker.AddItem("Room lights", "room_lights", MaterialIconKind.HomeLightbulbOutline, yellow, "Brightness of all your room lights");
+        picker.AddItem("Discord input volume", App.DiscordInputVolumeTarget, MaterialIconKind.Microphone, Color.FromRgb(0x58, 0x65, 0xF2), "Discord's mic input volume over Discord RPC");
+        picker.AddItem("Discord output volume", App.DiscordOutputVolumeTarget, MaterialIconKind.Headset, Color.FromRgb(0x58, 0x65, 0xF2), "Discord's output volume (center = 100%) over Discord RPC");
 
         picker.AddCategory("Stream Controller");
         picker.AddItem("Switch Spaces", "sc_space_cycle", MaterialIconKind.ViewDashboardOutline, teal, "Twist to move between Home and your Spaces");
@@ -659,6 +661,8 @@ public partial class ButtonsView
             "led_brightness" => "AmpUp LED Brightness",
             "monitor" => "Monitor Brightness",
             "discord" => "Discord",
+            "discord_input_volume" => "Discord Input Volume",
+            "discord_output_volume" => "Discord Output Volume",
             "spotify" => "Spotify",
             "chrome" => "Chrome",
             "sc_space_cycle" => "Cycle Spaces",

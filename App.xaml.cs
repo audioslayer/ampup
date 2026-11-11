@@ -452,6 +452,8 @@ public partial class App : Application
         // in Settings for first-time auth.
         _discordRpc = new DiscordRpcIntegration(_config.DiscordRpc, _ => ConfigManager.Save(_config));
         _buttons.SetDiscordRpcIntegration(_discordRpc);
+        _discordRpc.VoiceSettingsChanged += HandleDiscordVoiceSettingsChanged;
+        _discordRpc.StartStatePolling(IsDiscordInUse);
 
         _spotify = new SpotifyIntegration(_config.Spotify, _ => ConfigManager.Save(_config));
         _spotify.OnStateChanged += HandleSpotifyStateChanged;
@@ -1885,6 +1887,12 @@ public partial class App : Application
                     Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(ip, norm, true));
                 }
             }
+            else if (IsDiscordVolumeTarget(knob.Target))
+            {
+                // Discord input/output volume over local Discord RPC
+                if (_discordRpc != null && Environment.TickCount64 - _startupTick >= 8000)
+                    SetDiscordVolume(knob.Target, VolumePipeline.ComputeVolume(e.Value, knob));
+            }
             else if (knob.Target.StartsWith("obs:", StringComparison.OrdinalIgnoreCase))
             {
                 // OBS Studio audio source volume
@@ -2098,6 +2106,11 @@ public partial class App : Application
                 Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(ip, norm, true));
             }
         }
+        else if (IsDiscordVolumeTarget(knob.Target))
+        {
+            if (_discordRpc != null && Environment.TickCount64 - _startupTick >= 8000)
+                SetDiscordVolume(knob.Target, VolumePipeline.ComputeVolume(rawValue, knob));
+        }
         else if (knob.Target.StartsWith("obs:", StringComparison.OrdinalIgnoreCase))
         {
             if (_obs != null && _obs.IsAvailable && _config.Obs.Enabled
@@ -2228,6 +2241,9 @@ public partial class App : Application
         // Use the full volume pipeline (curve + range) so OSD matches actual volume
         float vol = VolumePipeline.ComputeVolume(rawValue, knob);
         int displayPct = (int)Math.Round(vol * 100);
+        // Discord output runs 0-200% (knob center = 100%); show Discord's own number.
+        if (string.Equals(knob.Target, DiscordOutputVolumeTarget, StringComparison.OrdinalIgnoreCase))
+            displayPct = (int)Math.Round(vol * DiscordRpcIntegration.OutputVolumeMax);
         // active_window always resolves to the actual foreground app at OSD-fire time.
         // Skips the knob.Label fallback because the Mixer's save path auto-bakes
         // "Active Window" into Label, which would otherwise hide the live app name.
@@ -2252,6 +2268,8 @@ public partial class App : Application
             _ when knob.Target.StartsWith("vm_strip:") => $"VM Strip {knob.Target.Split(':')[1]}",
             _ when knob.Target.StartsWith("vm_bus:") => $"VM Bus {knob.Target.Split(':')[1]}",
             _ when knob.Target.StartsWith("obs:") => knob.Target.Substring(4),
+            DiscordInputVolumeTarget => "Discord Input",
+            DiscordOutputVolumeTarget => "Discord Output",
             "corsair_pump_fan" => "Pump Fan",
             "corsair_case_fan" => "Case Fans",
             _ => knob.Target
@@ -2268,6 +2286,8 @@ public partial class App : Application
             _ when knob.Target.StartsWith("group:") => "LightbulbGroup",
             "spotify" => "MusicNote",
             "discord" => "Headphones",
+            DiscordInputVolumeTarget => "Microphone",
+            DiscordOutputVolumeTarget => "Headphones",
             _ when knob.Target.StartsWith("ha_") => "Home",
             _ when knob.Target.StartsWith("vm_") => "VolumeHigh",
             _ when knob.Target.StartsWith("obs:") => "Broadcast",
@@ -2433,6 +2453,11 @@ public partial class App : Application
             // Continue from OBS's real slider position, so a change made in OBS isn't undone
             current = VolumePipeline.ComputeRawValue(obsFader, knob);
         }
+        else if (TryGetDiscordVolume(knob.Target, out float discordVolume))
+        {
+            // Continue from Discord's real volume, so a change made in Discord isn't undone
+            current = VolumePipeline.ComputeRawValue(discordVolume, knob);
+        }
         else if (CanReadN3TargetVolume(knob.Target) && _mixer.GetVolume(knob) is var liveVolume && liveVolume >= 0f)
         {
             // Continue from the target's real volume. -1 = nothing to read (focused window has
@@ -2487,7 +2512,66 @@ public partial class App : Application
             && !normalized.StartsWith("govee:", StringComparison.Ordinal)
             && !normalized.StartsWith("vm_strip:", StringComparison.Ordinal)
             && !normalized.StartsWith("vm_bus:", StringComparison.Ordinal)
-            && !normalized.StartsWith("obs:", StringComparison.Ordinal);
+            && !normalized.StartsWith("obs:", StringComparison.Ordinal)
+            && !IsDiscordVolumeTarget(normalized);
+    }
+
+    internal const string DiscordInputVolumeTarget = "discord_input_volume";
+    internal const string DiscordOutputVolumeTarget = "discord_output_volume";
+
+    internal static bool IsDiscordVolumeTarget(string? target)
+        => string.Equals(target, DiscordInputVolumeTarget, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(target, DiscordOutputVolumeTarget, StringComparison.OrdinalIgnoreCase);
+
+    private void SetDiscordVolume(string target, float normalized)
+    {
+        if (_discordRpc == null || !_config.DiscordRpc.Enabled) return;
+        if (string.Equals(target, DiscordInputVolumeTarget, StringComparison.OrdinalIgnoreCase))
+            _discordRpc.SetInputVolume(normalized);
+        else
+            _discordRpc.SetOutputVolume(normalized);
+    }
+
+    /// <summary>Last known Discord volume (knob scale 0..1) for a Discord volume target.</summary>
+    internal static bool TryGetDiscordVolume(string? target, out float normalized)
+    {
+        normalized = 0f;
+        var discord = DiscordRpc;
+        if (discord == null) return false;
+        if (string.Equals(target, DiscordInputVolumeTarget, StringComparison.OrdinalIgnoreCase))
+            return discord.TryGetInputVolume(out normalized);
+        if (string.Equals(target, DiscordOutputVolumeTarget, StringComparison.OrdinalIgnoreCase))
+            return discord.TryGetOutputVolume(out normalized);
+        return false;
+    }
+
+    /// <summary>True when any button, N3 key or knob uses Discord, so the 2s state poll is worth it.</summary>
+    private bool IsDiscordInUse()
+    {
+        var config = _config;
+        if (config == null) return false;
+        static bool IsDiscordAction(string? a) => a != null && a.StartsWith("discord_", StringComparison.Ordinal);
+        static bool UsesDiscord(ButtonConfig b)
+            => IsDiscordAction(b.Action) || IsDiscordAction(b.DoublePressAction) || IsDiscordAction(b.HoldAction);
+
+        if (config.Buttons.Any(UsesDiscord) || config.N3.Buttons.Any(UsesDiscord)
+            || config.N3.Folders.Any(f => f.Buttons.Any(UsesDiscord)))
+            return true;
+
+        return config.Knobs.Any(k => IsDiscordVolumeTarget(k.Target))
+            || config.N3.Knobs.Any(k => IsDiscordVolumeTarget(k.Target))
+            || config.N3.EncoderContexts.Any(c => c.Knobs.Any(k => IsDiscordVolumeTarget(k.Target)))
+            || config.N3.Folders.Any(f => f.EncoderContexts.Any(c => c.Knobs.Any(k => IsDiscordVolumeTarget(k.Target))));
+    }
+
+    private void HandleDiscordVoiceSettingsChanged()
+    {
+        var discord = _discordRpc;
+        if (discord == null) return;
+        if (discord.LastKnownMute.HasValue)
+            SetDirectTargetMuteState(DiscordInputVolumeTarget, discord.LastKnownMute.Value);
+        if (discord.LastKnownDeafen.HasValue)
+            SetDirectTargetMuteState(DiscordOutputVolumeTarget, discord.LastKnownDeafen.Value);
     }
 
     /// <summary>
@@ -5276,6 +5360,16 @@ public partial class App : Application
                 continue;
             }
 
+            if (IsDiscordVolumeTarget(target))
+            {
+                var discord = _discordRpc;
+                bool discordMuted = string.Equals(target, DiscordInputVolumeTarget, StringComparison.OrdinalIgnoreCase)
+                    ? discord?.LastKnownMute == true
+                    : discord?.LastKnownDeafen == true;
+                _rgb.SetTargetMuted(knob.Idx, discordMuted);
+                continue;
+            }
+
             if (target.StartsWith("obs:", StringComparison.OrdinalIgnoreCase))
             {
                 bool obsMuted = false;
@@ -5317,13 +5411,20 @@ public partial class App : Application
 
     /// <summary>
     /// Mixer readout for a knob on an OBS source: OBS's slider position (so changes made in OBS
-    /// show up) and its live meter. False when the knob isn't on an OBS source.
+    /// show up) and its live meter. Discord volume targets report Discord's cached level.
+    /// False when the knob isn't on an OBS source or Discord volume target.
     /// </summary>
     internal static bool TryGetObsMixerLevels(KnobConfig knob, float fallbackVolume, out float volume, out float peak)
     {
         volume = fallbackVolume;
         peak = 0f;
         var target = knob.Target;
+        if (IsDiscordVolumeTarget(target))
+        {
+            // Discord input/output: show Discord's own level (no meter over RPC)
+            if (TryGetDiscordVolume(target, out var discordVolume)) volume = discordVolume;
+            return true;
+        }
         if (target == null || !target.StartsWith("obs:", StringComparison.OrdinalIgnoreCase)) return false;
         var obs = Obs;
         if (obs == null || !obs.IsAvailable) return true;
