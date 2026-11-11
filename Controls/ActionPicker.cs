@@ -597,7 +597,7 @@ public class ActionPicker : System.Windows.Controls.Border
         SetNav(next);
     }
 
-    private void SetNav(int idx)
+    private void SetNav(int idx, bool bringIntoView = true)
     {
         if (_navIndex >= 0 && _navIndex < _navRows.Count)
             _navRows[_navIndex].Row.BorderBrush = Brushes.Transparent;
@@ -606,7 +606,7 @@ public class ActionPicker : System.Windows.Controls.Border
         {
             var row = _navRows[idx].Row;
             row.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(AccentColor, 0x88));
-            row.BringIntoView();
+            if (bringIntoView) row.BringIntoView();
         }
     }
 
@@ -721,7 +721,9 @@ public class ActionPicker : System.Windows.Controls.Border
         int restore = prevNavKey != null ? _navRows.FindIndex(r => Equals(r.Row.Tag, prevNavKey)) : -1;
         if (restore < 0 && _query.Length > 0 && _navRows.Count > 0) restore = 0;
         if (restore < 0 && _selectedRowVisual != null) restore = _navRows.FindIndex(r => r.Row == _selectedRowVisual);
-        if (restore >= 0) SetNav(restore);
+        // Expanding/collapsing a group rebuilds the list: keep the scroll position instead of
+        // letting BringIntoView jump (it fires before layout and lands at the bottom).
+        if (restore >= 0) SetNav(restore, bringIntoView: keepOffset <= 0);
 
         if (_scroll != null && keepOffset > 0)
         {
