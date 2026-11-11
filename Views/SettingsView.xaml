@@ -187,7 +187,7 @@
             <Setter Property="BorderThickness" Value="1.5" />
             <Setter Property="Background" Value="{DynamicResource BgDarkBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
-            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
             <Setter Property="RenderTransform">
                 <Setter.Value><TranslateTransform /></Setter.Value>
             </Setter>
