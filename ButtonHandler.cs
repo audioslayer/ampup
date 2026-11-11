@@ -479,6 +479,9 @@ public class ButtonHandler : IDisposable
                 case "spotify_prev":       OnSpotifyPrev?.Invoke();       break;
                 case "spotify_shuffle":    OnSpotifyShuffleToggle?.Invoke(); break;
                 case "spotify_like":       OnSpotifyLikeToggle?.Invoke(); break;
+                case "chrome_play_pause": _ = ChromeMediaIntegration.PlayPauseAsync(); break;
+                case "chrome_next":       _ = ChromeMediaIntegration.NextAsync();      break;
+                case "chrome_prev":       _ = ChromeMediaIntegration.PrevAsync();      break;
                 case "pocketcasts_open":
                     if (_pocketCasts != null) _ = _pocketCasts.OpenAsync();
                     break;

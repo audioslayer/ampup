@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- Chrome media button actions (Play/Pause, Next, Prev) control only Chrome's media session (e.g. YouTube), so they no longer grab Spotify the way the global media key can. Spotify actions already use the Spotify API directly.
+
 ## [1.4.4] - 2026-10-27
 
 ### Added

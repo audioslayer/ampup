@@ -918,13 +918,14 @@ public partial class ButtonsView
         // Keeps the Integrations accordion scannable instead of showing 5+
         // rows for one service.
         var spotifyChildren = new[] { "spotify_play_pause", "spotify_next", "spotify_prev", "spotify_shuffle", "spotify_like" };
+        var chromeChildren = new[] { "chrome_play_pause", "chrome_next", "chrome_prev" };
         var pocketCastsChildren = new[] { "pocketcasts_open", "pocketcasts_play_pause", "pocketcasts_skip_back", "pocketcasts_skip_forward" };
         var discordChildren = DiscordActionValues;
         var haChildren      = new[] { "ha_toggle", "ha_scene", "ha_color", "ha_color_temp", "ha_service" };
         var goveeChildren   = new[] { "govee_toggle", "govee_color", "govee_white_toggle" };
         var obsChildren     = new[] { "obs_scene", "obs_mute", "obs_record", "obs_stream", "obs_record_pause", "obs_record_chapter",
             "obs_replay_save", "obs_replay_buffer", "obs_virtualcam", "obs_studio_transition", "obs_source_toggle", "obs_filter_toggle" };
-        var foldedChildren = new HashSet<string>(spotifyChildren.Concat(pocketCastsChildren).Concat(discordChildren).Concat(haChildren).Concat(goveeChildren).Concat(obsChildren));
+        var foldedChildren = new HashSet<string>(spotifyChildren.Concat(chromeChildren).Concat(pocketCastsChildren).Concat(discordChildren).Concat(haChildren).Concat(goveeChildren).Concat(obsChildren));
 
         foreach (var (category, values) in ActionCategories)
         {
@@ -968,6 +969,11 @@ public partial class ButtonsView
             Color.FromRgb(0x1D, 0xB9, 0x54), "Integrations",
             "Play / pause, skip, shuffle, like — requires Spotify connected in Settings",
             spotifyChildren, enabled: true);
+
+        AddIntegrationGroup("group_chrome", "Chrome Media", "▶",
+            Color.FromRgb(0x42, 0x85, 0xF4), "Integrations",
+            "Play / pause and skip Chrome's media session (YouTube etc.) only",
+            chromeChildren, enabled: true);
 
         AddIntegrationGroup("group_pocketcasts", "Pocket Casts", "P",
             Color.FromRgb(0xF4, 0x3E, 0x37), "Integrations",

@@ -129,6 +129,7 @@ public class ActionPicker : System.Windows.Controls.Border
         ["group_ha"]                = (MaterialIconKind.HomeAssistant, "Home Assistant", "Toggle entities, scenes, light colors, services"),
         ["group_govee"]             = (MaterialIconKind.Lightbulb, "Govee", "Power, color and white toggles"),
         ["group_spotify"]           = (MaterialIconKind.Spotify, "Spotify", "Playback, shuffle and likes"),
+        ["group_chrome"]            = (MaterialIconKind.GoogleChrome, "Chrome Media", "Play / pause and skip Chrome media only"),
         ["group_pocketcasts"]       = (MaterialIconKind.Podcast, "Pocket Casts", "Open, play / pause and skip"),
         // Lights tab reactive modes (also use this control)
         ["ObsMeter"]                = (MaterialIconKind.Broadcast, "OBS Meter", "LEDs show the live OBS level of the knob's OBS source"),
