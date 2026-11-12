@@ -41,6 +41,8 @@ public partial class App : Application
     private static bool _isShuttingDown;
     private OsdOverlay? _osdOverlay;
     private HAIntegration? _ha;
+    private HALightSync? _haLights;
+    internal static HALightSync? HaLights => (Current as App)?._haLights;
     private ObsIntegration? _obs;
     private VoiceMeeterIntegration? _vm;
     private readonly (string target, float value)[] _haLastValues = new (string, float)[8];
@@ -382,6 +384,28 @@ public partial class App : Application
                     boosted[i] = (byte)Math.Min(frame[i] * boost, 255);
                 _corsairSync.SyncColors(boosted);
             }
+
+            // Home Assistant lights that opted into Screen Sync (average color; HALightSync
+            // rate-limits to a few updates/sec, so this is ambient, not real-time)
+            if (_haLights != null && _config.HomeAssistant.Enabled)
+            {
+                List<HALightConfig>? haLights = null;
+                foreach (var light in _config.Ambience.HomeAssistantLights ?? new List<HALightConfig>())
+                    if (light.Enabled && light.ScreenSync && light.PoweredOn)
+                        (haLights ??= new List<HALightConfig>()).Add(light);
+                if (haLights != null)
+                {
+                    int sr = 0, sg = 0, sb = 0;
+                    for (int i = 0; i < 15; i++)
+                    {
+                        sr += frame[i * 3];
+                        sg += frame[i * 3 + 1];
+                        sb += frame[i * 3 + 2];
+                    }
+                    foreach (var light in haLights)
+                        _haLights.Submit(light, (byte)(sr / 15), (byte)(sg / 15), (byte)(sb / 15));
+                }
+            }
         };
         // Screen Sync init is deferred too — it grabs screen buffers and
         // kicks off a capture thread, which can stall the UI on first run.
@@ -415,6 +439,8 @@ public partial class App : Application
         // Start Home Assistant integration
         _ha = new HAIntegration(_config.HomeAssistant);
         _buttons.SetHAIntegration(_ha);
+        // Room effects / Screen Sync -> HA lights (rate-limited background worker)
+        _haLights = new HALightSync(() => _config.HomeAssistant.Enabled ? _ha : null);
         if (_config.HomeAssistant.Enabled)
             _ = _ha.TestConnectionAsync(); // sets IsAvailable for knob routing
 
@@ -1335,6 +1361,7 @@ public partial class App : Application
         _hardwareMonitor?.Dispose();
         _signalRgbBridge?.Dispose();
         _duckingEngine?.Dispose();
+        _haLights?.Dispose();
         Dispatcher.Invoke(() => Shutdown());
     }
 

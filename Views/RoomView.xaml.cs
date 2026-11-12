@@ -132,7 +132,11 @@ public partial class RoomView : UserControl
         // Room tab is selected. LoadConfig also performs one hidden startup
         // refresh so opening Devices is never required for detection.
         _goveeStateRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
-        _goveeStateRefreshTimer.Tick += async (_, _) => await RefreshGoveeDeviceStatesAsync();
+        _goveeStateRefreshTimer.Tick += async (_, _) =>
+        {
+            _ = RefreshHaLightStatesAsync();
+            await RefreshGoveeDeviceStatesAsync();
+        };
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
         Loaded += (_, _) =>
@@ -140,6 +144,7 @@ public partial class RoomView : UserControl
             HookOwnerWindow();
             _goveeStateRefreshTimer.Start();
             _ = RefreshGoveeDeviceStatesAsync();
+            _ = RefreshHaLightStatesAsync();
         };
         Unloaded += (_, _) =>
         {
@@ -155,6 +160,7 @@ public partial class RoomView : UserControl
             {
                 if (IsLoaded) _goveeStateRefreshTimer.Start();
                 _ = RefreshGoveeDeviceStatesAsync();
+                _ = RefreshHaLightStatesAsync();
             }
             else
             {
@@ -253,6 +259,7 @@ public partial class RoomView : UserControl
         // ConfigManager migrates persisted configs too; keep this assignment
         // here so directly supplied/profile configs follow the same contract.
         config.Ambience.SpatialSync = true;
+        config.Ambience.HomeAssistantLights ??= new List<HALightConfig>();
         _config = config;
         _onSave = onSave;
         _loading = false;
@@ -2074,6 +2081,8 @@ public partial class RoomView : UserControl
         _goveePowerControls.Clear();
         _goveeBrightnessControls.Clear();
         _deviceControls.Clear();
+        _haPowerControls.Clear();
+        _haStatusDots.Clear();
 
         stack.Children.Add(UiKit.PageHeader("Devices", "Power, brightness and sync for every light",
             icon: Material.Icons.MaterialIconKind.LightbulbGroupOutline));
@@ -2350,7 +2359,10 @@ public partial class RoomView : UserControl
             }
         }
 
-        if (!hasGovee && !hasCorsair)
+        // ── Home Assistant lights ──
+        bool hasHaLights = BuildHaLightsSection(stack);
+
+        if (!hasGovee && !hasCorsair && !hasHaLights)
         {
             stack.Children.Add(UiKit.SectionHeader("LIGHTS"));
             stack.Children.Add(UiKit.EmptyState(MaterialIconKind.LightbulbGroupOutline, "No devices configured",
@@ -2384,6 +2396,301 @@ public partial class RoomView : UserControl
         stack.Children.Add(UiKit.SectionHeader("TURN UP"));
         stack.Children.Add(UiKit.Card(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.Tune,
             "Hardware LEDs", "Let the knob LEDs follow your screen and room lights", null, tuBody).Root);
+    }
+
+    // ── Home Assistant lights (Room > Devices) ──
+
+    private static readonly Color HaLightCardColor = Color.FromRgb(0x82, 0xCF, 0xFF); // matches layout tray "ha" cyan
+    private readonly Dictionary<HALightConfig, CheckBox> _haPowerControls = new();
+    private readonly Dictionary<HALightConfig, System.Windows.Shapes.Ellipse> _haStatusDots = new();
+    private readonly Dictionary<string, DateTime> _haManualControlAt = new(StringComparer.OrdinalIgnoreCase);
+    private bool _haStateRefreshInProgress;
+
+    /// <summary>True when the entity is a Room > Devices HA light (so the legacy layout path skips it).</summary>
+    private static bool IsRoomDevicesHaLight(AppConfig config, string entityId)
+    {
+        var lights = config.Ambience.HomeAssistantLights;
+        if (lights == null) return false;
+        foreach (var light in lights)
+            if (light.Enabled && string.Equals(light.EntityId, entityId, StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
+    }
+
+    /// <summary>Builds the HOME ASSISTANT section. Returns true when at least one light is listed.</summary>
+    private bool BuildHaLightsSection(StackPanel stack)
+    {
+        if (_config == null) return false;
+        var lights = _config.Ambience.HomeAssistantLights ?? new List<HALightConfig>();
+
+        stack.Children.Add(UiKit.SectionHeader("HOME ASSISTANT",
+            lights.Count == 0 ? "" : lights.Count == 1 ? "1 light" : $"{lights.Count} lights"));
+
+        var pickerHost = new StackPanel();
+        var addRow = UiKit.LinkRow(MaterialIconKind.Plus, "Add Home Assistant lights", true,
+            () => OpenHaLightPicker(pickerHost),
+            "Pick light entities from Home Assistant to use in room effects");
+        addRow.HorizontalAlignment = HorizontalAlignment.Left;
+        addRow.Margin = new Thickness(0, 0, 0, 8);
+        stack.Children.Add(addRow);
+        stack.Children.Add(pickerHost);
+
+        foreach (var light in lights)
+            stack.Children.Add(BuildHaLightCard(light));
+
+        return lights.Count > 0;
+    }
+
+    private void OpenHaLightPicker(StackPanel host)
+    {
+        if (_config == null) return;
+        host.Children.Clear();
+
+        var ha = _ha;
+        if (!_config.HomeAssistant.Enabled || ha == null)
+        {
+            host.Children.Add(UiKit.EmptyState(MaterialIconKind.HomeAssistant, "Home Assistant isn't connected",
+                "Connect it in Settings > Integrations > Home Assistant, then come back here to add lights.",
+                UiKit.LinkRow(MaterialIconKind.CogOutline, "Open Settings", true, () => NavigateToSettings?.Invoke())));
+            return;
+        }
+
+        var existing = (_config.Ambience.HomeAssistantLights ?? new List<HALightConfig>()).Select(l => l.EntityId);
+        var picked = HALightPickerDialog.Prompt(Window.GetWindow(this), ha, existing);
+        if (picked == null || picked.Count == 0) return;
+        AddHaLights(picked.Select(l => new HAEntity { EntityId = l.EntityId, FriendlyName = l.FriendlyName }).ToList());
+    }
+
+    private void AddHaLights(List<HAEntity> picked)
+    {
+        if (_config == null) return;
+        // Copy-on-write: the room frame / Screen Sync threads enumerate this list.
+        var updated = new List<HALightConfig>(_config.Ambience.HomeAssistantLights ?? new List<HALightConfig>());
+        foreach (var entity in picked)
+        {
+            if (updated.Any(l => string.Equals(l.EntityId, entity.EntityId, StringComparison.OrdinalIgnoreCase)))
+                continue;
+            updated.Add(new HALightConfig
+            {
+                EntityId = entity.EntityId,
+                Name = string.IsNullOrWhiteSpace(entity.FriendlyName) ? entity.EntityId : entity.FriendlyName,
+            });
+        }
+        _config.Ambience.HomeAssistantLights = updated;
+        QueueSave();
+        RebuildRoomTabContent();
+        _ = RefreshHaLightStatesAsync();
+    }
+
+    private void RemoveHaLight(HALightConfig light)
+    {
+        if (_config == null) return;
+        var updated = new List<HALightConfig>(_config.Ambience.HomeAssistantLights ?? new List<HALightConfig>());
+        updated.Remove(light);
+        _config.Ambience.HomeAssistantLights = updated;
+        App.HaLights?.Invalidate(light.EntityId);
+        QueueSave();
+        RebuildRoomTabContent();
+    }
+
+    private Border BuildHaLightCard(HALightConfig light)
+    {
+        var capturedLight = light;
+        string displayName = string.IsNullOrWhiteSpace(light.Name) ? light.EntityId : light.Name;
+
+        // CheckBoxes are the logical models; MakeLabeledDeviceSwitch mirrors them visually.
+        var onOff = new CheckBox { IsChecked = light.PoweredOn };
+        onOff.Checked += async (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            await SetHaLightPowerAsync(capturedLight, true);
+        };
+        onOff.Unchecked += async (_, _) =>
+        {
+            if (_loading || _config == null) return;
+            await SetHaLightPowerAsync(capturedLight, false);
+        };
+        _haPowerControls[light] = onOff;
+
+        var ampUpSync = new CheckBox { IsChecked = light.SyncWithAmpUp };
+        ampUpSync.Checked += (_, _) => { if (_loading || _config == null) return; capturedLight.SyncWithAmpUp = true; App.HaLights?.Invalidate(capturedLight.EntityId); QueueSave(); };
+        ampUpSync.Unchecked += (_, _) => { if (_loading || _config == null) return; capturedLight.SyncWithAmpUp = false; QueueSave(); };
+
+        var screenSync = new CheckBox { IsChecked = light.ScreenSync };
+        screenSync.Checked += (_, _) => { if (_loading || _config == null) return; capturedLight.ScreenSync = true; App.HaLights?.Invalidate(capturedLight.EntityId); QueueSave(); };
+        screenSync.Unchecked += (_, _) => { if (_loading || _config == null) return; capturedLight.ScreenSync = false; QueueSave(); };
+
+        var dot = new System.Windows.Shapes.Ellipse
+        {
+            Width = 8, Height = 8,
+            Margin = new Thickness(0, 0, 14, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Fill = FindBrush("TextDimBrush"),
+            ToolTip = "Checking Home Assistant…",
+        };
+        _haStatusDots[light] = dot;
+
+        var controls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        controls.Children.Add(dot);
+        controls.Children.Add(MakeLabeledDeviceSwitch("Power", onOff, null));
+        controls.Children.Add(MakeLabeledDeviceSwitch("Sync", ampUpSync,
+            "Sync with AmpUp — room effects, Music Reactive and VU Fill drive this light. Home Assistant updates a few times per second, so fast effects look smoother on Govee."));
+        controls.Children.Add(MakeLabeledDeviceSwitch("Screen", screenSync,
+            "Follow Screen Sync too. Slower than Govee: Home Assistant only updates a few times per second, so expect some lag. Off by default."));
+        controls.Children.Add(UiKit.MoreButton(() => new List<GlassMenuItem>
+        {
+            new("Remove light", MaterialIconKind.DeleteOutline, () => RemoveHaLight(capturedLight), IsDanger: true),
+        }));
+
+        var body = new StackPanel();
+
+        // Brightness = scale for AmpUp-driven colors. With no room effect running it
+        // also sets the light's brightness in Home Assistant directly (debounced).
+        var brightSlider = new StyledSlider
+        {
+            Minimum = 1, Maximum = 100,
+            Value = Math.Clamp(light.BrightnessScale, 1, 100),
+            Height = 30,
+            AccentColor = ThemeManager.Accent,
+            ShowLabel = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        var brightLabel = new TextBlock
+        {
+            Text = $"{(int)brightSlider.Value}%", FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            MinWidth = 34, TextAlignment = TextAlignment.Right,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        var brightDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        brightDebounce.Tick += (_, _) =>
+        {
+            brightDebounce.Stop();
+            var ha = _ha;
+            if (ha == null || _config?.HomeAssistant.Enabled != true || !capturedLight.PoweredOn) return;
+            if (_roomRgb != null && capturedLight.SyncWithAmpUp) return; // the effect applies the new scale itself
+            MarkHaManualControl(capturedLight.EntityId);
+            _ = ha.SetLightBrightnessAsync(capturedLight.EntityId, capturedLight.BrightnessScale / 100f);
+        };
+        brightSlider.ValueChanged += (_, _) =>
+        {
+            int pct = (int)brightSlider.Value;
+            brightLabel.Text = $"{pct}%";
+            if (_loading) return;
+            capturedLight.BrightnessScale = pct;
+            QueueSave();
+            brightDebounce.Stop();
+            brightDebounce.Start();
+        };
+
+        var brightRow = new DockPanel();
+        var brightName = new TextBlock
+        {
+            Text = "Brightness", FontSize = 11, Width = 70,
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        DockPanel.SetDock(brightName, Dock.Left);
+        DockPanel.SetDock(brightLabel, Dock.Right);
+        brightRow.Children.Add(brightName);
+        brightRow.Children.Add(brightLabel);
+        brightRow.Children.Add(brightSlider);
+        body.Children.Add(brightRow);
+
+        body.Children.Add(BuildWhiteBalanceAdvancedSection(
+            light.WhiteBalanceR, light.WhiteBalanceG, light.WhiteBalanceB,
+            v => capturedLight.WhiteBalanceR = v, v => capturedLight.WhiteBalanceG = v, v => capturedLight.WhiteBalanceB = v));
+
+        var card = UiKit.Card(HaLightCardColor, MaterialIconKind.HomeAssistant, displayName,
+            $"HA  ·  {light.EntityId}  ·  slower than Govee", controls, body);
+        card.Subtitle.ToolTip = "Home Assistant light — static colors and slow effects work best. "
+            + "Updates are limited to a few per second, so it won't mirror fast effects or the screen in real time.";
+        return card.Root;
+    }
+
+    private void MarkHaManualControl(string entityId) => _haManualControlAt[entityId] = DateTime.UtcNow;
+
+    private async Task SetHaLightPowerAsync(HALightConfig light, bool on)
+    {
+        light.PoweredOn = on;
+        MarkHaManualControl(light.EntityId);
+        App.HaLights?.Invalidate(light.EntityId); // resend the effect color right after turning on
+        QueueSave();
+        var ha = _ha;
+        if (ha == null || _config?.HomeAssistant.Enabled != true) return;
+        try { await ha.SetLightPowerAsync(light.EntityId, on); }
+        catch (Exception ex) { Logger.Log($"[Room] HA light power failed: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Poll HA for on/off of the Room > Devices lights (same 15s cadence as Govee). Only power
+    /// is reflected: brightness while an effect runs is AmpUp's own output, so mirroring it
+    /// back into the scale slider would fight the effect. Lights toggled here in the last few
+    /// seconds are skipped so a slow HA state can't flip the switch back.
+    /// </summary>
+    private async Task RefreshHaLightStatesAsync()
+    {
+        var config = _config;
+        var ha = _ha;
+        if (_haStateRefreshInProgress || config == null || ha == null || !config.HomeAssistant.Enabled)
+            return;
+        var lights = (config.Ambience.HomeAssistantLights ?? new List<HALightConfig>()).ToArray();
+        if (lights.Length == 0) return;
+
+        _haStateRefreshInProgress = true;
+        try
+        {
+            var requestedAt = DateTime.UtcNow;
+            var states = await ha.GetLightStatesAsync(lights.Select(l => l.EntityId));
+            if (!ReferenceEquals(_config, config)) return;
+
+            bool changed = false;
+            _loading = true;
+            try
+            {
+                foreach (var light in lights)
+                {
+                    bool found = states != null && states.ContainsKey(light.EntityId);
+                    if (_haStatusDots.TryGetValue(light, out var dot))
+                    {
+                        dot.Fill = found
+                            ? new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77))
+                            : new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44));
+                        dot.ToolTip = states == null ? "Home Assistant not reachable"
+                            : found ? "Online (Home Assistant)" : "Entity not found in Home Assistant";
+                    }
+                    if (!found) continue;
+
+                    if (_haManualControlAt.TryGetValue(light.EntityId, out var manualAt)
+                        && (manualAt > requestedAt.AddSeconds(-10)))
+                        continue;
+
+                    bool on = states![light.EntityId].On;
+                    if (light.PoweredOn == on) continue;
+                    light.PoweredOn = on;
+                    changed = true;
+                    if (on) App.HaLights?.Invalidate(light.EntityId);
+                    if (_haPowerControls.TryGetValue(light, out var power))
+                        power.IsChecked = on;
+                }
+            }
+            finally
+            {
+                _loading = false;
+            }
+
+            if (changed) _onSave?.Invoke(config);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[Room] HA light state refresh failed: {ex.Message}");
+        }
+        finally
+        {
+            _haStateRefreshInProgress = false;
+        }
     }
 
     /// <summary>Label + hint on the left, control right-aligned (Screen Sync style).</summary>
@@ -2430,6 +2737,12 @@ public partial class RoomView : UserControl
 
     /// <summary>Collapsible "Advanced" block holding per-device White Balance (Screen Sync).</summary>
     private StackPanel BuildGoveeAdvancedSection(GoveeDeviceConfig wbCfg)
+        => BuildWhiteBalanceAdvancedSection(
+            wbCfg.WhiteBalanceR, wbCfg.WhiteBalanceG, wbCfg.WhiteBalanceB,
+            v => wbCfg.WhiteBalanceR = v, v => wbCfg.WhiteBalanceG = v, v => wbCfg.WhiteBalanceB = v);
+
+    private StackPanel BuildWhiteBalanceAdvancedSection(int wbR, int wbG, int wbB,
+        Action<int> setR, Action<int> setG, Action<int> setB)
     {
         var outer = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
         var chevron = UiKit.Icon(MaterialIconKind.ChevronRight, 14);
@@ -2449,7 +2762,7 @@ public partial class RoomView : UserControl
             Text = "ADVANCED", FontSize = 10, FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextSecBrush"), VerticalAlignment = VerticalAlignment.Center,
         });
-        int wbTrimmed = (wbCfg.WhiteBalanceR < 100 ? 1 : 0) + (wbCfg.WhiteBalanceG < 100 ? 1 : 0) + (wbCfg.WhiteBalanceB < 100 ? 1 : 0);
+        int wbTrimmed = (wbR < 100 ? 1 : 0) + (wbG < 100 ? 1 : 0) + (wbB < 100 ? 1 : 0);
         if (wbTrimmed > 0)
             toggleRow.Children.Add(new TextBlock
             {
@@ -2502,9 +2815,9 @@ public partial class RoomView : UserControl
             row.Children.Add(sl);
             return row;
         }
-        panel.Children.Add(MakeWb("Red", Color.FromRgb(0xFF, 0x52, 0x52), wbCfg.WhiteBalanceR, v => wbCfg.WhiteBalanceR = v));
-        panel.Children.Add(MakeWb("Green", Color.FromRgb(0x00, 0xE6, 0x76), wbCfg.WhiteBalanceG, v => wbCfg.WhiteBalanceG = v));
-        panel.Children.Add(MakeWb("Blue", Color.FromRgb(0x44, 0x8A, 0xFF), wbCfg.WhiteBalanceB, v => wbCfg.WhiteBalanceB = v));
+        panel.Children.Add(MakeWb("Red", Color.FromRgb(0xFF, 0x52, 0x52), wbR, setR));
+        panel.Children.Add(MakeWb("Green", Color.FromRgb(0x00, 0xE6, 0x76), wbG, setG));
+        panel.Children.Add(MakeWb("Blue", Color.FromRgb(0x44, 0x8A, 0xFF), wbB, setB));
         outer.Children.Add(panel);
 
         toggleRow.MouseLeftButtonDown += (_, _) =>
@@ -6182,6 +6495,7 @@ public partial class RoomView : UserControl
             foreach (var dev in _config.RoomLayout.Devices)
             {
                 if (dev.DeviceType != "ha") continue;
+                if (IsRoomDevicesHaLight(_config, dev.DeviceId)) continue; // driven by HALightSync
                 _ha.SetLightColorFireAndForget(dev.DeviceId, rgb.R, rgb.G, rgb.B, scaledBrightness);
             }
         }
@@ -6888,6 +7202,7 @@ public partial class RoomView : UserControl
             foreach (var dev in config.RoomLayout.Devices)
             {
                 if (dev.DeviceType != "ha") continue;
+                if (IsRoomDevicesHaLight(config, dev.DeviceId)) continue; // driven by HALightSync below
                 if (!_haLastSend.TryGetValue(dev.DeviceId, out var last) ||
                     (DateTime.UtcNow - last).TotalMilliseconds >= 500)
                 {
@@ -6908,6 +7223,23 @@ public partial class RoomView : UserControl
                             (byte)nr, (byte)ng, (byte)nb, Math.Max(brightness, 1));
                     }
                 }
+            }
+        }
+
+        // ── HA lights added in Room > Devices (HALightSync coalesces + rate-limits off-thread) ──
+        var haLightSync = App.HaLights;
+        if (haLightSync != null && !_roomPatternCorsairOnly && config.HomeAssistant.Enabled)
+        {
+            foreach (var light in config.Ambience.HomeAssistantLights ?? new List<HALightConfig>())
+            {
+                if (!light.Enabled || !light.SyncWithAmpUp || !light.PoweredOn) continue;
+                int hr = r, hg = g, hb = b;
+                if (_spatialMapper?.GetDevicePosition(light.EntityId) != null)
+                {
+                    var sampled = _spatialMapper.SampleForDevice(light.EntityId, frameForSync, 1);
+                    if (sampled.Length > 0) { hr = sampled[0].R; hg = sampled[0].G; hb = sampled[0].B; }
+                }
+                haLightSync.Submit(light, (byte)Math.Clamp(hr, 0, 255), (byte)Math.Clamp(hg, 0, 255), (byte)Math.Clamp(hb, 0, 255));
             }
         }
 

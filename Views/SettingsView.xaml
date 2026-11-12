@@ -1180,6 +1180,8 @@
                                             <TextBlock x:Name="TxtHaStatus" Text="" Style="{StaticResource SStatusText}" />
                                         </StackPanel>
                                     </WrapPanel>
+                                    <TextBlock Text="Tip: add Home Assistant lights to room effects in Room &gt; Devices."
+                                               Style="{StaticResource SSub}" TextWrapping="Wrap" Margin="0,4,0,0" />
                                 </StackPanel>
                             </StackPanel>
                         </Grid>
