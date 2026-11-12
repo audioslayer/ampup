@@ -13,6 +13,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Room effects (static colors, animated effects, Music Reactive, VU Fill) now drive Home Assistant lights. Updates are capped at a few per second, so this works best for static colors and slow effects, not real-time mirroring.
 - Home Assistant lights can optionally follow Screen Sync (off by default; slower than Govee).
 
+### Fixed
+- Button taps fire instantly when the button has no double-press action. Every tap used to wait 300 ms for a possible second press, so buttons felt laggy; buttons that do have a double-press action keep the short wait.
+
 ## [1.4.5] - 2026-11-10
 
 ### Added
