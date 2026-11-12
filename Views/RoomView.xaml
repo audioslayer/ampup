@@ -13,7 +13,10 @@
 
         <!-- Main content area -->
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel x:Name="DevicePanel" Margin="0,0,0,24" />
+            <StackPanel>
+                <ContentControl x:Name="RoomHeaderHost" Focusable="False" />
+                <StackPanel x:Name="DevicePanel" Margin="0,0,0,24" />
+            </StackPanel>
         </ScrollViewer>
 
         <!-- Footer bar -->

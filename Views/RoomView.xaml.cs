@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using AmpUp.Controls;
 using Material.Icons;
+using Material.Icons.WPF;
 using Newtonsoft.Json.Linq;
 
 namespace AmpUp.Views;
@@ -169,6 +170,7 @@ public partial class RoomView : UserControl
         };
 
         BuildTopBar();
+        RoomHeaderHost.Content = BuildRoomHeader();
     }
 
     // ── Hidden-window timer quiesce ─────────────────────────────────────
@@ -459,6 +461,9 @@ public partial class RoomView : UserControl
         bool hasAnyDevices = _config.Ambience.GoveeDevices.Count > 0 || _cloudDevices.Count > 0
             || (_corsairSync?.Devices.Count > 0);
 
+        if (_roomTabDock != null)
+            _roomTabDock.Visibility = (hasGovee || hasCorsair) ? Visibility.Visible : Visibility.Collapsed;
+
         if (!hasGovee && !hasCorsair)
         {
             DevicePanel.Children.Add(MakeSetupCard(
@@ -498,72 +503,6 @@ public partial class RoomView : UserControl
         var stack = new StackPanel();
         wrapper.Child = stack;
 
-        // ── Tab bar in its own card ──
-        var tabCard = new Border
-        {
-            Style = FindStyle("CardPanel") as Style,
-            Margin = new Thickness(0, 0, 0, 10),
-            Padding = new Thickness(8, 6, 8, 6),
-        };
-        var accent = ThemeManager.Accent;
-        var tabNames = new[] { "ROOM EFFECT", "DEVICES", "SCREEN SYNC" };
-        var tabCount = tabNames.Length;
-        var tabBorders = new Border[tabCount];
-
-        var tabContainer = new Border
-        {
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Margin = new Thickness(0),
-        };
-        tabContainer.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
-        var tabRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        for (int i = 0; i < tabCount; i++)
-        {
-            var idx = i;
-            var tab = new Border
-            {
-                Padding = new Thickness(22, 10, 22, 10),
-                Cursor = Cursors.Hand,
-                BorderBrush = new SolidColorBrush(Colors.Transparent),
-                BorderThickness = new Thickness(0, 0, 0, 2), // 2px underline slot
-                Background = new SolidColorBrush(Colors.Transparent),
-            };
-            tab.Child = new TextBlock
-            {
-                Text = tabNames[i], FontSize = 11, FontWeight = FontWeights.SemiBold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = FindBrush("TextSecBrush"),
-            };
-            tabBorders[i] = tab;
-            tab.MouseEnter += (_, _) =>
-            {
-                if (idx != _roomTabIndex && tab.Child is TextBlock t)
-                    t.Foreground = FindBrush("TextPrimaryBrush");
-            };
-            tab.MouseLeave += (_, _) =>
-            {
-                if (idx != _roomTabIndex && tab.Child is TextBlock t)
-                    t.Foreground = FindBrush("TextSecBrush");
-            };
-            tab.MouseLeftButtonDown += (_, _) =>
-            {
-                _roomTabIndex = idx;
-                for (int j = 0; j < tabCount; j++)
-                    SetRoomTabActive(tabBorders[j], j == idx, ThemeManager.Accent);
-                RebuildRoomTabContent();
-            };
-            tabRow.Children.Add(tab);
-        }
-        for (int i = 0; i < tabCount; i++)
-            SetRoomTabActive(tabBorders[i], i == _roomTabIndex, accent);
-        tabContainer.Child = tabRow;
-        tabCard.Child = tabContainer;
-        stack.Children.Add(tabCard);
-
         // Dynamic toggle row — rebuilt per tab in RebuildRoomTabContent
         _toggleRowContainer = new StackPanel();
         stack.Children.Add(_toggleRowContainer);
@@ -575,31 +514,79 @@ public partial class RoomView : UserControl
         return wrapper;
     }
 
-    private static void SetRoomTabActive(Border tab, bool active, Color accent)
+    // ── Page header + tab dock ──────────────────────────────────────
+
+    private static readonly string[] RoomTabNames = { "ROOM EFFECT", "DEVICES", "SCREEN SYNC" };
+    private static readonly MaterialIconKind[] RoomTabIcons =
+        { MaterialIconKind.PaletteOutline, MaterialIconKind.LightbulbGroupOutline, MaterialIconKind.MonitorShimmer };
+
+    private IconDock? _roomTabDock;
+
+    /// <summary>Compact page header, same pattern as the Lights page: tile + title + subtitle, tabs, help tip.</summary>
+    private FrameworkElement BuildRoomHeader()
     {
-        var label = tab.Child as TextBlock;
-        if (active)
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var dock = BuildRoomTabDock();
+        dock.Margin = new Thickness(0, 0, 12, 0);
+        actions.Children.Add(dock);
+        actions.Children.Add(RoomHeaderButton(MaterialIconKind.CogOutline, "Integrations",
+            "Set up Govee, Corsair iCUE and Home Assistant in Settings", () => NavigateToSettings?.Invoke()));
+        var help = UiKit.HelpTip("Room effects, Music Reactive, VU Fill and Screen Sync all drive the same lights, "
+            + "so turning one on hands the lights over from the others. Govee, Corsair iCUE and Home Assistant "
+            + "lights are managed on the Devices tab.", "Room lighting");
+        help.Margin = new Thickness(12, 0, 0, 0);
+        help.VerticalAlignment = VerticalAlignment.Center;
+        actions.Children.Add(help);
+        return UiKit.PageHeader("Room", "Effects, devices and screen sync for your room lights", actions,
+            icon: MaterialIconKind.LightbulbGroupOutline);
+    }
+
+    private static Border RoomHeaderButton(MaterialIconKind kind, string label, string tooltip, Action onClick)
+    {
+        var icon = new MaterialIcon { Kind = kind, Width = 16, Height = 16, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) };
+        icon.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
+        var tb = new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        tb.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        sp.Children.Add(icon);
+        sp.Children.Add(tb);
+
+        var b = new Border
         {
-            // Accent underline, bright label
-            tab.BorderBrush = new SolidColorBrush(accent);
-            tab.BorderThickness = new Thickness(0, 0, 0, 2);
-            if (label != null)
-            {
-                label.Foreground = new SolidColorBrush(accent);
-                label.FontWeight = FontWeights.Bold;
-            }
-        }
-        else
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(12, 7, 14, 7),
+            Cursor = Cursors.Hand,
+            ToolTip = tooltip,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = sp,
+        };
+        void Paint(bool hover)
         {
-            // No underline, muted label
-            tab.BorderBrush = new SolidColorBrush(Colors.Transparent);
-            tab.BorderThickness = new Thickness(0, 0, 0, 2);
-            if (label != null)
-            {
-                label.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
-                label.FontWeight = FontWeights.SemiBold;
-            }
+            b.SetResourceReference(Border.BackgroundProperty, hover ? "AccentBg30Brush" : "AccentHover1ABrush");
+            b.SetResourceReference(Border.BorderBrushProperty, hover ? "AccentScrollAABrush" : "AccentLabel66Brush");
         }
+        Paint(false);
+        b.MouseEnter += (_, _) => Paint(true);
+        b.MouseLeave += (_, _) => Paint(false);
+        b.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
+        return b;
+    }
+
+    private IconDock BuildRoomTabDock()
+    {
+        var dock = new IconDock();
+        for (int i = 0; i < RoomTabNames.Length; i++)
+            dock.AddItem(RoomTabNames[i], RoomTabNames[i], RoomTabIcons[i]);
+        dock.SelectedIndex = _roomTabIndex;
+        dock.SelectionChanged += (_, _) =>
+        {
+            if (dock.SelectedIndex < 0 || _roomTabIndex == dock.SelectedIndex) return;
+            _roomTabIndex = dock.SelectedIndex;
+            RebuildRoomTabContent();
+        };
+        _roomTabDock = dock;
+        return dock;
     }
 
     private void RebuildRoomTabContent()
