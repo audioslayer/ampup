@@ -13,6 +13,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Room effects (static colors, animated effects, Music Reactive, VU Fill) now drive Home Assistant lights. Updates are capped at a few per second, so this works best for static colors and slow effects, not real-time mirroring.
 - Home Assistant lights can optionally follow Screen Sync (off by default; slower than Govee).
 
+### Changed
+- Room page redesign: glass hero header with live status pills (active effect, Screen Sync, Music Reactive / VU Fill / Game Mode, lights on) and an Integrations shortcut, a segmented pill tab bar, pill effect-category chips, larger glowing mode tiles, big rounded glass cards, Govee / Corsair / Home Assistant device cards with integration logos, On/Off pills and an accent glow while on, and clearer empty states ("Add Govee lights", "Add Home Assistant lights").
+
 ## [1.4.5] - 2026-11-10
 
 ### Added

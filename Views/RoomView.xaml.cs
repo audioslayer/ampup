@@ -461,10 +461,11 @@ public partial class RoomView : UserControl
 
         if (!hasGovee && !hasCorsair)
         {
-            DevicePanel.Children.Add(MakeSetupCard(
-                "No integrations enabled",
-                "Enable Govee or Corsair iCUE in Settings to get started.",
-                "Open Settings", () => NavigateToSettings?.Invoke()));
+            DevicePanel.Children.Add(RoomEmptyState(MaterialIconKind.LightbulbGroupOutline,
+                "No lighting integrations enabled",
+                "Turn on Govee or Corsair iCUE in Settings > Integrations to light up your room.",
+                RoomCtaButton(MaterialIconKind.Plus, "Add Govee lights", () => NavigateToSettings?.Invoke()),
+                RoomCtaButton(MaterialIconKind.CogOutline, "Open Settings", () => NavigateToSettings?.Invoke())));
             return;
         }
 
@@ -498,71 +499,9 @@ public partial class RoomView : UserControl
         var stack = new StackPanel();
         wrapper.Child = stack;
 
-        // ── Tab bar in its own card ──
-        var tabCard = new Border
-        {
-            Style = FindStyle("CardPanel") as Style,
-            Margin = new Thickness(0, 0, 0, 10),
-            Padding = new Thickness(8, 6, 8, 6),
-        };
-        var accent = ThemeManager.Accent;
-        var tabNames = new[] { "ROOM EFFECT", "DEVICES", "SCREEN SYNC" };
-        var tabCount = tabNames.Length;
-        var tabBorders = new Border[tabCount];
-
-        var tabContainer = new Border
-        {
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Margin = new Thickness(0),
-        };
-        tabContainer.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
-        var tabRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        for (int i = 0; i < tabCount; i++)
-        {
-            var idx = i;
-            var tab = new Border
-            {
-                Padding = new Thickness(22, 10, 22, 10),
-                Cursor = Cursors.Hand,
-                BorderBrush = new SolidColorBrush(Colors.Transparent),
-                BorderThickness = new Thickness(0, 0, 0, 2), // 2px underline slot
-                Background = new SolidColorBrush(Colors.Transparent),
-            };
-            tab.Child = new TextBlock
-            {
-                Text = tabNames[i], FontSize = 11, FontWeight = FontWeights.SemiBold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = FindBrush("TextSecBrush"),
-            };
-            tabBorders[i] = tab;
-            tab.MouseEnter += (_, _) =>
-            {
-                if (idx != _roomTabIndex && tab.Child is TextBlock t)
-                    t.Foreground = FindBrush("TextPrimaryBrush");
-            };
-            tab.MouseLeave += (_, _) =>
-            {
-                if (idx != _roomTabIndex && tab.Child is TextBlock t)
-                    t.Foreground = FindBrush("TextSecBrush");
-            };
-            tab.MouseLeftButtonDown += (_, _) =>
-            {
-                _roomTabIndex = idx;
-                for (int j = 0; j < tabCount; j++)
-                    SetRoomTabActive(tabBorders[j], j == idx, ThemeManager.Accent);
-                RebuildRoomTabContent();
-            };
-            tabRow.Children.Add(tab);
-        }
-        for (int i = 0; i < tabCount; i++)
-            SetRoomTabActive(tabBorders[i], i == _roomTabIndex, accent);
-        tabContainer.Child = tabRow;
-        tabCard.Child = tabContainer;
-        stack.Children.Add(tabCard);
+        // ── Hero header (status pills) + segmented pill tab bar — RoomView.Redesign.cs ──
+        stack.Children.Add(BuildRoomHero());
+        stack.Children.Add(BuildRoomTabBar());
 
         // Dynamic toggle row — rebuilt per tab in RebuildRoomTabContent
         _toggleRowContainer = new StackPanel();
@@ -573,33 +512,6 @@ public partial class RoomView : UserControl
 
         RebuildRoomTabContent();
         return wrapper;
-    }
-
-    private static void SetRoomTabActive(Border tab, bool active, Color accent)
-    {
-        var label = tab.Child as TextBlock;
-        if (active)
-        {
-            // Accent underline, bright label
-            tab.BorderBrush = new SolidColorBrush(accent);
-            tab.BorderThickness = new Thickness(0, 0, 0, 2);
-            if (label != null)
-            {
-                label.Foreground = new SolidColorBrush(accent);
-                label.FontWeight = FontWeights.Bold;
-            }
-        }
-        else
-        {
-            // No underline, muted label
-            tab.BorderBrush = new SolidColorBrush(Colors.Transparent);
-            tab.BorderThickness = new Thickness(0, 0, 0, 2);
-            if (label != null)
-            {
-                label.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
-                label.FontWeight = FontWeights.SemiBold;
-            }
-        }
     }
 
     private void RebuildRoomTabContent()
@@ -633,6 +545,7 @@ public partial class RoomView : UserControl
             case 2: BuildScreenSyncTab(_roomTabContent); break;
         }
         _loading = false;
+        RefreshRoomHero();
 
         if (_roomTabIndex == 1)
             _ = RefreshGoveeDeviceStatesAsync();
@@ -671,6 +584,7 @@ public partial class RoomView : UserControl
                 _roomEffectPicker.SelectedEffect = eff; // setter doesn't raise SelectionChanged
         }
         _loading = false;
+        _heroPillPainter?.Invoke();
     }
 
     private void BuildTabToggleRow(WrapPanel row, int tabIndex)
@@ -1239,11 +1153,9 @@ public partial class RoomView : UserControl
         // Category tab bar — Material underline style
         var categoryBarContainer = new Border
         {
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Margin = new Thickness(0, 0, 0, 8),
+            Margin = new Thickness(0, 0, 0, 12),
         };
-        categoryBarContainer.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
-        var categoryTabBar = new StackPanel { Orientation = Orientation.Horizontal };
+        var categoryTabBar = new WrapPanel { Orientation = Orientation.Horizontal };
         // Tab index → visible-category index in EffectPickerControl:
         //   0 → 4 (favorites), 1 → 0 (static), 2 → 1 (anim), 3 → 2 (react), 4 → 3 (global)
         var categoryNames = new[] { "FAVORITES", "STATIC", "ANIMATED", "REACTIVE", "SCENES", "TEMPERATURE" };
@@ -1303,33 +1215,31 @@ public partial class RoomView : UserControl
         {
             bool active = _effectCategory == ci;
             var accent = ThemeManager.Accent;
+            // Pill chip (same visuals as the Room tab bar — PaintRoomPillTab)
             var tab = new Border
             {
-                Padding = new Thickness(18, 8, 18, 8),
+                Padding = new Thickness(14, 6, 14, 6),
+                Margin = new Thickness(0, 0, 6, 6),
+                CornerRadius = new CornerRadius(14),
+                BorderThickness = new Thickness(1),
                 Cursor = Cursors.Hand,
-                BorderBrush = new SolidColorBrush(active ? accent : Colors.Transparent),
-                BorderThickness = new Thickness(0, 0, 0, 2),
-                Background = new SolidColorBrush(Colors.Transparent),
             };
             tab.Child = new TextBlock
             {
                 Text = categoryNames[ci], FontSize = 10,
-                FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold,
-                Foreground = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
             };
+            PaintRoomPillTab(tab, active, false);
             categoryTabs[ci] = tab;
             int capturedCat = ci;
 
             // Hover state for inactive tabs
             tab.MouseEnter += (_, _) =>
             {
-                if (_effectCategory != capturedCat && tab.Child is TextBlock t)
-                    t.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+                if (_effectCategory != capturedCat) PaintRoomPillTab(tab, false, true);
             };
             tab.MouseLeave += (_, _) =>
             {
-                if (_effectCategory != capturedCat && tab.Child is TextBlock t)
-                    t.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
+                if (_effectCategory != capturedCat) PaintRoomPillTab(tab, false, false);
             };
 
             tab.MouseLeftButtonUp += (_, _) =>
@@ -1345,15 +1255,8 @@ public partial class RoomView : UserControl
                 else
                     SendRoomTemperature(_roomTemperatureKelvin);
                 // Update tab visuals
-                var ac = ThemeManager.Accent;
                 for (int j = 0; j < categoryTabs.Length; j++)
-                {
-                    bool isActive = j == capturedCat;
-                    categoryTabs[j].BorderBrush = new SolidColorBrush(isActive ? ac : Colors.Transparent);
-                    var tb = (TextBlock)categoryTabs[j].Child;
-                    tb.FontWeight = isActive ? FontWeights.Bold : FontWeights.SemiBold;
-                    tb.Foreground = isActive ? new SolidColorBrush(ac) : new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
-                }
+                    PaintRoomPillTab(categoryTabs[j], j == capturedCat, false);
             };
             categoryTabBar.Children.Add(tab);
         }
@@ -1804,9 +1707,9 @@ public partial class RoomView : UserControl
         var card = new Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(16),
-            Margin = new Thickness(0, 0, 0, 10),
+            CornerRadius = new CornerRadius(16),
+            Padding = new Thickness(20, 18, 20, 20),
+            Margin = new Thickness(0, 0, 0, 14),
         };
         card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
         card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
@@ -2084,9 +1987,6 @@ public partial class RoomView : UserControl
         _haPowerControls.Clear();
         _haStatusDots.Clear();
 
-        stack.Children.Add(UiKit.PageHeader("Devices", "Power, brightness and sync for every light",
-            icon: Material.Icons.MaterialIconKind.LightbulbGroupOutline));
-
         // ── Govee devices ──
         bool hasGovee = _config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0;
         if (hasGovee)
@@ -2178,9 +2078,9 @@ public partial class RoomView : UserControl
                 }));
 
                 var devColor = hasCloud ? Color.FromRgb(0x42, 0xA5, 0xF5) : Color.FromRgb(0x26, 0xC6, 0xDA);
-                var devCard = UiKit.Card(devColor,
-                    segs > 1 ? MaterialIconKind.LedStripVariant : MaterialIconKind.LightbulbOutline,
-                    displayName, string.Join("  ·  ", subParts), controls, body);
+                var devCard = BuildRoomDeviceCard(devColor,
+                    IntegrationLogoTile("govee", segs > 1 ? MaterialIconKind.LedStripVariant : MaterialIconKind.LightbulbOutline, devColor),
+                    displayName, string.Join("  ·  ", subParts), controls, body, onOff);
                 if (hasCloud) devCard.Subtitle.ToolTip = "Cloud-only device — controlled through the Govee API";
 
                 // Cloud-only rows stop here — brightness/segment streaming isn't
@@ -2274,10 +2174,17 @@ public partial class RoomView : UserControl
 
             if (goveeChildren.Count > 0)
             {
-                stack.Children.Add(UiKit.SectionHeader("GOVEE",
+                stack.Children.Add(IntegrationSectionHeader("govee", MaterialIconKind.LightbulbOutline, Color.FromRgb(0x26, 0xC6, 0xDA), "GOVEE",
                     goveeChildren.Count == 1 ? "1 device" : $"{goveeChildren.Count} devices"));
                 foreach (var c in goveeChildren) stack.Children.Add(c);
             }
+        }
+        else if (_config.Ambience.GoveeDevices.Count == 0)
+        {
+            stack.Children.Add(IntegrationSectionHeader("govee", MaterialIconKind.LightbulbOutline, Color.FromRgb(0x26, 0xC6, 0xDA), "GOVEE", null));
+            stack.Children.Add(RoomEmptyState(MaterialIconKind.LightbulbOutline, "No Govee lights yet",
+                "Turn on Govee in Settings > Integrations, then scan your network or add a Govee API key.",
+                RoomCtaButton(MaterialIconKind.Plus, "Add Govee lights", () => NavigateToSettings?.Invoke())));
         }
 
         // ── Corsair devices ──
@@ -2285,7 +2192,7 @@ public partial class RoomView : UserControl
         if (hasCorsair)
         {
             int corsairCount = _corsairSync?.Devices.Count ?? 0;
-            stack.Children.Add(UiKit.SectionHeader("CORSAIR",
+            stack.Children.Add(IntegrationSectionHeader("corsair", MaterialIconKind.Keyboard, Color.FromRgb(0xFF, 0xCA, 0x28), "CORSAIR",
                 corsairCount == 0 ? "" : corsairCount == 1 ? "1 device" : $"{corsairCount} devices"));
 
             if (_corsairSync?.Devices.Count > 0)
@@ -2349,25 +2256,20 @@ public partial class RoomView : UserControl
                 corBrightRow.Children.Add(corBrightSlider);
                 corBody.Children.Add(corBrightRow);
 
-                stack.Children.Add(UiKit.Card(Color.FromRgb(0xFF, 0xCA, 0x28), MaterialIconKind.Keyboard,
-                    "Corsair iCUE", "Brightness applies to all Corsair devices", null, corBody).Root);
+                var corColor = Color.FromRgb(0xFF, 0xCA, 0x28);
+                stack.Children.Add(BuildRoomDeviceCard(corColor, IntegrationLogoTile("corsair", MaterialIconKind.Keyboard, corColor),
+                    "Corsair iCUE", "Brightness applies to all Corsair devices", null, corBody, null).Root);
             }
             else
             {
-                stack.Children.Add(UiKit.EmptyState(MaterialIconKind.Keyboard, "No Corsair devices detected",
-                    "Make sure iCUE is running, then come back to this tab."));
+                stack.Children.Add(RoomEmptyState(MaterialIconKind.Keyboard, "No Corsair devices detected",
+                    "Make sure iCUE is running with the SDK enabled, then come back to this tab."));
             }
         }
 
         // ── Home Assistant lights ──
-        bool hasHaLights = BuildHaLightsSection(stack);
-
-        if (!hasGovee && !hasCorsair && !hasHaLights)
-        {
-            stack.Children.Add(UiKit.SectionHeader("LIGHTS"));
-            stack.Children.Add(UiKit.EmptyState(MaterialIconKind.LightbulbGroupOutline, "No devices configured",
-                "Enable Govee or Corsair in Settings to control them here."));
-        }
+        // Lists the lights, or shows an "Add Home Assistant lights" empty state when there are none.
+        BuildHaLightsSection(stack);
 
         // ── AmpUp hardware (Turn Up) ──
         var turnUpSwitch = MakeScreenSyncSwitch(_config.Ambience.ScreenSync.SyncToTurnUp, on =>
@@ -2393,8 +2295,8 @@ public partial class RoomView : UserControl
         var tuBody = new StackPanel();
         tuBody.Children.Add(row1);
         tuBody.Children.Add(row2);
-        stack.Children.Add(UiKit.SectionHeader("TURN UP"));
-        stack.Children.Add(UiKit.Card(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.Tune,
+        stack.Children.Add(IntegrationSectionHeader(null, MaterialIconKind.Tune, Color.FromRgb(0x69, 0xF0, 0xAE), "TURN UP", null));
+        stack.Children.Add(RoomCard(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.Tune,
             "Hardware LEDs", "Let the knob LEDs follow your screen and room lights", null, tuBody).Root);
     }
 
@@ -2423,16 +2325,25 @@ public partial class RoomView : UserControl
         if (_config == null) return false;
         var lights = _config.Ambience.HomeAssistantLights ?? new List<HALightConfig>();
 
-        stack.Children.Add(UiKit.SectionHeader("HOME ASSISTANT",
+        stack.Children.Add(IntegrationSectionHeader(null, MaterialIconKind.HomeAssistant, HaLightCardColor, "HOME ASSISTANT",
             lights.Count == 0 ? "" : lights.Count == 1 ? "1 light" : $"{lights.Count} lights"));
 
         var pickerHost = new StackPanel();
-        var addRow = UiKit.LinkRow(MaterialIconKind.Plus, "Add Home Assistant lights", true,
-            () => OpenHaLightPicker(pickerHost),
-            "Pick light entities from Home Assistant to use in room effects");
-        addRow.HorizontalAlignment = HorizontalAlignment.Left;
-        addRow.Margin = new Thickness(0, 0, 0, 8);
-        stack.Children.Add(addRow);
+        if (lights.Count == 0)
+        {
+            stack.Children.Add(RoomEmptyState(MaterialIconKind.HomeAssistant, "No Home Assistant lights",
+                "Pick light entities from Home Assistant to use in room effects.",
+                RoomCtaButton(MaterialIconKind.Plus, "Add Home Assistant lights", () => OpenHaLightPicker(pickerHost))));
+        }
+        else
+        {
+            var addRow = UiKit.LinkRow(MaterialIconKind.Plus, "Add Home Assistant lights", true,
+                () => OpenHaLightPicker(pickerHost),
+                "Pick light entities from Home Assistant to use in room effects");
+            addRow.HorizontalAlignment = HorizontalAlignment.Left;
+            addRow.Margin = new Thickness(0, 0, 0, 8);
+            stack.Children.Add(addRow);
+        }
         stack.Children.Add(pickerHost);
 
         foreach (var light in lights)
@@ -2603,8 +2514,8 @@ public partial class RoomView : UserControl
             light.WhiteBalanceR, light.WhiteBalanceG, light.WhiteBalanceB,
             v => capturedLight.WhiteBalanceR = v, v => capturedLight.WhiteBalanceG = v, v => capturedLight.WhiteBalanceB = v));
 
-        var card = UiKit.Card(HaLightCardColor, MaterialIconKind.HomeAssistant, displayName,
-            $"HA  ·  {light.EntityId}  ·  slower than Govee", controls, body);
+        var card = BuildRoomDeviceCard(HaLightCardColor, IntegrationLogoTile(null, MaterialIconKind.HomeAssistant, HaLightCardColor),
+            displayName, $"HA  ·  {light.EntityId}  ·  slower than Govee", controls, body, onOff);
         card.Subtitle.ToolTip = "Home Assistant light — static colors and slow effects work best. "
             + "Updates are limited to a few per second, so it won't mirror fast effects or the screen in real time.";
         return card.Root;
@@ -4469,8 +4380,6 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
 
-        stack.Children.Add(UiKit.PageHeader("Screen Sync", "Mirror your screen's colors to your room lights",
-            icon: Material.Icons.MaterialIconKind.MonitorShimmer));
         stack.Children.Add(UiKit.SectionHeader("MODES"));
 
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
@@ -4496,7 +4405,7 @@ public partial class RoomView : UserControl
         var syncActions = new StackPanel { Orientation = Orientation.Horizontal };
         syncActions.Children.Add(syncBadge);
         syncActions.Children.Add(screenSyncSwitch);
-        var screenSyncTile = UiKit.Card(Color.FromRgb(0x44, 0x8A, 0xFF), MaterialIconKind.MonitorShimmer,
+        var screenSyncTile = RoomCard(Color.FromRgb(0x44, 0x8A, 0xFF), MaterialIconKind.MonitorShimmer,
             "Screen Sync", "Lights follow your screen", syncActions).Root;
 
         // Game Mode — auto-enable screen sync when fullscreen app detected
@@ -4507,7 +4416,7 @@ public partial class RoomView : UserControl
                 _config.Ambience.GameModeEnabled = on;
                 QueueSave();
             }, out _, "Turn Game Mode on or off");
-        var gameTile = UiKit.Card(Color.FromRgb(0xFF, 0x6B, 0x35), MaterialIconKind.GamepadVariantOutline,
+        var gameTile = RoomCard(Color.FromRgb(0xFF, 0x6B, 0x35), MaterialIconKind.GamepadVariantOutline,
             "Game Mode",
             "Turns Screen Sync on while a fullscreen game is focused (browsers and video players ignored)",
             gameSwitch).Root;
@@ -4715,7 +4624,7 @@ public partial class RoomView : UserControl
         cropRow.Margin = new Thickness(0);
         sourceBody.Children.Add(cropRow);
 
-        var sourceCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.Monitor,
+        var sourceCard = RoomCard(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.Monitor,
             "Source", "What gets captured and how often", null, sourceBody).Root;
 
         // ══════════════════ LOOK ══════════════════
@@ -4777,7 +4686,7 @@ public partial class RoomView : UserControl
         if (lookBody.Children[lookBody.Children.Count - 1] is FrameworkElement lastLook)
             lastLook.Margin = new Thickness(0);
 
-        var lookCard = UiKit.Card(Color.FromRgb(0xAB, 0x47, 0xBC), MaterialIconKind.PaletteOutline,
+        var lookCard = RoomCard(Color.FromRgb(0xAB, 0x47, 0xBC), MaterialIconKind.PaletteOutline,
             "Look", "Color intensity and responsiveness", null, lookBody).Root;
 
         stack.Children.Add(UiKit.SectionHeader("SETTINGS"));
@@ -4827,7 +4736,7 @@ public partial class RoomView : UserControl
         var previewBody = new StackPanel();
         previewBody.Children.Add(_screenEdgeControl);
         previewBody.Children.Add(_dreamStatusLabel);
-        stack.Children.Add(UiKit.Card(Color.FromRgb(0x26, 0xC6, 0xDA), MaterialIconKind.EyeOutline,
+        stack.Children.Add(RoomCard(Color.FromRgb(0x26, 0xC6, 0xDA), MaterialIconKind.EyeOutline,
             "Preview", "Live capture zones — drag the crop lines to set content boundaries", null, previewBody).Root);
 
         // Status update timer — updates status label and the SCREEN SYNC tile badge.
@@ -4974,7 +4883,7 @@ public partial class RoomView : UserControl
         }
         else
         {
-            stack.Children.Add(UiKit.Card(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.BorderOutside,
+            stack.Children.Add(RoomCard(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.BorderOutside,
                 "Edge mapping", "Which part of the screen each light follows", null, devList).Root);
         }
     }
@@ -5930,15 +5839,15 @@ public partial class RoomView : UserControl
 
         var tile = new Border
         {
-            CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(10, 8, 12, 8),
-            Margin = new Thickness(0, 0, 8, 8),
+            CornerRadius = new CornerRadius(14),
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(12, 10, 14, 10),
+            Margin = new Thickness(0, 0, 10, 10),
             Cursor = Cursors.Hand,
             MinWidth = 220,
         };
 
-        var iconTile = UiKit.IconTile(icoColor, icon, 30);
+        var iconTile = UiKit.IconTile(icoColor, icon, 34);
         iconTile.Margin = new Thickness(0, 0, 10, 0);
         iconTile.VerticalAlignment = VerticalAlignment.Center;
 
@@ -5984,11 +5893,13 @@ public partial class RoomView : UserControl
             {
                 tile.Background = new SolidColorBrush(Color.FromArgb(0x1C, a.R, a.G, a.B));
                 tile.BorderBrush = new SolidColorBrush(Color.FromArgb(hover ? (byte)0xC0 : (byte)0x80, a.R, a.G, a.B));
+                tile.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 0, Opacity = 0.3, Color = a };
             }
             else
             {
-                tile.SetResourceReference(Border.BackgroundProperty, hover ? "InputBgBrush" : "CardBgBrush");
+                tile.SetResourceReference(Border.BackgroundProperty, hover ? "InputBgBrush" : "BgDarkBrush");
                 tile.SetResourceReference(Border.BorderBrushProperty, hover ? "InputBorderBrush" : "CardBorderBrush");
+                tile.Effect = null;
             }
         }
 
@@ -6023,6 +5934,7 @@ public partial class RoomView : UserControl
         };
         tile.MouseEnter += (_, _) => UpdateVisuals(true);
         tile.MouseLeave += (_, _) => UpdateVisuals(false);
+        AddRoomHoverLift(tile, 2);
 
         return tile;
     }
@@ -8081,9 +7993,9 @@ public partial class RoomView : UserControl
         var border = new Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(16),
-            Margin = new Thickness(0, 0, 0, 10),
+            CornerRadius = new CornerRadius(16),
+            Padding = new Thickness(20, 18, 20, 20),
+            Margin = new Thickness(0, 0, 0, 14),
             Child = content,
         };
         border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
