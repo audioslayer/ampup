@@ -95,7 +95,7 @@ public sealed class HALightPickerDialog : Window
         titles.Children.Add(st);
         Grid.SetColumn(titles, 1);
         header.Children.Add(titles);
-        _refresh = UiKit.IconButton(MaterialIconKind.Refresh, "Scan again", _ => _ = LoadAsync(), size: 26);
+        _refresh = UiKit.IconButton(MaterialIconKind.Refresh, "Scan again", el => { _ = LoadAsync(); }, size: 26);
         _refresh.VerticalAlignment = VerticalAlignment.Top;
         _refresh.Margin = new Thickness(8, 0, 4, 0);
         Grid.SetColumn(_refresh, 2);
