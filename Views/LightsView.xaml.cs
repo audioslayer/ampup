@@ -70,10 +70,8 @@ public partial class LightsView : UserControl
     private readonly Color[] _colors3 = new Color[5];
     private readonly Color[] _colors4 = new Color[5];
 
-    // Mode tabs
-    private Border? _perKnobTab;
-    private Border? _globalTab;
-    private Border? _calibrationTab;
+    // Mode tabs (PER KNOB / GLOBAL / CALIBRATION) — icon dock in the page header
+    private IconDock? _modeDock;
 
     // Calibration mode state (orthogonal to _globalEnabled — it's a UI view
     // mode only, never persisted). When true, calibration panel is shown and
@@ -216,7 +214,12 @@ public partial class LightsView : UserControl
             + "(per-knob settings are kept for later). Calibration has test colors, mute dimming and gamma.\n\n"
             + "Right-click a knob's strip for copy / paste shortcuts.",
             "Lights");
-        PageHeaderHost.Content = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED", lightsHelp,
+        var headerActions = new StackPanel { Orientation = Orientation.Horizontal };
+        headerActions.Children.Add(BuildModeDock());
+        lightsHelp.Margin = new Thickness(12, 0, 0, 0);
+        lightsHelp.VerticalAlignment = VerticalAlignment.Center;
+        headerActions.Children.Add(lightsHelp);
+        PageHeaderHost.Content = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED", headerActions,
             icon: Material.Icons.MaterialIconKind.LightbulbOnOutline);
 
         BuildPresetsSection();
@@ -709,56 +712,6 @@ public partial class LightsView : UserControl
     private void BuildGlobalCard()
     {
         var panel = GlobalLightCardPanel;
-        var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
-
-        // Mode toggle: segmented pill bar "Per Knob | Global | Calibration" (same look as the Room tabs)
-        var toggleBar = new Border
-        {
-            CornerRadius = new CornerRadius(14),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(5),
-            Margin = new Thickness(0, 0, 0, 14),
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        toggleBar.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-        toggleBar.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-
-        var toggleRow = new StackPanel { Orientation = Orientation.Horizontal };
-
-        var perKnobTab = BuildModeTab("PER KNOB", true, accent);
-        var globalTab = BuildModeTab("GLOBAL", false, accent);
-        var calibTab = BuildModeTab("CALIBRATION", false, accent);
-        _perKnobTab = perKnobTab;
-        _globalTab = globalTab;
-        _calibrationTab = calibTab;
-
-        perKnobTab.MouseLeftButtonDown += (_, _) =>
-        {
-            _calibrationMode = false;
-            _globalEnabled = false;
-            UpdateGlobalVisibility();
-            if (!_loading) QueueSave();
-        };
-        globalTab.MouseLeftButtonDown += (_, _) =>
-        {
-            _calibrationMode = false;
-            _globalEnabled = true;
-            UpdateGlobalVisibility();
-            if (!_loading) QueueSave();
-        };
-        calibTab.MouseLeftButtonDown += (_, _) =>
-        {
-            _calibrationMode = true;
-            UpdateGlobalVisibility();
-        };
-
-        globalTab.Margin = new Thickness(4, 0, 0, 0);
-        calibTab.Margin = new Thickness(4, 0, 0, 0);
-        toggleRow.Children.Add(perKnobTab);
-        toggleRow.Children.Add(globalTab);
-        toggleRow.Children.Add(calibTab);
-        toggleBar.Child = toggleRow;
-        panel.Children.Add(toggleBar);
 
         // Settings panel (collapsed when disabled) — holds individual section cards
         var settings = new StackPanel { Visibility = Visibility.Collapsed };
@@ -1275,15 +1228,10 @@ public partial class LightsView : UserControl
     {
         bool globalEnabled = _globalEnabled;
         bool calib = _calibrationMode;
-        var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
 
         // Sync tab visuals (3-way: per-knob / global / calibration)
-        if (_perKnobTab != null && _globalTab != null && _calibrationTab != null)
-        {
-            SetModeTabActive(_perKnobTab, !globalEnabled && !calib, accent);
-            SetModeTabActive(_globalTab, globalEnabled && !calib, accent);
-            SetModeTabActive(_calibrationTab, calib, accent);
-        }
+        if (_modeDock != null)
+            _modeDock.SelectedIndex = calib ? 2 : globalEnabled ? 1 : 0;
 
         if (_globalSettingsPanel != null)
             _globalSettingsPanel.Visibility = (globalEnabled && !calib) ? Visibility.Visible : Visibility.Collapsed;
@@ -1307,70 +1255,38 @@ public partial class LightsView : UserControl
             UpdateGlobalEffectVisibility(_globalEffectPicker.SelectedEffect);
     }
 
-    private static Border BuildModeTab(string text, bool active, Color accent)
+    /// <summary>Header icon dock for the PER KNOB / GLOBAL / CALIBRATION views.</summary>
+    private IconDock BuildModeDock()
     {
-        var tab = new Border
+        var dock = new IconDock();
+        dock.AddItem("perknob", "PER KNOB", MaterialIconKind.Knob, "Per Knob");
+        dock.AddItem("global", "GLOBAL", MaterialIconKind.LightbulbGroupOutline, "Global");
+        dock.AddItem("calibration", "CALIBRATION", MaterialIconKind.Tune, "Calibration");
+        dock.SelectedIndex = _calibrationMode ? 2 : _globalEnabled ? 1 : 0;
+        dock.SelectionChanged += (_, _) =>
         {
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(20, 8, 20, 8),
-            Cursor = Cursors.Hand,
-            BorderBrush = new SolidColorBrush(Colors.Transparent),
-            BorderThickness = new Thickness(1),
-            Background = new SolidColorBrush(Colors.Transparent),
-        };
-        tab.Child = new TextBlock
-        {
-            Text = text,
-            FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        tab.MouseEnter += (_, _) =>
-        {
-            if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
+            switch (dock.SelectedIndex)
             {
-                t.Foreground = LightsView.ThemeBrush("TextPrimaryBrush");
-                tab.Background = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
+                case 0:
+                    _calibrationMode = false;
+                    _globalEnabled = false;
+                    UpdateGlobalVisibility();
+                    if (!_loading) QueueSave();
+                    break;
+                case 1:
+                    _calibrationMode = false;
+                    _globalEnabled = true;
+                    UpdateGlobalVisibility();
+                    if (!_loading) QueueSave();
+                    break;
+                case 2:
+                    _calibrationMode = true;
+                    UpdateGlobalVisibility();
+                    break;
             }
         };
-        tab.MouseLeave += (_, _) =>
-        {
-            if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
-            {
-                t.Foreground = LightsView.ThemeBrush("TextSecBrush");
-                tab.Background = new SolidColorBrush(Colors.Transparent);
-            }
-        };
-        SetModeTabActive(tab, active, accent);
-        return tab;
-    }
-
-    private static void SetModeTabActive(Border tab, bool active, Color accent)
-    {
-        var label = tab.Child as TextBlock;
-        if (active)
-        {
-            // Pill: accent tint + accent border + soft glow (inactive = transparent border, which the hover handlers check)
-            tab.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x88));
-            tab.Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x2A));
-            tab.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 14, ShadowDepth = 0, Opacity = 0.35, Color = accent };
-            if (label != null)
-            {
-                label.Foreground = new SolidColorBrush(accent);
-                label.FontWeight = FontWeights.Bold;
-            }
-        }
-        else
-        {
-            tab.BorderBrush = new SolidColorBrush(Colors.Transparent);
-            tab.Background = new SolidColorBrush(Colors.Transparent);
-            tab.Effect = null;
-            if (label != null)
-            {
-                label.Foreground = LightsView.ThemeBrush("TextSecBrush");
-                label.FontWeight = FontWeights.SemiBold;
-            }
-        }
+        _modeDock = dock;
+        return dock;
     }
 
     // Color palette presets — each is a (name, color1, color2) tuple

@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using AmpUp.Core.Services;
 using AmpUp.Services;
+using Material.Icons;
 
 namespace AmpUp.Views;
 
@@ -51,7 +52,7 @@ public partial class SettingsView : UserControl
     private bool _configLoaded;
     private bool _turnUpConnected;
     private bool _streamControllerConnected;
-    private readonly List<Border> _settingsTabs = new();
+    private static readonly string[] SettingsTabTitles = { "Devices", "General", "Profiles", "Integrations" };
     private int _settingsTabIndex;
     private const int IntegrationsTabIndex = 3;
 
@@ -66,7 +67,6 @@ public partial class SettingsView : UserControl
         BindReveal(ChkCorsairEnabled, CorsairDeviceList);
         BindReveal(ChkSignalRgbEnabled, SignalRgbSettingsPanel);
         BindReveal(ChkSignalRgbProfileSync, SignalRgbProfileSyncPanel);
-        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshSettingsTabColors);
 
         _debounceTimer = new DispatcherTimer
         {
@@ -236,52 +236,27 @@ public partial class SettingsView : UserControl
 
     private void BuildSettingsTabs()
     {
-        string[] tabNames = { "DEVICES", "GENERAL", "PROFILES", "INTEGRATIONS" };
-        SettingsTabRow.Children.Clear();
-        _settingsTabs.Clear();
-
-        for (int i = 0; i < tabNames.Length; i++)
+        MaterialIconKind[] icons =
         {
-            int index = i;
-            var tab = new Border
-            {
-                Padding = new Thickness(22, 10, 22, 10),
-                Cursor = Cursors.Hand,
-                BorderBrush = Brushes.Transparent,
-                BorderThickness = new Thickness(0, 0, 0, 2),
-                Background = Brushes.Transparent,
-                Child = new TextBlock
-                {
-                    Text = tabNames[i],
-                    FontSize = 11,
-                    FontWeight = FontWeights.SemiBold,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                },
-            };
-
-            tab.MouseEnter += (_, _) =>
-            {
-                if (index != _settingsTabIndex && tab.Child is TextBlock label)
-                    label.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-            };
-            tab.MouseLeave += (_, _) =>
-            {
-                if (index != _settingsTabIndex && tab.Child is TextBlock label)
-                    label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
-            };
-            tab.MouseLeftButtonDown += (_, _) => SelectSettingsTab(index);
-
-            _settingsTabs.Add(tab);
-            SettingsTabRow.Children.Add(tab);
-        }
+            MaterialIconKind.Devices, MaterialIconKind.CogOutline,
+            MaterialIconKind.AccountSwitchOutline, MaterialIconKind.Apps,
+        };
+        for (int i = 0; i < SettingsTabTitles.Length; i++)
+            SettingsDock.AddItem(SettingsTabTitles[i].ToLowerInvariant(), SettingsTabTitles[i].ToUpperInvariant(), icons[i], SettingsTabTitles[i]);
+        SettingsDock.SelectionChanged += (_, _) =>
+        {
+            if (SettingsDock.SelectedIndex >= 0 && SettingsDock.SelectedIndex != _settingsTabIndex)
+                SelectSettingsTab(SettingsDock.SelectedIndex);
+        };
 
         SelectSettingsTab(_settingsTabIndex, scrollToTop: false);
     }
 
     private void SelectSettingsTab(int index, bool scrollToTop = true)
     {
-        _settingsTabIndex = Math.Clamp(index, 0, _settingsTabs.Count - 1);
-        RefreshSettingsTabColors();
+        _settingsTabIndex = Math.Clamp(index, 0, SettingsTabTitles.Length - 1);
+        SettingsDock.SelectedIndex = _settingsTabIndex;
+        SettingsSectionTitle.Text = SettingsTabTitles[_settingsTabIndex];
 
         ConnectionCard.Visibility = _settingsTabIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
         GeneralCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -297,23 +272,6 @@ public partial class SettingsView : UserControl
 
         if (scrollToTop)
             SettingsScrollViewer.ScrollToTop();
-    }
-
-    private void RefreshSettingsTabColors()
-    {
-        for (int i = 0; i < _settingsTabs.Count; i++)
-        {
-            bool active = i == _settingsTabIndex;
-            Border tab = _settingsTabs[i];
-            tab.BorderBrush = active ? new SolidColorBrush(ThemeManager.Accent) : Brushes.Transparent;
-            if (tab.Child is not TextBlock label) continue;
-
-            label.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
-            if (active)
-                label.Foreground = new SolidColorBrush(ThemeManager.Accent);
-            else
-                label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
-        }
     }
 
     // Reference to AmbienceSync for LAN scanning (set from App.xaml.cs)

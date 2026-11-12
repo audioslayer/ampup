@@ -15,6 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Home Assistant lights can optionally follow Screen Sync (off by default; slower than Govee).
 
 ### Changed
+- Page tab bars on Room, Lights, On-Screen Display and Settings are now a compact icon dock in the page header: round icon buttons with tooltips, the active one expands into an accent pill with its name, and Left/Right arrow keys switch tabs.
 - Mixer page: consistency pass to match the redesigned pages: "?" help tip in the header, rounder knob/curve/Stream Controller cards, unified MIXER SURFACE section title, softer suggested-layout banner.
 - Buttons page: matches the new design language: header help tip, slimmer surface selector, rounded glass button cards with a hover lift and accent border, and a more rounded action picker popup.
 - Lights and OSD pages follow the new design: pill tab bars (Per Knob / Global / Calibration, Overlays / Quick Wheels), 16px rounded cards, and an OSD page header with help tips.

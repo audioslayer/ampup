@@ -499,9 +499,8 @@ public partial class RoomView : UserControl
         var stack = new StackPanel();
         wrapper.Child = stack;
 
-        // ── Hero header (status pills) + segmented pill tab bar — RoomView.Redesign.cs ──
+        // ── Hero header (status pills + icon dock tab bar) — RoomView.Redesign.cs ──
         stack.Children.Add(BuildRoomHero());
-        stack.Children.Add(BuildRoomTabBar());
 
         // Dynamic toggle row — rebuilt per tab in RebuildRoomTabContent
         _toggleRowContainer = new StackPanel();

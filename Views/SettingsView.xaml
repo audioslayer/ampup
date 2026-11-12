@@ -381,12 +381,17 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Section tabs: no page header, same underline bar card as the OSD / Room pages -->
-        <Border Grid.Row="0" Margin="20,16,20,10" Padding="8,6,8,6" Style="{StaticResource CardPanel}">
-            <Border BorderBrush="{DynamicResource InputBgBrush}" BorderThickness="0,0,0,1">
-                <StackPanel x:Name="SettingsTabRow" Orientation="Horizontal" HorizontalAlignment="Center" />
-            </Border>
-        </Border>
+        <!-- Slim header: current section title on the left, section icon dock on the right -->
+        <Grid Grid.Row="0" Margin="22,14,20,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="SettingsSectionTitle" Grid.Column="0" Text="Settings" FontSize="19" FontWeight="SemiBold"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+            <controls:IconDock x:Name="SettingsDock" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" />
+        </Grid>
 
         <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled" Background="Transparent">

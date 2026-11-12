@@ -14,7 +14,7 @@ namespace AmpUp.Views;
 
 /// <summary>
 /// Room page chrome in the Settings / Overview / Groups look: glass hero header with live
-/// status pills, segmented pill tab bar, large glass cards, device cards with integration
+/// status pills, icon dock tab bar, large glass cards, device cards with integration
 /// logos and an accent glow while the light is on. Pure presentation helpers; all device
 /// control and config flow stays in RoomView.xaml.cs.
 /// </summary>
@@ -117,6 +117,9 @@ public partial class RoomView
         grid.Children.Add(text);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) };
+        var dock = BuildRoomTabDock();
+        dock.Margin = new Thickness(0, 0, 12, 0);
+        actions.Children.Add(dock);
         actions.Children.Add(RoomHeroButton(MaterialIconKind.CogOutline, "Integrations",
             "Set up Govee, Corsair iCUE and Home Assistant in Settings", () => NavigateToSettings?.Invoke()));
         Grid.SetColumn(actions, 2);
@@ -267,65 +270,21 @@ public partial class RoomView
         return b;
     }
 
-    // ── Segmented pill tab bar ──────────────────────────────────────────
+    // ── Icon dock tab bar (hero header) ─────────────────────────────────
 
-    private Border BuildRoomTabBar()
+    private IconDock BuildRoomTabDock()
     {
-        var bar = new Border
-        {
-            CornerRadius = new CornerRadius(14),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(5),
-            Margin = new Thickness(0, 0, 0, 14),
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        bar.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-        bar.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
-        bar.Child = row;
-        var tabs = new Border[RoomTabNames.Length];
+        var dock = new IconDock();
         for (int i = 0; i < RoomTabNames.Length; i++)
+            dock.AddItem(RoomTabNames[i], RoomTabNames[i], RoomTabIcons[i]);
+        dock.SelectedIndex = _roomTabIndex;
+        dock.SelectionChanged += (_, _) =>
         {
-            int idx = i;
-            var icon = new MaterialIcon { Kind = RoomTabIcons[i], Width = 15, Height = 15, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
-            var label = new TextBlock { Text = RoomTabNames[i], FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-            var sp = new StackPanel { Orientation = Orientation.Horizontal };
-            sp.Children.Add(icon);
-            sp.Children.Add(label);
-            var tab = new Border
-            {
-                CornerRadius = new CornerRadius(10),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(18, 8, 20, 8),
-                Margin = new Thickness(i == 0 ? 0 : 4, 0, 0, 0),
-                Cursor = Cursors.Hand,
-                Child = sp,
-            };
-            tabs[i] = tab;
-            tab.MouseEnter += (_, _) => { if (idx != _roomTabIndex) PaintRoomPillTab(tab, false, true); };
-            tab.MouseLeave += (_, _) => { if (idx != _roomTabIndex) PaintRoomPillTab(tab, false, false); };
-            tab.MouseLeftButtonDown += (_, _) =>
-            {
-                if (_roomTabIndex == idx) return;
-                _roomTabIndex = idx;
-                for (int j = 0; j < tabs.Length; j++)
-                    PaintRoomPillTab(tabs[j], j == idx, false);
-                RebuildRoomTabContent();
-            };
-            row.Children.Add(tab);
-        }
-        for (int i = 0; i < tabs.Length; i++)
-            PaintRoomPillTab(tabs[i], i == _roomTabIndex, false);
-
-        Action onAccent = () => bar.Dispatcher.BeginInvoke(() =>
-        {
-            for (int i = 0; i < tabs.Length; i++)
-                PaintRoomPillTab(tabs[i], i == _roomTabIndex, false);
-        });
-        bar.Loaded += (_, _) => { ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnAccentChanged += onAccent; };
-        bar.Unloaded += (_, _) => ThemeManager.OnAccentChanged -= onAccent;
-        return bar;
+            if (dock.SelectedIndex < 0 || _roomTabIndex == dock.SelectedIndex) return;
+            _roomTabIndex = dock.SelectedIndex;
+            RebuildRoomTabContent();
+        };
+        return dock;
     }
 
     /// <summary>
