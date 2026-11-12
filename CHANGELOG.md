@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Mixer knob cards now show a soft live audio-spectrum backdrop tinted with each knob's color, replacing the old glow and the small volume bar beside each knob. Windows only provides a system-wide spectrum, so each card shows that shape scaled by its own app's level. It only runs while the Mixer page is open.
 - Home Assistant lights in Room > Devices: a discovery window scans Home Assistant and shows your lights as a searchable grid grouped by room, with on/off state and color support, so you can tick the ones to add. Control power, brightness and white balance from cards like the Govee ones.
 - Room effects (static colors, animated effects, Music Reactive, VU Fill) now drive Home Assistant lights. Updates are capped at a few per second, so this works best for static colors and slow effects, not real-time mirroring.
 - Home Assistant lights can optionally follow Screen Sync (off by default; slower than Govee).

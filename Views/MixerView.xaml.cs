@@ -87,7 +87,11 @@ public partial class MixerView : UserControl
     private readonly AnimatedKnobControl[] _knobs = new AnimatedKnobControl[5];
     private readonly VuMeterControl[] _vuMeters = new VuMeterControl[5];
     private readonly Material.Icons.WPF.MaterialIcon[] _rangeIcons = new Material.Icons.WPF.MaterialIcon[5];
-    private readonly ChannelGlowControl[] _glowControls = new ChannelGlowControl[5];
+    private readonly SpectrumBackdropControl[] _glowControls = new SpectrumBackdropControl[5];
+    // Shared system spectrum frame for the five backdrops (see SpectrumBackdropControl).
+    private readonly float[] _spectrumFrame = new float[48];
+    private readonly DispatcherTimer _spectrumTimer;
+    private bool _spectrumConsuming;
     private readonly TextBlock[] _volLabels = new TextBlock[5];
     private readonly TextBox[] _channelLabels = new TextBox[5];
     private readonly Image[] _icons = new Image[5];
@@ -158,8 +162,19 @@ public partial class MixerView : UserControl
         _sessionRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _sessionRefreshTimer.Tick += (_, _) => RefreshSessionList();
 
+        // ~30 fps spectrum backdrop; runs only while the page is visible and the
+        // window isn't minimized/in tray (same gating as _liveTimer).
+        _spectrumTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
+        _spectrumTimer.Tick += SpectrumTimer_Tick;
+
         Loaded += (_, _) => { HookOwnerWindow(); StartTimersIfWindowActive(); };
-        Unloaded += (_, _) => { UnhookOwnerWindow(); _liveTimer.Stop(); _sessionRefreshTimer.Stop(); };
+        Unloaded += (_, _) => { UnhookOwnerWindow(); _liveTimer.Stop(); _sessionRefreshTimer.Stop(); StopSpectrum(); };
+        // Sidebar navigation may collapse the page instead of unloading it.
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible) StartTimersIfWindowActive();
+            else { _liveTimer.Stop(); _sessionRefreshTimer.Stop(); StopSpectrum(); }
+        };
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
 
@@ -212,6 +227,7 @@ public partial class MixerView : UserControl
         {
             _liveTimer.Stop();
             _sessionRefreshTimer.Stop();
+            StopSpectrum();
         }
         else
         {
@@ -221,10 +237,50 @@ public partial class MixerView : UserControl
 
     private void StartTimersIfWindowActive()
     {
-        if (IsOwnerWindowQuiesced) return;
+        if (IsOwnerWindowQuiesced || !IsVisible) return;
         _liveTimer.Start();
+        StartSpectrum();
         if (_audioSessionsExpanded && _sessionListPanel != null)
             _sessionRefreshTimer.Start();
+    }
+
+    private void StartSpectrum()
+    {
+        if (!_spectrumConsuming)
+        {
+            App.AudioAnalyzer?.AddConsumer();
+            _spectrumConsuming = true;
+        }
+        _spectrumTimer.Start();
+    }
+
+    private void StopSpectrum()
+    {
+        _spectrumTimer.Stop();
+        if (_spectrumConsuming)
+        {
+            _spectrumConsuming = false;
+            App.AudioAnalyzer?.RemoveConsumer();
+        }
+        foreach (var backdrop in _glowControls)
+            backdrop?.Reset();
+    }
+
+    private void SpectrumTimer_Tick(object? sender, EventArgs e)
+    {
+        var analyzer = App.AudioAnalyzer;
+        float[]? frame = null;
+        if (analyzer != null && analyzer.IsRunning)
+        {
+            analyzer.CopySpectrum(_spectrumFrame, 30f, 16000f);
+            frame = _spectrumFrame;
+        }
+        foreach (var backdrop in _glowControls)
+        {
+            if (backdrop == null) continue;
+            backdrop.SetSpectrum(frame);
+            backdrop.Tick();
+        }
     }
 
     private void SetupStripHoverEffects()
@@ -443,7 +499,7 @@ public partial class MixerView : UserControl
                 _displayedColors[i] = color;
                 _volLabels[i].Foreground = new SolidColorBrush(color);
                 _vuMeters[i].BarColor = color;
-                _glowControls[i].GlowColor = color;
+                _glowControls[i].BarColor = color;
             }
         }
 
@@ -584,8 +640,7 @@ public partial class MixerView : UserControl
 
                 _vuMeters[i].Level = peak;
                 _vuMeters[i].Tick();
-                _glowControls[i].SetLevel(peak);
-                _glowControls[i].Tick();
+                _glowControls[i].SetLevel(peak); // spectrum timer ticks the backdrop
 
                 // Sync UI tint to the knob's static primary LED color — no longer
                 // follows the live effect color, so Rainbow/Fire/Pulse won't flash
@@ -611,7 +666,7 @@ public partial class MixerView : UserControl
                         _displayedColors[i] = target;
                         _knobs[i].ArcColor = target;
                         _vuMeters[i].BarColor = target;
-                        _glowControls[i].GlowColor = target;
+                        _glowControls[i].BarColor = target;
                         var brush = new SolidColorBrush(target);
                         brush.Freeze();
                         _volLabels[i].Foreground = brush;
@@ -631,7 +686,7 @@ public partial class MixerView : UserControl
     private void BuildChannelControls()
     {
         var panels = new[] { Ch0Panel, Ch1Panel, Ch2Panel, Ch3Panel, Ch4Panel };
-        var glows = new[] { Ch0Glow, Ch1Glow, Ch2Glow, Ch3Glow, Ch4Glow };
+        var glows = new[] { Ch0Spectrum, Ch1Spectrum, Ch2Spectrum, Ch3Spectrum, Ch4Spectrum };
         for (int g = 0; g < 5; g++) _glowControls[g] = glows[g];
 
         for (int i = 0; i < 5; i++)
@@ -721,8 +776,8 @@ public partial class MixerView : UserControl
             {
                 Margin = new Thickness(0, 4, 0, 4)
             };
-            knobVuGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            knobVuGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            // Single column: the old VU bar column is gone; the spectrum backdrop
+            // behind the card now shows the level.
 
             var knob = new AnimatedKnobControl
             {
@@ -744,9 +799,8 @@ public partial class MixerView : UserControl
                 Margin = new Thickness(0, 0, 2, 0),
                 ToolTip = "Audio level for this channel",
             };
-            Grid.SetColumn(vuMeter, 1);
+            // Kept (not added to the layout) so existing color/level updates stay valid.
             _vuMeters[i] = vuMeter;
-            knobVuGrid.Children.Add(vuMeter);
 
             panel.Children.Add(knobVuGrid);
 
@@ -1799,7 +1853,7 @@ public partial class MixerView : UserControl
                 _displayedColors[i] = color;
                 _volLabels[i].Foreground = new SolidColorBrush(color);
                 _vuMeters[i].BarColor = color;
-                _glowControls[i].GlowColor = color;
+                _glowControls[i].BarColor = color;
             }
         }
     }

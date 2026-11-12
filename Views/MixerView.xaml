@@ -37,7 +37,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Border x:Name="Ch0Border" Grid.Row="0" Grid.Column="0" Style="{StaticResource CardPanel}" CornerRadius="14" Padding="0" ClipToBounds="True" Margin="0,0,4,10">
-                    <Grid><controls:ChannelGlowControl x:Name="Ch0Glow" />
+                    <Grid><controls:SpectrumBackdropControl x:Name="Ch0Spectrum" />
                         <StackPanel Margin="10,12">
                             <StackPanel x:Name="Ch0Panel" />
                             <Border x:Name="Ch0Range" Visibility="Collapsed" Margin="0,0,0,8" />
@@ -47,7 +47,7 @@
                 </Border>
                 <Border x:Name="Ch0Curve" Grid.Row="1" Grid.Column="0" Margin="0,0,4,0" />
                 <Border x:Name="Ch1Border" Grid.Row="0" Grid.Column="1" Style="{StaticResource CardPanel}" CornerRadius="14" Padding="0" ClipToBounds="True" Margin="4,0,4,10">
-                    <Grid><controls:ChannelGlowControl x:Name="Ch1Glow" />
+                    <Grid><controls:SpectrumBackdropControl x:Name="Ch1Spectrum" />
                         <StackPanel Margin="10,12">
                             <StackPanel x:Name="Ch1Panel" />
                             <Border x:Name="Ch1Range" Visibility="Collapsed" Margin="0,0,0,8" />
@@ -57,7 +57,7 @@
                 </Border>
                 <Border x:Name="Ch1Curve" Grid.Row="1" Grid.Column="1" Margin="4,0" />
                 <Border x:Name="Ch2Border" Grid.Row="0" Grid.Column="2" Style="{StaticResource CardPanel}" CornerRadius="14" Padding="0" ClipToBounds="True" Margin="4,0,4,10">
-                    <Grid><controls:ChannelGlowControl x:Name="Ch2Glow" />
+                    <Grid><controls:SpectrumBackdropControl x:Name="Ch2Spectrum" />
                         <StackPanel Margin="10,12">
                             <StackPanel x:Name="Ch2Panel" />
                             <Border x:Name="Ch2Range" Visibility="Collapsed" Margin="0,0,0,8" />
@@ -67,7 +67,7 @@
                 </Border>
                 <Border x:Name="Ch2Curve" Grid.Row="1" Grid.Column="2" Margin="4,0" />
                 <Border x:Name="Ch3Border" Grid.Row="0" Grid.Column="3" Style="{StaticResource CardPanel}" CornerRadius="14" Padding="0" ClipToBounds="True" Margin="4,0,4,10">
-                    <Grid><controls:ChannelGlowControl x:Name="Ch3Glow" />
+                    <Grid><controls:SpectrumBackdropControl x:Name="Ch3Spectrum" />
                         <StackPanel Margin="10,12">
                             <StackPanel x:Name="Ch3Panel" />
                             <Border x:Name="Ch3Range" Visibility="Collapsed" Margin="0,0,0,8" />
@@ -77,7 +77,7 @@
                 </Border>
                 <Border x:Name="Ch3Curve" Grid.Row="1" Grid.Column="3" Margin="4,0" />
                 <Border x:Name="Ch4Border" Grid.Row="0" Grid.Column="4" Style="{StaticResource CardPanel}" CornerRadius="14" Padding="0" ClipToBounds="True" Margin="4,0,0,10">
-                    <Grid><controls:ChannelGlowControl x:Name="Ch4Glow" />
+                    <Grid><controls:SpectrumBackdropControl x:Name="Ch4Spectrum" />
                         <StackPanel Margin="10,12">
                             <StackPanel x:Name="Ch4Panel" />
                             <Border x:Name="Ch4Range" Visibility="Collapsed" Margin="0,0,0,8" />
