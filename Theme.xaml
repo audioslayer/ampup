@@ -109,19 +109,13 @@
 
     <!-- ── Card Style ────────────────────────────────────────────── -->
     <Style x:Key="CardPanel" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource CardBgBrush}" />
+        <!-- Shared glass card look (same brushes as Styles/GlassStyles.xaml: GlassCard). -->
+        <Setter Property="Background" Value="{DynamicResource GlassCardFillBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource GlassCardBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="CornerRadius" Value="16" />
         <Setter Property="Padding" Value="16" />
-        <Setter Property="BorderBrush">
-            <Setter.Value>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#30FFFFFF" Offset="0" />
-                    <GradientStop Color="#10FFFFFF" Offset="0.5" />
-                    <GradientStop Color="#08FFFFFF" Offset="1" />
-                </LinearGradientBrush>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
     <!-- ── Glowing Card (for active/selected elements) ───────────── -->

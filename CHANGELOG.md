@@ -17,6 +17,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - New look across the whole app: every page and dialog now shares one glass card style with rounded corners, a matching page header (icon, title and "?" help tip) and consistent section titles.
+- Every page card now shares the Room card look: rounded 16px glass background with the soft top-lit border, so Mixer, Buttons, Lights, OSD and the Dashboard no longer look flatter than Room.
 - Page tabs on Room, Lights, On-Screen Display and Settings are now clean icon + label tabs in the page header with a glowing accent underline on the active one; Left/Right arrow keys move between tabs.
 - Overview, Groups, Mixer and Buttons pages: glass cards with a subtle hover lift, a slimmer surface selector on Buttons, and a softer suggested-layout banner on Mixer.
 - Room page: a compact header matching the Lights page (icon tile, title, tabs, help tip and an Integrations shortcut), larger mode tiles, Govee / Corsair / Home Assistant device cards with logos and On/Off pills, and clearer empty states ("Add Govee lights", "Add Home Assistant lights").
