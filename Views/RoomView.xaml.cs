@@ -547,7 +547,6 @@ public partial class RoomView : UserControl
             case 2: BuildScreenSyncTab(_roomTabContent); break;
         }
         _loading = false;
-        RefreshRoomHero();
 
         if (_roomTabIndex == 1)
             _ = RefreshGoveeDeviceStatesAsync();
@@ -586,7 +585,6 @@ public partial class RoomView : UserControl
                 _roomEffectPicker.SelectedEffect = eff; // setter doesn't raise SelectionChanged
         }
         _loading = false;
-        _heroPillPainter?.Invoke();
     }
 
     private void BuildTabToggleRow(WrapPanel row, int tabIndex)

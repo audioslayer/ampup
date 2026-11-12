@@ -24,178 +24,27 @@ public partial class RoomView
     private static readonly string[] RoomTabNames = { "ROOM EFFECT", "DEVICES", "SCREEN SYNC" };
     private static readonly MaterialIconKind[] RoomTabIcons =
         { MaterialIconKind.PaletteOutline, MaterialIconKind.LightbulbGroupOutline, MaterialIconKind.MonitorShimmer };
-    private static readonly string[] RoomTabTaglines =
-    {
-        "Pick an effect and colors for every light in the room",
-        "Power, brightness and sync for every light",
-        "Mirror your screen's colors to your room lights",
-    };
 
-    private TextBlock? _heroSubtitle;
-    private Action? _heroPillPainter;
 
     // ── Hero ────────────────────────────────────────────────────────────
 
-    private Border BuildRoomHero()
+    /// <summary>Compact page header, same pattern as the Lights page: tile + title + subtitle, tabs, help tip.</summary>
+    private FrameworkElement BuildRoomHero()
     {
-        var hero = new Border
-        {
-            Padding = new Thickness(20, 18, 20, 18),
-            Margin = new Thickness(0, 0, 0, 14),
-        };
-        GlassStyle.ApplyGlassCard(hero, 16, accentBorder: true);
-        var tile = new Border
-        {
-            Width = 56, Height = 56,
-            CornerRadius = new CornerRadius(15),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 16, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new MaterialIcon { Kind = MaterialIconKind.LightbulbGroupOutline, Width = 28, Height = 28 },
-        };
-        ((MaterialIcon)tile.Child).SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
-        // Hero card chrome comes from GlassStyle (resource references, live); only the single hero
-        // icon tile keeps a glow, created via GlassStyle.GlowEffect so Reduce effects removes it.
-        void PaintHero()
-        {
-            var a = ThemeManager.Accent;
-            var (fill, border) = GlassStyle.AccentPillBrushes(a);
-            tile.Background = fill;
-            tile.BorderBrush = border;
-            tile.Effect = GlassStyle.GlowEffect(a, 22, 0.55);
-        }
-        PaintHero();
-        Action onAccent = () => hero.Dispatcher.BeginInvoke(PaintHero);
-        hero.Loaded += (_, _) =>
-        {
-            ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnAccentChanged += onAccent;
-            ThemeManager.OnReduceEffectsChanged -= onAccent; ThemeManager.OnReduceEffectsChanged += onAccent;
-        };
-        hero.Unloaded += (_, _) => { ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnReduceEffectsChanged -= onAccent; };
-
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        hero.Child = grid;
-        grid.Children.Add(tile);
-
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var caption = new TextBlock { Text = "ROOM LIGHTING", FontSize = 10, FontWeight = FontWeights.SemiBold };
-        caption.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        text.Children.Add(caption);
-
-        var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 2) };
-        var title = new TextBlock { Text = "Room", FontSize = 22, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-        title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        titleRow.Children.Add(title);
-        var help = UiKit.HelpTip("Room effects, Music Reactive, VU Fill and Screen Sync all drive the same lights, "
-            + "so turning one on hands the lights over from the others. Govee, Corsair iCUE and Home Assistant "
-            + "lights are managed on the Devices tab.", "Room lighting");
-        help.Margin = new Thickness(8, 2, 0, 0);
-        titleRow.Children.Add(help);
-        text.Children.Add(titleRow);
-
-        _heroSubtitle = new TextBlock
-        {
-            Text = RoomTabTaglines[Math.Clamp(_roomTabIndex, 0, RoomTabTaglines.Length - 1)],
-            FontSize = 12, Margin = new Thickness(0, 0, 0, 8), TextTrimming = TextTrimming.CharacterEllipsis,
-        };
-        _heroSubtitle.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        text.Children.Add(_heroSubtitle);
-
-        var pills = new WrapPanel();
-        text.Children.Add(pills);
-        Grid.SetColumn(text, 1);
-        grid.Children.Add(text);
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var dock = BuildRoomTabDock();
         dock.Margin = new Thickness(0, 0, 12, 0);
         actions.Children.Add(dock);
         actions.Children.Add(RoomHeroButton(MaterialIconKind.CogOutline, "Integrations",
             "Set up Govee, Corsair iCUE and Home Assistant in Settings", () => NavigateToSettings?.Invoke()));
-        Grid.SetColumn(actions, 2);
-        grid.Children.Add(actions);
-
-        _heroPillPainter = () =>
-        {
-            pills.Children.Clear();
-            foreach (var p in BuildRoomStatusPills())
-                pills.Children.Add(p);
-        };
-        _heroPillPainter();
-
-        // Effect / mode state changes in many places (knob actions, Game Mode, button actions),
-        // so repaint the pills on a slow timer while the hero is visible instead of hooking each one.
-        var pillTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        pillTimer.Tick += (_, _) => _heroPillPainter?.Invoke();
-        hero.IsVisibleChanged += (_, e) =>
-        {
-            if (e.NewValue is true) { _heroPillPainter?.Invoke(); pillTimer.Start(); }
-            else pillTimer.Stop();
-        };
-        hero.Unloaded += (_, _) => pillTimer.Stop();
-        return hero;
-    }
-
-    private void RefreshRoomHero()
-    {
-        if (_heroSubtitle != null)
-            _heroSubtitle.Text = RoomTabTaglines[Math.Clamp(_roomTabIndex, 0, RoomTabTaglines.Length - 1)];
-        _heroPillPainter?.Invoke();
-    }
-
-    private List<Border> BuildRoomStatusPills()
-    {
-        var list = new List<Border>();
-        if (_config == null) return list;
-
-        var green = Color.FromRgb(0x00, 0xE6, 0x76);
-        var dim = Color.FromRgb(0x9E, 0x9E, 0x9E);
-
-        // Active effect
-        string effect;
-        bool effectOn = true;
-        if (_activePattern == "__sync__") effect = "Mirroring knob LEDs";
-        else if (_activePattern == RoomTemperaturePatternId) effect = $"White {_roomTemperatureKelvin}K";
-        else if (!string.IsNullOrEmpty(_activePattern)) effect = HumanizeEffectName(_activePattern);
-        else { effect = "No effect"; effectOn = false; }
-        list.Add(RoomPill(effect, effectOn ? ThemeManager.Accent : dim, MaterialIconKind.PaletteOutline, "Active room effect"));
-
-        bool screen = IsScreenSyncOn;
-        list.Add(RoomPill(screen ? "Screen Sync on" : "Screen Sync off", screen ? Color.FromRgb(0x44, 0x8A, 0xFF) : dim,
-            MaterialIconKind.MonitorShimmer, null));
-        if (IsMusicReactiveOn)
-            list.Add(RoomPill("Music Reactive", Color.FromRgb(0xFF, 0xB8, 0x00), MaterialIconKind.MusicNote, null));
-        if (_vuFillActive)
-            list.Add(RoomPill("VU Fill", Color.FromRgb(0xFF, 0x40, 0x81), MaterialIconKind.Equalizer, null));
-        if (_config.Ambience.GameModeEnabled)
-            list.Add(RoomPill("Game Mode", Color.FromRgb(0xFF, 0x6B, 0x35), MaterialIconKind.GamepadVariant, null));
-
-        // Lights: how many of the configured lights are on.
-        int total = 0, on = 0;
-        if (_config.Ambience.GoveeEnabled || _config.Ambience.GoveeCloudEnabled)
-            foreach (var d in _config.Ambience.GoveeDevices)
-            {
-                total++;
-                if (d.PoweredOn) on++;
-            }
-        foreach (var l in _config.Ambience.HomeAssistantLights ?? new List<HALightConfig>())
-        {
-            if (!l.Enabled) continue;
-            total++;
-            if (l.PoweredOn) on++;
-        }
-        if (_config.Corsair.Enabled && _corsairSync?.IsAvailable == true)
-        {
-            int c = _corsairSync.Devices.Count;
-            total += c;
-            on += c;
-        }
-        list.Add(RoomPill(total == 0 ? "No lights" : $"{on} of {total} lights on", on > 0 ? green : dim,
-            MaterialIconKind.LightbulbOnOutline, "Govee and Home Assistant power state; Corsair devices count as on while iCUE is connected"));
-        return list;
+        var help = UiKit.HelpTip("Room effects, Music Reactive, VU Fill and Screen Sync all drive the same lights, "
+            + "so turning one on hands the lights over from the others. Govee, Corsair iCUE and Home Assistant "
+            + "lights are managed on the Devices tab.", "Room lighting");
+        help.Margin = new Thickness(12, 0, 0, 0);
+        help.VerticalAlignment = VerticalAlignment.Center;
+        actions.Children.Add(help);
+        return UiKit.PageHeader("Room", "Effects, devices and screen sync for your room lights", actions,
+            icon: MaterialIconKind.LightbulbGroupOutline);
     }
 
     private static string HumanizeEffectName(string id)
