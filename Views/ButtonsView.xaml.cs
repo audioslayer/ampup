@@ -352,34 +352,11 @@ public partial class ButtonsView : UserControl
         ApplyGlassCard(StreamControllerPanel, lift: false);
     }
 
-    // Big rounded glass card (16px, faint gradient, accent-tinted border) to match the redesigned pages.
+    // Shared glass card chrome (Controls/GlassStyle.cs) so these match the other redesigned pages.
     private static void ApplyGlassCard(Border card, bool lift)
     {
-        card.CornerRadius = new CornerRadius(16);
-        card.Background = new LinearGradientBrush(
-            Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x04, 0xFF, 0xFF, 0xFF), 90);
-        void Paint(bool hot)
-        {
-            var a = ThemeManager.Accent;
-            card.BorderBrush = new LinearGradientBrush(
-                ThemeManager.WithAlpha(a, (byte)(hot ? 0x55 : 0x26)), Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF), 45);
-        }
-        Paint(false);
-        Action onAccent = () => card.Dispatcher.BeginInvoke(() => Paint(card.IsMouseOver && lift));
-        card.Loaded += (_, _) => { ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnAccentChanged += onAccent; };
-        card.Unloaded += (_, _) => ThemeManager.OnAccentChanged -= onAccent;
-        if (!lift) return;
-
-        var tt = new TranslateTransform();
-        card.RenderTransform = tt;
-        void Lift(double y) => tt.BeginAnimation(TranslateTransform.YProperty,
-            new System.Windows.Media.Animation.DoubleAnimation(y, TimeSpan.FromMilliseconds(140))
-            {
-                EasingFunction = new System.Windows.Media.Animation.CubicEase
-                    { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
-            });
-        card.MouseEnter += (_, _) => { Paint(true); Lift(-2); };
-        card.MouseLeave += (_, _) => { Paint(false); Lift(0); };
+        GlassStyle.ApplyGlassCard(card, 16, accentBorder: true);
+        if (lift) GlassStyle.AttachHoverLift(card);
     }
 
     private void SetupColumnContextMenus()
@@ -2219,7 +2196,7 @@ public partial class ButtonsView : UserControl
                 FontSize = 11,
                 Cursor = Cursors.Hand,
             };
-            item.MouseEnter += (_, _) => item.Background = new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0xE6, 0x76));
+            item.MouseEnter += (_, _) => item.Background = GlassStyle.AccentPillBrushes().Fill;
             item.MouseLeave += (_, _) => item.Background = Brushes.Transparent;
             item.Click += (_, _) =>
             {

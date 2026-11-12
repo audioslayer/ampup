@@ -16,16 +16,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Reduce effects option (Settings > General > Appearance) turns off glows and shadows for a lighter, faster interface.
 
 ### Changed
-- Overview, Groups and the tray mixer now use the shared glass card style. Glows remain only on single active elements and turn off with Reduce effects; repeated rows, chips and the tray popup no longer use costly shadows.
-- Room, Lights, OSD and Settings now use the shared glass card style; removed per-card glow shadows and the animated community-tile glow, and Screen Sync preview timers pause while the Room page is hidden, for smoother scrolling and lower CPU.
-- Buttons, dialogs and main window: glows now only appear on the selected or active element and follow Reduce effects; removed per-tile and per-row shadows for faster rendering.
-- Shared glass style foundation: card chrome, pills, glows and hover lifts are now defined once (cheap frozen brushes, no per-card shadows), starting with the Groups cards and page tab dock.
-- Page tab bars on Room, Lights, On-Screen Display and Settings are now a compact icon dock in the page header: round icon buttons with tooltips, the active one expands into an accent pill with its name, and Left/Right arrow keys switch tabs.
-- Mixer page: consistency pass to match the redesigned pages: "?" help tip in the header, rounder knob/curve/Stream Controller cards, unified MIXER SURFACE section title, softer suggested-layout banner.
-- Buttons page: matches the new design language: header help tip, slimmer surface selector, rounded glass button cards with a hover lift and accent border, and a more rounded action picker popup.
-- Lights and OSD pages follow the new design: pill tab bars (Per Knob / Global / Calibration, Overlays / Quick Wheels), 16px rounded cards, and an OSD page header with help tips.
-- Remaining dialogs (app picker, integration setup guides, welcome, Turn Up import wizard) now use the same modal header as the other redesigned dialogs: glowing accent icon tile, title and subtitle, close button and rounded corners.
-- Room page redesign: glass hero header with live status pills (active effect, Screen Sync, Music Reactive / VU Fill / Game Mode, lights on) and an Integrations shortcut, a segmented pill tab bar, pill effect-category chips, larger glowing mode tiles, big rounded glass cards, Govee / Corsair / Home Assistant device cards with integration logos, On/Off pills and an accent glow while on, and clearer empty states ("Add Govee lights", "Add Home Assistant lights").
+- New look across the whole app: every page and dialog now shares one glass card style with rounded corners, a matching page header (icon, title and "?" help tip) and consistent section titles.
+- Page tabs on Room, Lights, On-Screen Display and Settings are now a compact icon dock in the page header: round icon buttons with tooltips, the active one expands into an accent pill with its name, and Left/Right arrow keys switch tabs.
+- Overview, Groups, Mixer and Buttons pages: glass cards with a subtle hover lift, a slimmer surface selector on Buttons, and a softer suggested-layout banner on Mixer.
+- Room page: a hero header with live status pills (active effect, Screen Sync, Music Reactive / VU Fill / Game Mode, lights on) and an Integrations shortcut, larger mode tiles, Govee / Corsair / Home Assistant device cards with logos and On/Off pills, and clearer empty states ("Add Govee lights", "Add Home Assistant lights").
+- Dialogs (app picker, integration setup guides, welcome, Turn Up import wizard) use the same header: accent icon, title and subtitle, close button and rounded corners.
+- Faster, smoother interface: glows now appear only on the selected or active element and turn off with Reduce effects, repeated cards and rows no longer draw shadows, and animations and live previews pause while their page is hidden.
 
 ### Fixed
 - Button taps fire instantly when the button has no double-press action. Every tap used to wait 300 ms for a possible second press, so buttons felt laggy; buttons that do have a double-press action keep the short wait.

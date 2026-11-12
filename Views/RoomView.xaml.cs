@@ -2796,10 +2796,10 @@ public partial class RoomView : UserControl
                 Margin = new Thickness(0, 0, 6, 0),
                 Cursor = Cursors.Hand,
                 Background = active
-                    ? new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0xE6, 0x76))
+                    ? GlassStyle.AccentPillBrushes().Fill
                     : FindBrush("CardBorderBrush"),
                 BorderBrush = active
-                    ? new SolidColorBrush(Color.FromArgb(0x60, 0x00, 0xE6, 0x76))
+                    ? GlassStyle.AccentPillBrushes().Border
                     : FindBrush("InputBorderBrush"),
                 BorderThickness = new Thickness(1),
             };

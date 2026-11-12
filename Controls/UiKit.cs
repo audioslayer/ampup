@@ -102,8 +102,6 @@ public static class UiKit
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         root.Children.Add(grid);
 
-        var glow = new System.Windows.Media.Effects.DropShadowEffect
-            { BlurRadius = 14, ShadowDepth = 0, Opacity = 0.55, Color = ThemeManager.Accent };
         var tileIcon = new MaterialIcon { Kind = icon, Width = 17, Height = 17 };
         tileIcon.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
         var tile = new System.Windows.Controls.Border
@@ -113,20 +111,25 @@ public static class UiKit
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 0, 12, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            Effect = glow,
             Child = tileIcon,
         };
         void PaintTile()
         {
             var a = ThemeManager.Accent;
-            tile.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x1E));
-            tile.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66));
-            glow.Color = a;
+            var bg = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x1E)); bg.Freeze();
+            var bd = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66)); bd.Freeze();
+            tile.Background = bg;
+            tile.BorderBrush = bd;
+            tile.Effect = GlassStyle.GlowEffect(a, 14, 0.55); // null when Reduce effects
         }
         PaintTile();
         Action onAccent = () => tile.Dispatcher.BeginInvoke(PaintTile);
-        tile.Loaded += (_, _) => { ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnAccentChanged += onAccent; };
-        tile.Unloaded += (_, _) => ThemeManager.OnAccentChanged -= onAccent;
+        tile.Loaded += (_, _) =>
+        {
+            ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnAccentChanged += onAccent;
+            ThemeManager.OnReduceEffectsChanged -= onAccent; ThemeManager.OnReduceEffectsChanged += onAccent;
+        };
+        tile.Unloaded += (_, _) => { ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnReduceEffectsChanged -= onAccent; };
         grid.Children.Add(tile);
 
         var line = new DockPanel { LastChildFill = true, VerticalAlignment = VerticalAlignment.Center };
@@ -532,7 +535,7 @@ public static class UiKit
             BorderThickness = new Thickness(1),
             BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, accent.R, accent.G, accent.B)),
             Margin = new Thickness(8), // room for the shadow
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 3, Opacity = 0.45, Color = Colors.Black },
+            Effect = ThemeManager.ReduceEffects ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 3, Opacity = 0.45, Color = Colors.Black }, // single popup
             Child = inner,
         };
         card.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBgBrush");

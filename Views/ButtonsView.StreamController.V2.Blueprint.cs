@@ -36,7 +36,6 @@ public partial class ButtonsView
         public int EncoderIdx = -1;     // -1 for the side buttons
         public string Name = "";
         public Ellipse Outline = null!;
-        public DropShadowEffect? Glow; // unused: glow now set on Outline via GlassStyle.GlowEffect when selected
         public MaterialIcon Icon = null!;
         public MaterialIcon? PressIcon;
         public TextBlock Sub = null!;
