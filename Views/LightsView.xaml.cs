@@ -211,7 +211,12 @@ public partial class LightsView : UserControl
             if (!_loading) QueueSave();
         };
 
-        PageHeaderHost.Content = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED",
+        var lightsHelp = UiKit.HelpTip(
+            "Per Knob gives each knob's LEDs its own effect and colors. Global runs one effect across every knob "
+            + "(per-knob settings are kept for later). Calibration has test colors, mute dimming and gamma.\n\n"
+            + "Right-click a knob's strip for copy / paste shortcuts.",
+            "Lights");
+        PageHeaderHost.Content = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED", lightsHelp,
             icon: Material.Icons.MaterialIconKind.LightbulbOnOutline);
 
         BuildPresetsSection();
@@ -706,15 +711,19 @@ public partial class LightsView : UserControl
         var panel = GlobalLightCardPanel;
         var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
 
-        // Mode toggle: Material-style underline tabs "Per Knob | Global"
+        // Mode toggle: segmented pill bar "Per Knob | Global | Calibration" (same look as the Room tabs)
         var toggleBar = new Border
         {
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Margin = new Thickness(0, 0, 0, 12),
+            CornerRadius = new CornerRadius(14),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(5),
+            Margin = new Thickness(0, 0, 0, 14),
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
-        toggleBar.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
+        toggleBar.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        toggleBar.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
-        var toggleRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        var toggleRow = new StackPanel { Orientation = Orientation.Horizontal };
 
         var perKnobTab = BuildModeTab("PER KNOB", true, accent);
         var globalTab = BuildModeTab("GLOBAL", false, accent);
@@ -743,6 +752,8 @@ public partial class LightsView : UserControl
             UpdateGlobalVisibility();
         };
 
+        globalTab.Margin = new Thickness(4, 0, 0, 0);
+        calibTab.Margin = new Thickness(4, 0, 0, 0);
         toggleRow.Children.Add(perKnobTab);
         toggleRow.Children.Add(globalTab);
         toggleRow.Children.Add(calibTab);
@@ -1300,28 +1311,35 @@ public partial class LightsView : UserControl
     {
         var tab = new Border
         {
-            Padding = new Thickness(20, 10, 20, 10),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(20, 8, 20, 8),
             Cursor = Cursors.Hand,
             BorderBrush = new SolidColorBrush(Colors.Transparent),
-            BorderThickness = new Thickness(0, 0, 0, 2),
+            BorderThickness = new Thickness(1),
             Background = new SolidColorBrush(Colors.Transparent),
         };
         tab.Child = new TextBlock
         {
             Text = text,
-            FontSize = 12,
+            FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             HorizontalAlignment = HorizontalAlignment.Center,
         };
         tab.MouseEnter += (_, _) =>
         {
             if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
+            {
                 t.Foreground = LightsView.ThemeBrush("TextPrimaryBrush");
+                tab.Background = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
+            }
         };
         tab.MouseLeave += (_, _) =>
         {
             if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
+            {
                 t.Foreground = LightsView.ThemeBrush("TextSecBrush");
+                tab.Background = new SolidColorBrush(Colors.Transparent);
+            }
         };
         SetModeTabActive(tab, active, accent);
         return tab;
@@ -1332,8 +1350,10 @@ public partial class LightsView : UserControl
         var label = tab.Child as TextBlock;
         if (active)
         {
-            tab.BorderBrush = new SolidColorBrush(accent);
-            tab.BorderThickness = new Thickness(0, 0, 0, 2);
+            // Pill: accent tint + accent border + soft glow (inactive = transparent border, which the hover handlers check)
+            tab.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x88));
+            tab.Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x2A));
+            tab.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 14, ShadowDepth = 0, Opacity = 0.35, Color = accent };
             if (label != null)
             {
                 label.Foreground = new SolidColorBrush(accent);
@@ -1343,7 +1363,8 @@ public partial class LightsView : UserControl
         else
         {
             tab.BorderBrush = new SolidColorBrush(Colors.Transparent);
-            tab.BorderThickness = new Thickness(0, 0, 0, 2);
+            tab.Background = new SolidColorBrush(Colors.Transparent);
+            tab.Effect = null;
             if (label != null)
             {
                 label.Foreground = LightsView.ThemeBrush("TextSecBrush");
@@ -3149,9 +3170,9 @@ public partial class LightsView : UserControl
         var border = new Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(16),
-            Margin = new Thickness(0, 0, 0, 10),
+            CornerRadius = new CornerRadius(16),
+            Padding = new Thickness(18, 16, 18, 16),
+            Margin = new Thickness(0, 0, 0, 12),
             Child = content,
         };
         border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");

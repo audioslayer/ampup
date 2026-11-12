@@ -9,12 +9,10 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border x:Name="ButtonsSurfaceBar" Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,10" Visibility="Collapsed">
-            <StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                    <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
-                    <TextBlock Text="BUTTON SURFACE" Style="{StaticResource HeaderText}" Margin="0" />
-                </StackPanel>
+        <Border x:Name="ButtonsSurfaceBar" Grid.Row="0" Margin="2,0,2,12" Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Surface" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextDimBrush}" Margin="0,0,12,0" />
                 <controls:SegmentedControl x:Name="DeviceSelector"
                                            HorizontalAlignment="Left"
                                            MinWidth="360" />
@@ -24,7 +22,7 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <ContentControl x:Name="PageHeaderHost" Focusable="False" />
-                <Grid x:Name="TurnUpButtonsPanel" Grid.IsSharedSizeScope="True">
+                <Grid x:Name="TurnUpButtonsPanel" Grid.IsSharedSizeScope="True" Margin="0,2,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
@@ -50,7 +48,7 @@
                     </Border>
                 </Grid>
 
-                <Border x:Name="StreamControllerPanel" Style="{StaticResource CardPanel}" Margin="0,10,0,0" Visibility="Collapsed">
+                <Border x:Name="StreamControllerPanel" Style="{StaticResource CardPanel}" Margin="0,14,0,0" Visibility="Collapsed">
                     <Grid x:Name="StreamControllerRoot" />
                 </Border>
             </StackPanel>

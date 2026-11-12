@@ -473,8 +473,8 @@ public class ActionPicker : System.Windows.Controls.Border
         _popupBorder = new System.Windows.Controls.Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(10),
+            CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(12),
             Child = root,
         };
         _popupBorder.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "BgDarkBrush");

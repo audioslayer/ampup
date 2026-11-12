@@ -84,10 +84,11 @@ public abstract class IntegrationSetupGuide : Window
             BorderBrush = CardBorder,
             BorderThickness = new Thickness(1),
             Background = BgBase,
+            CornerRadius = new CornerRadius(12),
         };
 
         var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(48) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(64) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(80) });
 
@@ -111,58 +112,65 @@ public abstract class IntegrationSetupGuide : Window
     }
 
     private UIElement BuildTitleBar()
+        => BuildGuideHeader(this, _glyph, _titleText, Accent.Color, () => { DialogResult = false; Close(); });
+
+    /// <summary>
+    /// Modal header shared by every setup guide (same chrome as GroupNameDialog): glowing tile with the
+    /// integration glyph in its brand colour + title / subtitle, close button, drag to move.
+    /// </summary>
+    internal static UIElement BuildGuideHeader(Window window, string glyph, string title, Color accent, Action onClose)
     {
-        var bar = new Grid { Background = Res("BgDarkBrush") };
+        var bar = new Grid { Background = Brushes.Transparent };
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         bar.MouseLeftButtonDown += (_, e) =>
         {
-            if (e.ButtonState == MouseButtonState.Pressed) try { DragMove(); } catch (InvalidOperationException) { }
+            if (e.OriginalSource is not (Grid or TextBlock or StackPanel)) return;
+            try { window.DragMove(); } catch (InvalidOperationException) { }
         };
 
-        var stack = new StackPanel
+        var tile = new Border
         {
-            Orientation = Orientation.Horizontal,
+            Width = 38, Height = 38,
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(Color.FromArgb(0x26, accent.R, accent.G, accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, accent.R, accent.G, accent.B)),
+            Margin = new Thickness(20, 0, 12, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(16, 0, 0, 0),
+            Effect = new DropShadowEffect { Color = accent, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.35 },
+            Child = new TextBlock
+            {
+                Text = glyph,
+                FontSize = 18,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(accent),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
         };
-        stack.Children.Add(new TextBlock
-        {
-            Text = _glyph,
-            FontSize = 18,
-            Foreground = Accent,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 10, 0),
-            FontWeight = FontWeights.Bold,
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = _titleText,
-            FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = TextPrimary,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        Grid.SetColumn(stack, 0);
-        bar.Children.Add(stack);
+        bar.Children.Add(tile);
 
-        var close = new Button
-        {
-            Content = "✕",
-            Width = 48, Height = 48,
-            Background = Brushes.Transparent,
-            Foreground = TextSec,
-            BorderThickness = new Thickness(0),
-            FontSize = 14,
-            Cursor = Cursors.Hand,
-        };
-        close.Click += (_, _) => { DialogResult = false; Close(); };
-        close.MouseEnter += (_, _) => close.Foreground = DangerRed;
-        close.MouseLeave += (_, _) => close.Foreground = TextSec;
-        Grid.SetColumn(close, 1);
+        var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var t = new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeights.SemiBold };
+        t.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        var st = new TextBlock { Text = "Follow the steps to connect", FontSize = 11, Margin = new Thickness(0, 2, 0, 0) };
+        st.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        titles.Children.Add(t);
+        titles.Children.Add(st);
+        Grid.SetColumn(titles, 1);
+        bar.Children.Add(titles);
+
+        var close = UiKit.IconButton(Material.Icons.MaterialIconKind.Close, "Close", _ => onClose(), size: 26);
+        close.Margin = new Thickness(0, 0, 16, 0);
+        Grid.SetColumn(close, 2);
         bar.Children.Add(close);
 
-        bar.Children.Add(new Border { Height = 1, Background = CardBorder, VerticalAlignment = VerticalAlignment.Bottom });
+        var sep = new Border { Height = 1, VerticalAlignment = VerticalAlignment.Bottom };
+        sep.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
+        Grid.SetColumnSpan(sep, 3);
+        bar.Children.Add(sep);
         return bar;
     }
 

@@ -14,6 +14,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Home Assistant lights can optionally follow Screen Sync (off by default; slower than Govee).
 
 ### Changed
+- Mixer page: consistency pass to match the redesigned pages: "?" help tip in the header, rounder knob/curve/Stream Controller cards, unified MIXER SURFACE section title, softer suggested-layout banner.
+- Buttons page: matches the new design language: header help tip, slimmer surface selector, rounded glass button cards with a hover lift and accent border, and a more rounded action picker popup.
+- Lights and OSD pages follow the new design: pill tab bars (Per Knob / Global / Calibration, Overlays / Quick Wheels), 16px rounded cards, and an OSD page header with help tips.
+- Remaining dialogs (app picker, integration setup guides, welcome, Turn Up import wizard) now use the same modal header as the other redesigned dialogs: glowing accent icon tile, title and subtitle, close button and rounded corners.
 - Room page redesign: glass hero header with live status pills (active effect, Screen Sync, Music Reactive / VU Fill / Game Mode, lights on) and an Integrations shortcut, a segmented pill tab bar, pill effect-category chips, larger glowing mode tiles, big rounded glass cards, Govee / Corsair / Home Assistant device cards with integration logos, On/Off pills and an accent glow while on, and clearer empty states ("Add Govee lights", "Add Home Assistant lights").
 
 ### Fixed

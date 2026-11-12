@@ -30,6 +30,10 @@ public class WelcomeDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
         Content = BuildContent();
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Escape) { e.Handled = true; Close(); }
+        };
     }
 
     private UIElement BuildContent()
@@ -38,7 +42,7 @@ public class WelcomeDialog : Window
 
         var outer = new Border
         {
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(16),
             Background = new SolidColorBrush(Color.FromArgb(250, 0x0F, 0x0F, 0x0F)),
             BorderBrush = new SolidColorBrush(Color.FromArgb(0x44,
                 accent.R, accent.G, accent.B)),
@@ -53,52 +57,72 @@ public class WelcomeDialog : Window
             },
             Margin = new Thickness(12)
         };
+        outer.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
 
-        var root = new StackPanel { Margin = new Thickness(32, 28, 32, 28) };
+        var root = new StackPanel { Margin = new Thickness(28, 22, 28, 26) };
         outer.Child = root;
 
-        // Header with logo
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        // Header: glowing glass tile with the logo + title / subtitle, close on the right (drag to move)
+        var header = new Grid { Margin = new Thickness(0, 0, 0, 20), Background = Brushes.Transparent };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var tile = new Border
+        {
+            Width = 48, Height = 48,
+            CornerRadius = new CornerRadius(12),
+            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(Color.FromArgb(0x22, accent.R, accent.G, accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, accent.R, accent.G, accent.B)),
+            Margin = new Thickness(0, 0, 14, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Effect = new DropShadowEffect { Color = accent, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.35 },
+        };
         try
         {
-            var logo = new Image
+            tile.Child = new Image
             {
                 Source = new BitmapImage(new System.Uri("pack://application:,,,/Assets/icon/ampup-64.png")),
-                Width = 42,
-                Height = 42,
-                Margin = new Thickness(0, 0, 12, 0),
+                Width = 30,
+                Height = 30,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            headerRow.Children.Add(logo);
         }
         catch { /* icon not found, skip */ }
+        header.Children.Add(tile);
 
-        headerRow.Children.Add(new TextBlock
-        {
-            Text = "Welcome to Amp Up",
-            Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8)),
-            FontSize = 22,
-            FontWeight = FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        root.Children.Add(headerRow);
-
-        root.Children.Add(new TextBlock
+        var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var title = new TextBlock { Text = "Welcome to Amp Up", FontSize = 20, FontWeight = FontWeights.SemiBold };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        var subtitle = new TextBlock
         {
             Text = "Let's get your AmpUp hardware connected in a few steps.",
-            Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
-            FontSize = 13,
-            Margin = new Thickness(0, 0, 0, 24),
+            FontSize = 12,
+            Margin = new Thickness(0, 3, 0, 0),
             TextWrapping = TextWrapping.Wrap
-        });
+        };
+        subtitle.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        titles.Children.Add(title);
+        titles.Children.Add(subtitle);
+        Grid.SetColumn(titles, 1);
+        header.Children.Add(titles);
+
+        var close = AmpUp.Controls.UiKit.IconButton(Material.Icons.MaterialIconKind.Close, "Close (Esc)", _ => Close(), size: 26);
+        close.VerticalAlignment = VerticalAlignment.Top;
+        Grid.SetColumn(close, 2);
+        header.Children.Add(close);
+        header.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.OriginalSource is not (Grid or TextBlock or StackPanel)) return;
+            try { DragMove(); } catch (InvalidOperationException) { }
+        };
+        root.Children.Add(header);
 
         // Separator
-        root.Children.Add(new Border
-        {
-            Height = 1,
-            Background = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)),
-            Margin = new Thickness(0, 0, 0, 20)
-        });
+        var sep = new Border { Height = 1, Margin = new Thickness(0, 0, 0, 20) };
+        sep.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
+        root.Children.Add(sep);
 
         // Steps with colored icon circles
         root.Children.Add(BuildStep("1", "Connect your hardware",

@@ -134,7 +134,13 @@ public partial class MixerView : UserControl
         InitializeComponent();
 
         MixerPageHeaderHost.Content = UiKit.PageHeader("Mixer", "What each knob controls and how it responds",
-            icon: Material.Icons.MaterialIconKind.TuneVertical);
+            UiKit.HelpTip(
+                "Each card is one knob: pick its target (an app, device, group or integration), "
+                + "the volume range it covers and the response curve.\n\n"
+                + "Smart Mix lowers music while people talk and switches profiles with the focused app. "
+                + "Audio Sessions lists apps playing sound right now.",
+                "Mixer"),
+            Material.Icons.MaterialIconKind.TuneVertical);
 
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _debounce.Tick += (_, _) =>
@@ -1807,7 +1813,7 @@ public partial class MixerView : UserControl
         var border = new Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(14),
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 10),
             Child = content,
@@ -2086,7 +2092,7 @@ public partial class MixerView : UserControl
             Background = new SolidColorBrush(amberDim),
             BorderBrush = new SolidColorBrush(amber),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
+            CornerRadius = new CornerRadius(12),
             Padding = new Thickness(16, 10, 16, 10),
             Margin = new Thickness(0, 0, 0, 8),
             Child = bannerStack,
