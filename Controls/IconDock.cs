@@ -11,13 +11,13 @@ using Material.Icons.WPF;
 namespace AmpUp.Controls
 {
     /// <summary>
-    /// Page-level tab bar shown in a page header: a row of small round icon buttons where the
-    /// active item expands into an accent pill with its label. Inactive items show their name as
-    /// a tooltip. Left/Right arrows move the selection while the dock has keyboard focus.
+    /// Page-level tab bar shown in a page header: a row of icon + label tabs with a thin hairline
+    /// underneath; the active tab is accent-coloured with a glowing accent underline. Left/Right
+    /// arrows move the selection while the dock has keyboard focus.
     /// </summary>
     public class IconDock : Border
     {
-        private const double ItemSize = 44;
+        private const double ItemHeight = 40;
         private const double IconSize = 15;
 
         // ── Events ───────────────────────────────────────────────────────
@@ -37,6 +37,7 @@ namespace AmpUp.Controls
             public Border Container = null!;
             public MaterialIcon Icon = null!;
             public TextBlock Text = null!;
+            public Border Underline = null!;
             public bool IsHovered;
             public bool IsEnabled = true;
             public bool IsVisible = true;
@@ -65,6 +66,7 @@ namespace AmpUp.Controls
         public IconDock()
         {
             Background = Brushes.Transparent;
+            BorderThickness = new Thickness(0, 0, 0, 1);
             Focusable = true;
             FocusVisualStyle = null;
             SnapsToDevicePixels = true;
@@ -72,6 +74,7 @@ namespace AmpUp.Controls
 
             _row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             Child = _row;
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x30, 0x30, 0x30));
 
             _onAccent = () => Dispatcher.BeginInvoke(() => UpdateAllVisuals(animate: false));
             Loaded += (_, _) =>
@@ -103,7 +106,6 @@ namespace AmpUp.Controls
                 FontWeight = FontWeights.Bold,
                 Margin = new Thickness(8, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                Visibility = Visibility.Collapsed,
             };
             var sp = new StackPanel
             {
@@ -114,15 +116,25 @@ namespace AmpUp.Controls
             sp.Children.Add(item.Icon);
             sp.Children.Add(item.Text);
 
+            item.Underline = new Border
+            {
+                Height = 2,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                CornerRadius = new CornerRadius(1),
+                Visibility = Visibility.Collapsed,
+            };
+            sp.Margin = new Thickness(18, 0, 18, 2);
+            var cell = new Grid();
+            cell.Children.Add(sp);
+            cell.Children.Add(item.Underline);
+
             item.Container = new Border
             {
-                Height = ItemSize,
-                Width = ItemSize,
-                CornerRadius = new CornerRadius(ItemSize / 2),
-                BorderThickness = new Thickness(1.2),
-                Margin = new Thickness(_items.Count == 0 ? 0 : 6, 0, 0, 0),
+                Height = ItemHeight,
+                Background = Brushes.Transparent,
+                Margin = new Thickness(_items.Count == 0 ? 0 : 2, 0, 0, -1),
                 Cursor = Cursors.Hand,
-                Child = sp,
+                Child = cell,
                 SnapsToDevicePixels = true,
             };
 
@@ -198,66 +210,24 @@ namespace AmpUp.Controls
         {
             bool active = _items.IndexOf(item) == _selectedIndex;
             var a = ThemeManager.Accent;
-            var b = item.Container;
 
             if (active)
             {
-                b.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x28));
-                b.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x96));
-                b.Effect = GlassStyle.GlowEffect(a, 9); // single active pill only; null when Reduce effects is on
+                item.Underline.Background = new SolidColorBrush(a);
+                item.Underline.Effect = GlassStyle.GlowEffect(a, 6); // single active underline only; null when Reduce effects is on
+                item.Underline.Visibility = Visibility.Visible;
                 item.Icon.Foreground = new SolidColorBrush(a);
                 item.Text.Foreground = new SolidColorBrush(a);
-                b.ToolTip = item.Tooltip != item.Label ? item.Tooltip : null;
-                b.Padding = new Thickness(16, 0, 18, 0);
-                if (item.Text.Visibility != Visibility.Visible)
-                {
-                    item.Text.Visibility = Visibility.Visible;
-                    ExpandPill(b, animate);
-                }
+                item.Container.ToolTip = item.Tooltip != item.Label ? item.Tooltip : null;
             }
             else
             {
-                b.Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-                b.BorderBrush = new SolidColorBrush(item.IsHovered && item.IsEnabled
-                    ? Color.FromRgb(0x5A, 0x5A, 0x5A)
-                    : Color.FromRgb(0x34, 0x34, 0x34));
-                b.Effect = null;
-                item.Icon.SetResourceReference(MaterialIcon.ForegroundProperty,
-                    item.IsHovered && item.IsEnabled ? "TextPrimaryBrush" : "TextDimBrush");
-                b.ToolTip = item.Tooltip;
-                b.Padding = new Thickness(0);
-                if (item.Text.Visibility != Visibility.Collapsed)
-                {
-                    item.Text.Visibility = Visibility.Collapsed;
-                    b.BeginAnimation(WidthProperty, null);
-                    b.Width = ItemSize;
-                }
-            }
-        }
-
-        /// <summary>Grows the pill from the circle width to fit icon + label (140ms ease-out).</summary>
-        private static void ExpandPill(Border b, bool animate)
-        {
-            b.BeginAnimation(WidthProperty, null);
-            var content = (UIElement)b.Child;
-            content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            double target = Math.Max(ItemSize,
-                Math.Ceiling(content.DesiredSize.Width + b.Padding.Left + b.Padding.Right
-                             + b.BorderThickness.Left + b.BorderThickness.Right));
-
-            if (animate && SystemParameters.ClientAreaAnimation)
-            {
-                b.Width = target;
-                b.BeginAnimation(WidthProperty,
-                    new DoubleAnimation(ItemSize, target, TimeSpan.FromMilliseconds(140))
-                    {
-                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-                        FillBehavior = FillBehavior.Stop,
-                    });
-            }
-            else
-            {
-                b.Width = target;
+                item.Underline.Visibility = Visibility.Collapsed;
+                item.Underline.Effect = null;
+                bool hot = item.IsHovered && item.IsEnabled;
+                item.Icon.SetResourceReference(MaterialIcon.ForegroundProperty, hot ? "TextPrimaryBrush" : "TextDimBrush");
+                item.Text.SetResourceReference(TextBlock.ForegroundProperty, hot ? "TextPrimaryBrush" : "TextSecBrush");
+                item.Container.ToolTip = item.Tooltip != item.Label ? item.Tooltip : null;
             }
         }
     }

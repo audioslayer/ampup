@@ -76,7 +76,7 @@ The experimental macOS port has been discontinued. Current releases support **64
 - **Integrations hub:** one sidebar lists Govee, Corsair iCUE, SignalRGB, Home Assistant, OBS Studio, VoiceMeeter, Discord, and Spotify with their logos and a Connected / On / Off status. Pick a service to see its settings, and use its **Setup guide** for a step-by-step walkthrough.
 - **Groups** page with glass cards, app chips with real app icons, and "used by" pills that show which knobs share each group.
 - Compact page headers, and the same cards, switches, sliders, dropdowns, and text boxes on every page.
-- Pages with several sections (Room, Lights, On-Screen Display, Settings) switch tabs with a compact icon dock in the page header; Left/Right arrow keys move between tabs.
+- Pages with several sections (Room, Lights, On-Screen Display, Settings) switch tabs with clean icon + label tabs in the page header and a glowing accent underline on the active one; Left/Right arrow keys move between tabs.
 - **Reduce effects** (Settings > General > Appearance) turns off glows and shadows for a lighter, faster interface on slower PCs.
 - Searchable pickers with sections, friendly names, short descriptions, and real app icons.
 - Small **?** help tips explain each feature on hover instead of filling pages with text.
