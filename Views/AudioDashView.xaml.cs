@@ -160,15 +160,17 @@ public partial class AudioDashView : UserControl
         var accent = GetAccentColor();
         bool active = info.Peak > 0.01f;
 
+        // Open row: faint bottom hairline, cached hover brush, no fill or radius.
         var row = new Border
         {
             Background = Brushes.Transparent,
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(4, 6, 4, 6),
+            Padding = new Thickness(4, 8, 4, 8),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            SnapsToDevicePixels = true,
             Cursor = Cursors.Hand,
         };
-        row.MouseEnter += (_, _) => row.Background = (SolidColorBrush)FindResource("CardBgBrush");
-        row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
+        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        AmpUp.Controls.OpenCanvas.AttachHover(row);
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });

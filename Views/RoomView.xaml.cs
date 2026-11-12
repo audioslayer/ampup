@@ -526,7 +526,8 @@ public partial class RoomView : UserControl
         // Build tab-specific toggle row (floating, no card wrapper)
         if (_toggleRowContainer != null && _roomTabIndex == 0)
         {
-            var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
+            var toggleRow = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
+            _toggleRowContainer.Children.Add(OpenCanvas.Section("Modes"));
             BuildTabToggleRow(toggleRow, _roomTabIndex);
             _toggleRowContainer.Children.Add(toggleRow);
             BuildToggleSettingsRow(_toggleRowContainer);
@@ -568,7 +569,8 @@ public partial class RoomView : UserControl
 
         _loading = true;
         _toggleRowContainer.Children.Clear();
-        var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
+        var toggleRow = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
+            _toggleRowContainer.Children.Add(OpenCanvas.Section("Modes"));
         BuildTabToggleRow(toggleRow, _roomTabIndex);
         _toggleRowContainer.Children.Add(toggleRow);
         BuildToggleSettingsRow(_toggleRowContainer);
@@ -587,7 +589,7 @@ public partial class RoomView : UserControl
         _loading = false;
     }
 
-    private void BuildTabToggleRow(WrapPanel row, int tabIndex)
+    private void BuildTabToggleRow(Panel row, int tabIndex)
     {
         if (tabIndex != 0 || _config == null) return; // Only Room Effect tab has toggle row
 
@@ -1700,21 +1702,9 @@ public partial class RoomView : UserControl
     }
 
     /// <summary>
-    /// Dark card container used throughout the Layout tab.
+    /// Open (unboxed) section container used throughout the Layout tab.
     /// </summary>
-    private Border MakeLayoutCard()
-    {
-        var card = new Border
-        {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(16),
-            Padding = new Thickness(20, 18, 20, 20),
-            Margin = new Thickness(0, 0, 0, 14),
-        };
-        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        return card;
-    }
+    private Border MakeLayoutCard() => new() { Margin = new Thickness(0, OpenCanvas.SectionSpacing, 0, 0) };
 
     /// <summary>
     /// Bigger dimension input with label under it: "[ 12 ]" over "WIDTH".
@@ -4346,7 +4336,7 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
 
-        stack.Children.Add(UiKit.SectionHeader("MODES"));
+        stack.Children.Add(OpenCanvas.Section("Modes"));
 
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
         Action<bool> setSyncSwitch = _ => { };
@@ -4388,7 +4378,7 @@ public partial class RoomView : UserControl
             gameSwitch).Root;
         // One column — side-by-side cards read as confusing.
         stack.Children.Add(screenSyncTile);
-        stack.Children.Add(Spaced(gameTile));
+        stack.Children.Add(gameTile);
 
         // ── Settings cards ──
         _screenSyncSettingsPanel = new StackPanel();
@@ -4655,9 +4645,8 @@ public partial class RoomView : UserControl
         var lookCard = RoomCard(Color.FromRgb(0xAB, 0x47, 0xBC), MaterialIconKind.PaletteOutline,
             "Look", "Color intensity and responsiveness", null, lookBody).Root;
 
-        stack.Children.Add(UiKit.SectionHeader("SETTINGS"));
-        stack.Children.Add(Spaced(sourceCard));
-        stack.Children.Add(Spaced(lookCard));
+        stack.Children.Add(sourceCard);
+        stack.Children.Add(lookCard);
 
         // ══════════════════ PREVIEW ══════════════════
         _screenEdgeControl = new Controls.ScreenEdgeControl
@@ -4754,6 +4743,7 @@ public partial class RoomView : UserControl
 
         // ══════════════════ DEVICES ══════════════════
         var devList = UiKit.ListContainer(out var devBody);
+        OpenListContainer(devList);
         bool hasMonitor = _config.RoomLayout.Monitor != null;
         int devRows = 0;
         foreach (var goveeDevice in _config.Ambience.GoveeDevices)
@@ -4837,20 +4827,20 @@ public partial class RoomView : UserControl
             };
             controls.Children.Add(cropCombo);
 
+            OpenListRow(rowBorder);
             devBody.Children.Add(rowBorder);
             devRows++;
         }
-        stack.Children.Add(UiKit.SectionHeader("DEVICES",
-            devRows == 0 ? "" : devRows == 1 ? "1 light" : $"{devRows} lights"));
         if (devRows == 0)
         {
+            stack.Children.Add(OpenCanvas.Section("Edge mapping"));
             stack.Children.Add(UiKit.EmptyState(MaterialIconKind.LightbulbGroupOutline, "No LAN Govee devices yet",
                 "Add devices in the DEVICES tab to map them to screen edges."));
         }
         else
         {
             stack.Children.Add(RoomCard(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.BorderOutside,
-                "Edge mapping", "Which part of the screen each light follows", null, devList).Root);
+                "Edge mapping", (devRows == 1 ? "1 light" : $"{devRows} lights") + " · which part of the screen each light follows", null, devList).Root);
         }
     }
 
@@ -5803,23 +5793,24 @@ public partial class RoomView : UserControl
         bool isActive = initialActive;
         var icoColor = iconColor ?? ThemeManager.Accent;
 
+        // Open canvas row: no box, 1px bottom hairline, hover tint only.
         var tile = new Border
         {
-            CornerRadius = new CornerRadius(14),
-            BorderThickness = new Thickness(1.5),
-            Padding = new Thickness(12, 10, 14, 10),
-            Margin = new Thickness(0, 0, 10, 10),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(4, 10, 4, 10),
+            MinHeight = 52,
             Cursor = Cursors.Hand,
-            MinWidth = 220,
+            SnapsToDevicePixels = true,
         };
+        tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
-        var iconTile = UiKit.IconTile(icoColor, icon, 34);
+        var iconTile = UiKit.IconTile(icoColor, icon, 30);
         iconTile.Margin = new Thickness(0, 0, 10, 0);
         iconTile.VerticalAlignment = VerticalAlignment.Center;
 
         var titleText = new TextBlock { Text = title, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         titleText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        var subtitleText = new TextBlock { Text = subtitle, FontSize = 10.5, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 230 };
+        var subtitleText = new TextBlock { Text = subtitle, FontSize = 11, Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         subtitleText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
 
         var leftStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -5854,17 +5845,9 @@ public partial class RoomView : UserControl
 
         void UpdateVisuals(bool hover = false)
         {
-            // Repeated tile: no shadow effect; cached accent-alpha resource brushes (live, no allocation).
-            if (isActive)
-            {
-                tile.SetResourceReference(Border.BackgroundProperty, "AccentHover1ABrush");
-                tile.SetResourceReference(Border.BorderBrushProperty, hover ? "AccentScrollAABrush" : "AccentLabel88Brush");
-            }
-            else
-            {
-                tile.SetResourceReference(Border.BackgroundProperty, hover ? "InputBgBrush" : "GlassCardFillBrush");
-                tile.SetResourceReference(Border.BorderBrushProperty, hover ? "InputBorderBrush" : "GlassCardBorderBrush");
-            }
+            // Open row: cached hover brush; active state = accent title (resource reference, no allocation).
+            tile.Background = hover ? OpenCanvas.HoverBrush : Brushes.Transparent;
+            titleText.SetResourceReference(TextBlock.ForegroundProperty, isActive ? "AccentBrush" : "TextPrimaryBrush");
         }
 
         Action<bool> setSwitch = _ => { };
@@ -5898,7 +5881,6 @@ public partial class RoomView : UserControl
         };
         tile.MouseEnter += (_, _) => UpdateVisuals(true);
         tile.MouseLeave += (_, _) => UpdateVisuals(false);
-        GlassStyle.AttachHoverLift(tile);
 
         return tile;
     }
@@ -7897,37 +7879,33 @@ public partial class RoomView : UserControl
 
     // ── UI Helpers ────────────────────────────────────────────────────
 
+    // Open canvas section title: small caps dim label (the old accent bar stays as a collapsed
+    // placeholder so the (bar, label) tuple callers keep working).
     private (Border bar, TextBlock label) MakeSectionHeader(string text)
     {
-        var bar = new Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Background = FindBrush("AccentBrush"),
-            Margin = new Thickness(0, 0, 10, 0),
-        };
+        var bar = new Border { Width = 0, Visibility = Visibility.Collapsed };
         var label = new TextBlock
         {
-            Text = text,
-            FontSize = 12,
+            Text = text.ToUpperInvariant(),
+            FontSize = 11,
             FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("AccentBrush"),
             VerticalAlignment = VerticalAlignment.Center,
         };
+        label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         _sectionHeaders.Add((bar, label));
         return (bar, label);
     }
 
+    /// <summary>Section title over a 1px hairline (open canvas).</summary>
     private StackPanel WrapHeader(Border bar, TextBlock label)
     {
-        var row = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 10),
-        };
+        var outer = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
         row.Children.Add(bar);
         row.Children.Add(label);
-        return row;
+        outer.Children.Add(row);
+        outer.Children.Add(OpenCanvas.Divider());
+        return outer;
     }
 
     private TextBlock MakeSubLabel(string text) => new()
@@ -7947,24 +7925,17 @@ public partial class RoomView : UserControl
         Margin = new Thickness(0, 4, 0, 12),
     };
 
+    /// <summary>Open canvas section: caps title + hairline, then the children on the page background.</summary>
     private Border MakeSectionCard(string title, params UIElement[] children)
     {
         var content = new StackPanel();
         var (bar, label) = MakeSectionHeader(title);
         content.Children.Add(WrapHeader(bar, label));
+        var body = new StackPanel { Margin = new Thickness(4, 0, 4, 0) };
         foreach (var child in children)
-            content.Children.Add(child);
-        var border = new Border
-        {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(16),
-            Padding = new Thickness(20, 18, 20, 20),
-            Margin = new Thickness(0, 0, 0, 14),
-            Child = content,
-        };
-        border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        return border;
+            body.Children.Add(child);
+        content.Children.Add(body);
+        return new Border { Margin = new Thickness(0, OpenCanvas.SectionSpacing, 0, 0), Child = content };
     }
 
     private TextBlock MakeErrorText(string text) => new()
@@ -7980,12 +7951,7 @@ public partial class RoomView : UserControl
 
     private void RefreshAccentColors()
     {
-        var accent = ThemeManager.Accent;
-        foreach (var (bar, label) in _sectionHeaders)
-        {
-            if (bar != null) bar.Background = new SolidColorBrush(accent);
-            if (label != null) label.Foreground = new SolidColorBrush(accent);
-        }
+        // Open canvas section titles use TextDimBrush via resource reference; nothing to repaint.
     }
 
     // ── Resource helpers ──────────────────────────────────────────────

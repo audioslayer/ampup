@@ -1687,16 +1687,16 @@ public class TrayMixerPopup : Window
     private UIElement BuildMasterRow(MMDevice device, float vol, bool muted)
     {
         var accent = GetAccentColor();
-        // Master row: accent-tinted bg + border to distinguish clearly from app rows
+        // Master row: open row (no box); the accent icon tile marks it, a hairline separates it from app rows
         var row = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(0x18, accent.R, accent.G, accent.B)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x45, accent.R, accent.G, accent.B)),
-            BorderThickness = new Thickness(1),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(12, 9, 12, 9),
             Margin = new Thickness(6, 4, 6, 2),
-            CornerRadius = new CornerRadius(6),
+            SnapsToDevicePixels = true,
         };
+        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var panel = new DockPanel { LastChildFill = true };
 

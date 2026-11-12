@@ -31,24 +31,24 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,4,0" VerticalAlignment="Top">
+                    <Border Grid.Column="0" Background="Transparent" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,1,0" SnapsToDevicePixels="True" Padding="14,6">
                         <Grid x:Name="Btn0Grid" />
                     </Border>
-                    <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0" VerticalAlignment="Top">
+                    <Border Grid.Column="1" Background="Transparent" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,1,0" SnapsToDevicePixels="True" Padding="14,6">
                         <Grid x:Name="Btn1Grid" />
                     </Border>
-                    <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0" VerticalAlignment="Top">
+                    <Border Grid.Column="2" Background="Transparent" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,1,0" SnapsToDevicePixels="True" Padding="14,6">
                         <Grid x:Name="Btn2Grid" />
                     </Border>
-                    <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0" VerticalAlignment="Top">
+                    <Border Grid.Column="3" Background="Transparent" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,1,0" SnapsToDevicePixels="True" Padding="14,6">
                         <Grid x:Name="Btn3Grid" />
                     </Border>
-                    <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="4,0,0,0" VerticalAlignment="Top">
+                    <Border Grid.Column="4" Background="Transparent" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0" SnapsToDevicePixels="True" Padding="14,6">
                         <Grid x:Name="Btn4Grid" />
                     </Border>
                 </Grid>
 
-                <Border x:Name="StreamControllerPanel" Style="{StaticResource CardPanel}" Margin="0,14,0,0" Visibility="Collapsed">
+                <Border x:Name="StreamControllerPanel" Margin="0,14,0,0" Visibility="Collapsed">
                     <Grid x:Name="StreamControllerRoot" />
                 </Border>
             </StackPanel>

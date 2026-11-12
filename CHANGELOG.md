@@ -16,6 +16,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Reduce effects option (Settings > General > Appearance) turns off glows and shadows for a lighter, faster interface.
 
 ### Changed
+- Every page now uses an open layout with no box around each item: each section is a small-caps title over a thin line, and each item is a plain row with a faint divider. This covers Room (device Advanced settings open inline under their row), Lights, On-Screen Display, Mixer (knobs are open columns split by hairlines), Buttons, Groups, Overview, the Dashboard, the tray mixer and the app picker.
+- Settings: Devices shows a side list of devices with an open detail pane and a compact hardware-mode row; General, Profiles and Integrations use sections and plain rows instead of cards.
 - New "open canvas" layout foundation (Controls/OpenCanvas.cs, OPEN_CANVAS.md, Open* styles): sections with hairlines and plain rows instead of a card per item. Settings > General > Startup now uses it.
 - Room > Devices cards are now flat single-surface cards with a color strip on the left (dimmed when the light is off), and name, brightness, Power and Sync on one row (brightness wraps to a second row on narrow windows).
 - New look across the whole app: every page and dialog now shares one glass card style with rounded corners, a matching page header (icon, title and "?" help tip) and consistent section titles.

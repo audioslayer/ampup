@@ -347,16 +347,9 @@ public partial class ButtonsView : UserControl
         BuildStreamControllerDesigner();
         SetupColumnContextMenus();
 
+        // Open canvas: columns are plain areas split by hairlines (XAML); only a subtle hover tint.
         foreach (var card in _columnCards)
-            if (card != null) ApplyGlassCard(card, lift: true);
-        ApplyGlassCard(StreamControllerPanel, lift: false);
-    }
-
-    // Shared glass card chrome (Controls/GlassStyle.cs) so these match the other redesigned pages.
-    private static void ApplyGlassCard(Border card, bool lift)
-    {
-        GlassStyle.ApplyGlassCard(card, 16, accentBorder: true);
-        if (lift) GlassStyle.AttachHoverLift(card);
+            if (card != null) OpenCanvas.AttachHover(card);
     }
 
     private void SetupColumnContextMenus()

@@ -293,11 +293,11 @@ public partial class MixerView : UserControl
 
             strip.MouseEnter += (_, _) =>
             {
-                strip.BorderBrush = _hoverBorderBrush;
+                strip.Background = OpenCanvas.HoverBrush;
             };
             strip.MouseLeave += (_, _) =>
             {
-                strip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+                strip.Background = Brushes.Transparent;
             };
         }
     }
@@ -1865,17 +1865,13 @@ public partial class MixerView : UserControl
         content.Children.Add(MakeSectionHeader(title));
         foreach (var child in children)
             content.Children.Add(child);
-        var border = new Border
+        // Open canvas: no box, just the section content in the column.
+        return new Border
         {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(16),
+            Padding = new Thickness(4, 4, 4, 0),
             Margin = new Thickness(0, 0, 0, 10),
             Child = content,
         };
-        border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        return border;
     }
 
     private Border MakeSeparator(int spacing = 10)

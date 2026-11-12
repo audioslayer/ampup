@@ -346,12 +346,13 @@ public class AppPickerDialog : Window
     {
         var row = new Border
         {
-            Background = (System.Windows.Media.Brush)Application.Current.FindResource("CardBgBrush"),
-            CornerRadius = new CornerRadius(6),
+            Background = System.Windows.Media.Brushes.Transparent,
+            BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(10, 8, 10, 8),
-            Margin = new Thickness(0, 2, 0, 2),
+            SnapsToDevicePixels = true,
             Cursor = Cursors.Hand,
         };
+        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var content = new DockPanel();
 
@@ -417,15 +418,7 @@ public class AppPickerDialog : Window
         row.Child = content;
 
         // Hover effect
-        row.MouseEnter += (_, _) =>
-        {
-            row.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x30,
-                ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
-        };
-        row.MouseLeave += (_, _) =>
-        {
-            row.Background = (System.Windows.Media.Brush)Application.Current.FindResource("CardBgBrush");
-        };
+        OpenCanvas.AttachHover(row);
 
         // Click to select
         row.MouseLeftButtonDown += (_, e) =>

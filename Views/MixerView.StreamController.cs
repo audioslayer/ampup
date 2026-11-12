@@ -62,15 +62,16 @@ public partial class MixerView
             // ── Strip card (knob, label, vol%) ─────────────────────────
             // ClipToBounds keeps the radial glow inside the rounded card;
             // padding moves to the inner StackPanel so the glow can fill edge-to-edge.
+            // Open column: no box, a faint vertical hairline separates channels.
             var stripCard = new Border
             {
-                CornerRadius = new CornerRadius(14),
-                BorderThickness = new Thickness(1),
+                BorderThickness = new Thickness(0, 0, i == ScChannelCount - 1 ? 0 : 1, 0),
                 Padding = new Thickness(0),
-                Margin = new Thickness(i == 0 ? 0 : 4, 0, i == ScChannelCount - 1 ? 0 : 4, 10),
+                Margin = new Thickness(0, 0, 0, 10),
                 ClipToBounds = true,
+                SnapsToDevicePixels = true,
+                Background = Brushes.Transparent,
             };
-            stripCard.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
             stripCard.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
             // Ambient audio-reactive glow layered behind the strip content.

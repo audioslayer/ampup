@@ -83,7 +83,8 @@ public partial class SettingsView
             textDescriptor.AddValueChanged(text, (_, _) => RefreshIntegrationStatuses());
 
         BtnIntegrationSetupGuide.Click += OnIntegrationSetupGuide;
-        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshIntegrationNavSelection);
+        // BeginInvoke: OpenCanvas drops its cached accent brushes in its own OnAccentChanged handler first.
+        ThemeManager.OnAccentChanged += () => Dispatcher.BeginInvoke(RefreshIntegrationNavSelection);
         ThemeManager.OnReduceEffectsChanged += () => Dispatcher.Invoke(RefreshIntegrationNavSelection);
 
         SelectIntegration(_selectedIntegration);
@@ -212,16 +213,14 @@ public partial class SettingsView
 
     private void RefreshIntegrationNavSelection()
     {
-        var accent = ThemeManager.Accent;
         foreach (var entry in _integrations)
         {
             if (entry.Row == null) continue;
             bool active = entry.Id == _selectedIntegration;
-            var (fill, border) = GlassStyle.AccentPillBrushes(accent);
-            entry.Row.Background = active ? fill : Brushes.Transparent;
-            entry.Row.BorderBrush = active ? border : Brushes.Transparent;
-            // Only the selected row glows (GlassStyle: null with Reduce effects).
-            entry.Row.Effect = active ? GlassStyle.GlowEffect(accent, 14, 0.45) : null;
+            // Open-canvas selection: cached accent fill + border, no glow.
+            entry.Row.Background = active ? OpenCanvas.SelectedFill : Brushes.Transparent;
+            entry.Row.BorderBrush = active ? OpenCanvas.SelectedBorder : Brushes.Transparent;
+            entry.Row.Effect = null;
         }
     }
 

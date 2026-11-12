@@ -500,15 +500,14 @@ public partial class LightsView : UserControl
         else
             previewColor = ThemeManager.Accent;
 
+        // Open swatch: no box, hover tint only.
         var card = new Border
         {
             Width = 110,
             CornerRadius = new CornerRadius(8), Padding = new Thickness(8),
             Margin = new Thickness(0, 0, 8, 8), Cursor = Cursors.Hand,
-            BorderThickness = new Thickness(1),
+            Background = Brushes.Transparent,
         };
-        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var stack = new StackPanel();
 
@@ -568,22 +567,7 @@ public partial class LightsView : UserControl
         card.Child = stack;
 
         // Hover effect
-        var presetTransform = new TranslateTransform(0, 0);
-        card.RenderTransform = presetTransform;
-        card.MouseEnter += (s, _) =>
-        {
-            var b = (Border)s!;
-            presetTransform.Y = -1;
-            b.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, previewColor.R, previewColor.G, previewColor.B));
-            b.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        };
-        card.MouseLeave += (s, _) =>
-        {
-            var b = (Border)s!;
-            presetTransform.Y = 0;
-            b.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-            b.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        };
+        OpenCanvas.AttachHover(card);
 
         // Click to apply
         card.MouseLeftButtonUp += (_, _) => ApplyPreset(preset);
@@ -781,10 +765,6 @@ public partial class LightsView : UserControl
                 Child = inner,
                 ToolTip = $"Click to toggle {label}",
             };
-            var toggleTransform = new TranslateTransform(0, 0);
-            toggleBorder.RenderTransform = toggleTransform;
-            toggleBorder.MouseEnter += (_, _) => { toggleTransform.Y = -1; };
-            toggleBorder.MouseLeave += (_, _) => { toggleTransform.Y = 0; };
             toggleBorder.MouseLeftButtonDown += (_, _) =>
             {
                 _ledEnabled[idx] = !_ledEnabled[idx];
@@ -1194,14 +1174,14 @@ public partial class LightsView : UserControl
 
         if (on)
         {
-            border.Background = new SolidColorBrush(Color.FromArgb(0x22, accent.R, accent.G, accent.B));
-            border.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, accent.R, accent.G, accent.B));
+            border.Background = OpenCanvas.SelectedFill;
+            border.BorderBrush = OpenCanvas.SelectedBorder;
             border.Opacity = 1.0;
         }
         else
         {
-            border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-            border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            border.Background = Brushes.Transparent;
+            border.BorderBrush = Brushes.Transparent;
             border.Opacity = 0.4;
         }
 
@@ -1373,20 +1353,15 @@ public partial class LightsView : UserControl
                 if (!_loading) QueueSave();
             };
 
-            // Hover glow — accent border + slightly lighter bg + lift
-            var swatchTransform = new TranslateTransform(0, 0);
-            swatch.RenderTransform = swatchTransform;
+            // Hover: accent border + slightly lighter bg (cached resource brushes, no lift)
             swatch.MouseEnter += (_, _) =>
             {
-                swatchTransform.Y = -1;
-                var accent = ThemeManager.Accent;
-                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B));
+                swatch.SetResourceReference(Border.BorderBrushProperty, "AccentLabel88Brush");
                 swatch.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                 label.Foreground = LightsView.ThemeBrush("TextSecBrush");
             };
             swatch.MouseLeave += (_, _) =>
             {
-                swatchTransform.Y = 0;
                 swatch.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                 swatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
                 label.Foreground = LightsView.ThemeBrush("TextDimBrush");
@@ -1480,15 +1455,16 @@ public partial class LightsView : UserControl
             {
                 Width = 132,
                 Height = 92,
-                CornerRadius = new CornerRadius(8),
+                CornerRadius = new CornerRadius(10),
                 BorderThickness = new Thickness(1),
                 Margin = new Thickness(4, 0, 4, 0),
                 Padding = new Thickness(8, 6, 8, 6),
                 Cursor = Cursors.Hand,
                 ToolTip = "Click to edit this knob",
+                // Open canvas: no box until hovered/selected.
+                Background = Brushes.Transparent,
+                BorderBrush = Brushes.Transparent,
             };
-            card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-            card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
             var content = new StackPanel
             {
@@ -1535,26 +1511,14 @@ public partial class LightsView : UserControl
             content.Children.Add(effectName);
             card.Child = content;
 
-            var selectorTransform = new TranslateTransform(0, 0);
-            card.RenderTransform = selectorTransform;
             card.MouseLeftButtonDown += (_, _) => SelectKnob(idx);
             card.MouseEnter += (_, _) =>
             {
-                selectorTransform.Y = -1;
-                if (_selectedKnob != idx)
-                {
-                    card.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-                    card.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
-                }
+                if (_selectedKnob != idx) card.Background = OpenCanvas.HoverBrush;
             };
             card.MouseLeave += (_, _) =>
             {
-                selectorTransform.Y = 0;
-                if (_selectedKnob != idx)
-                {
-                    card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-                    card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-                }
+                if (_selectedKnob != idx) card.Background = Brushes.Transparent;
             };
 
             _selectorCards[i] = card;
@@ -1591,15 +1555,13 @@ public partial class LightsView : UserControl
         bool active = idx == _selectedKnob;
         if (active)
         {
-            card.Background = new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
-            card.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
-            card.BorderThickness = new Thickness(2);
+            card.Background = OpenCanvas.SelectedFill;
+            card.BorderBrush = OpenCanvas.SelectedBorder;
         }
         else
         {
-            card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-            card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-            card.BorderThickness = new Thickness(1);
+            card.Background = card.IsMouseOver ? OpenCanvas.HoverBrush : Brushes.Transparent;
+            card.BorderBrush = Brushes.Transparent;
         }
 
         card.Opacity = _ledEnabled[idx] ? 1.0 : 0.4;
@@ -3014,7 +2976,16 @@ public partial class LightsView : UserControl
     }
 
     /// <summary>Shared accent-bar section header (UiKit) — theme brushes update live.</summary>
-    private static FrameworkElement MakeSectionHeader(string title) => UiKit.SectionHeader(title);
+    /// <summary>Open canvas section title: small caps dim label over a 1px hairline.</summary>
+    private static FrameworkElement MakeSectionHeader(string title)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var t = new TextBlock { Text = title.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) };
+        t.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        panel.Children.Add(t);
+        panel.Children.Add(OpenCanvas.Divider());
+        return panel;
+    }
 
     private Border MakeSeparator(int spacing = 10)
     {
@@ -3083,14 +3054,13 @@ public partial class LightsView : UserControl
         content.Children.Add(MakeSectionHeader(title));
         foreach (var child in children)
             content.Children.Add(child);
-        var border = new Border
+        // Open canvas section: no fill/border, just spacing above.
+        return new Border
         {
-            Padding = new Thickness(18, 16, 18, 16),
-            Margin = new Thickness(0, 0, 0, 12),
+            Padding = new Thickness(0),
+            Margin = new Thickness(0, 0, 0, OpenCanvas.SectionSpacing),
             Child = content,
         };
-        GlassStyle.ApplyGlassCard(border, 16);
-        return border;
     }
 
     private void RefreshAccentColors()

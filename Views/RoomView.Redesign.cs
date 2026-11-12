@@ -133,8 +133,7 @@ public partial class RoomView
 
     /// <summary>
     /// Pill tab visuals shared by the main Room tab bar and the effect category chips:
-    /// active = accent tint + accent border + soft glow (only the one active pill, via
-    /// GlassStyle.GlowEffect); hover = subtle lift in brightness. Brushes are cached/frozen.
+    /// active = accent tint + accent border (no glow effect); hover = subtle lift in brightness. Brushes are cached/frozen.
     /// The tab's child is either a TextBlock or a StackPanel of [icon, label].
     /// </summary>
     private static void PaintRoomPillTab(Border tab, bool active, bool hover)
@@ -154,7 +153,7 @@ public partial class RoomView
             var (fill, border) = GlassStyle.AccentPillBrushes(a);
             tab.Background = fill;
             tab.BorderBrush = border;
-            tab.Effect = GlassStyle.GlowEffect(a, 14, 0.35);
+            tab.Effect = null;
             if (label != null) { label.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush"); label.FontWeight = FontWeights.Bold; }
             icon?.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
         }
@@ -181,49 +180,109 @@ public partial class RoomView
         return b;
     }
 
-    // ── Cards ───────────────────────────────────────────────────────────
+    // ── Open canvas sections / rows ─────────────────────────────────────
 
-    /// <summary>UiKit.Card restyled as the shared GlassStyle glass card.</summary>
+    /// <summary>
+    /// Open canvas replacement for the old glass card (same CardParts contract). Without a body it
+    /// is a plain row: [icon tile] [title + dim sub] [actions]. With a body it is a section: small
+    /// caps title + dim subtitle, actions right, 1px hairline, then the body on the page background.
+    /// </summary>
     private static UiKit.CardParts RoomCard(Color color, MaterialIconKind icon, string title, string? subtitle,
         FrameworkElement? actions = null, UIElement? body = null, string? help = null)
     {
-        var parts = UiKit.Card(color, icon, title, subtitle, actions, body, help);
-        StyleRoomGlassCard(parts.Root);
-        return parts;
-    }
+        var header = new Grid();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-    private static void StyleRoomGlassCard(Border card)
-    {
-        GlassStyle.ApplyGlassCard(card, 16);
-        card.Margin = new Thickness(0, 0, 0, 14);
+        bool isRow = body == null;
+        if (isRow)
+        {
+            var tile = UiKit.IconTile(color, icon, 30);
+            tile.Margin = new Thickness(0, 0, 12, 0);
+            header.Children.Add(tile);
+        }
+
+        var names = new StackPanel
+        {
+            Orientation = isRow ? Orientation.Vertical : Orientation.Horizontal,
+            VerticalAlignment = isRow ? VerticalAlignment.Center : VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 16, 0),
+        };
+        var t = new TextBlock
+        {
+            Text = isRow ? title : title.ToUpperInvariant(),
+            FontSize = isRow ? 13 : 11,
+            FontWeight = isRow ? FontWeights.Normal : FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        t.SetResourceReference(TextBlock.ForegroundProperty, isRow ? "TextPrimaryBrush" : "TextDimBrush");
+        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
+        titleRow.Children.Add(t);
+        if (!string.IsNullOrEmpty(help))
+        {
+            var tip = UiKit.HelpTip(help, title);
+            tip.Margin = new Thickness(6, 0, 0, 0);
+            titleRow.Children.Add(tip);
+        }
+        names.Children.Add(titleRow);
+        var s = new TextBlock
+        {
+            Text = subtitle ?? "", FontSize = 11, TextWrapping = isRow ? TextWrapping.Wrap : TextWrapping.NoWrap,
+            TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
+            Margin = isRow ? new Thickness(0, 2, 0, 0) : new Thickness(10, 0, 0, 0),
+            Opacity = isRow ? 1 : 0.7,
+            Visibility = string.IsNullOrEmpty(subtitle) ? Visibility.Collapsed : Visibility.Visible,
+        };
+        s.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        names.Children.Add(s);
+        Grid.SetColumn(names, 1);
+        header.Children.Add(names);
+
+        if (actions != null)
+        {
+            actions.VerticalAlignment = VerticalAlignment.Center;
+            actions.HorizontalAlignment = HorizontalAlignment.Right;
+            Grid.SetColumn(actions, 2);
+            header.Children.Add(actions);
+        }
+
+        var bodyHost = new StackPanel();
+        if (isRow)
+        {
+            var row = OpenCanvas.RowShell(header);
+            return new UiKit.CardParts { Root = row, Title = t, Subtitle = s, Body = bodyHost };
+        }
+
+        var stack = new StackPanel();
+        header.Margin = new Thickness(0, 0, 0, 6);
+        stack.Children.Add(header);
+        stack.Children.Add(OpenCanvas.Divider());
+        bodyHost.Margin = new Thickness(4, 12, 4, 0);
+        bodyHost.Children.Add(body!);
+        stack.Children.Add(bodyHost);
+        var section = new Border { Margin = new Thickness(0, OpenCanvas.SectionSpacing, 0, 0), Child = stack };
+        return new UiKit.CardParts { Root = section, Title = t, Subtitle = s, Body = bodyHost };
     }
 
     /// <summary>
-    /// Device card ("colour strip" design): one flat CardBg surface with a 1px hairline border,
-    /// a rounded strip on the left in the light's colour (dimmed while off), then a single row of
-    /// [logo] [name + On/Off pill + detail] [brightness] [controls]; body (Advanced etc.) below.
-    /// Below <see cref="RoomDeviceCardWrapWidth"/> the brightness row wraps under the header.
+    /// Device row (open canvas): no box. A thin bar in the light's colour (dimmed while off), then
+    /// [logo] [name + On/Off pill + detail] [brightness] [controls] on one line with a bottom
+    /// hairline; the body (Advanced etc.) expands inline underneath, indented past the logo.
+    /// Below <see cref="RoomDeviceCardWrapWidth"/> the brightness row wraps under the name.
     /// <paramref name="power"/> is the logical CheckBox model (null = always "on", e.g. Corsair).
     /// </summary>
     private UiKit.CardParts BuildRoomDeviceCard(Color color, FrameworkElement logo, string title, string? subtitle,
         FrameworkElement? controls, UIElement? body, CheckBox? power, FrameworkElement? brightness = null)
     {
-        var card = new Border
-        {
-            Padding = new Thickness(12, 14, 16, 14),
-            Margin = new Thickness(0, 0, 0, 10),
-            CornerRadius = new CornerRadius(14),
-            BorderThickness = new Thickness(1),
-        };
-        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-
         var outer = new Grid();
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        card.Child = outer;
+        var card = OpenCanvas.RowShell(outer);
+        card.Padding = new Thickness(4, 12, 4, 12);
 
-        var strip = new Border { Width = 6, CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 14, 0) };
+        var strip = new Border { Width = 3, CornerRadius = new CornerRadius(1.5), Margin = new Thickness(0, 2, 12, 2) };
         outer.Children.Add(strip);
 
         var stack = new StackPanel();
@@ -240,13 +299,13 @@ public partial class RoomView
         header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         stack.Children.Add(header);
 
-        logo.Margin = new Thickness(0, 0, 14, 0);
+        logo.Margin = new Thickness(0, 0, 12, 0);
         logo.VerticalAlignment = VerticalAlignment.Center;
         header.Children.Add(logo);
 
         var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0), MaxWidth = 280 };
         var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-        var t = new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        var t = new TextBlock { Text = title, FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         t.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         titleRow.Children.Add(t);
         var statusText = new TextBlock { FontSize = 9, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
@@ -262,7 +321,7 @@ public partial class RoomView
         names.Children.Add(titleRow);
         var s = new TextBlock
         {
-            Text = subtitle ?? "", FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 3, 0, 0),
+            Text = subtitle ?? "", FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0),
             Visibility = string.IsNullOrEmpty(subtitle) ? Visibility.Collapsed : Visibility.Visible,
         };
         s.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
@@ -280,6 +339,7 @@ public partial class RoomView
         if (controls != null)
         {
             controls.VerticalAlignment = VerticalAlignment.Center;
+            controls.HorizontalAlignment = HorizontalAlignment.Right;
             controls.Margin = new Thickness(16, 0, 0, 0);
             Grid.SetColumn(controls, 3);
             header.Children.Add(controls);
@@ -299,16 +359,17 @@ public partial class RoomView
         Layout(double.PositiveInfinity);
         card.SizeChanged += (_, e) => { if (e.WidthChanged) Layout(e.NewSize.Width); };
 
+        // Inline expansion area: indented past the logo so it reads as part of this row.
         var bodyHost = new StackPanel();
         if (body != null)
         {
-            bodyHost.Margin = new Thickness(0, 6, 0, 0);
+            bodyHost.Margin = new Thickness(logo.Width > 0 ? logo.Width + 12 : 0, 6, 0, 0);
             bodyHost.Children.Add(body);
         }
         stack.Children.Add(bodyHost);
 
         var stripOn = RoomFrozenBrush(color);
-        var stripOff = RoomFrozenBrush(ThemeManager.WithAlpha(color, 0x55));
+        var stripOff = RoomFrozenBrush(ThemeManager.WithAlpha(color, 0x40));
         void Paint()
         {
             bool on = power == null || power.IsChecked == true;
@@ -323,14 +384,11 @@ public partial class RoomView
             power.Checked += (_, _) => Paint();
             power.Unchecked += (_, _) => Paint();
         }
-        card.MouseEnter += (_, _) => card.BorderBrush = RoomDeviceCardHoverBorder;
-        card.MouseLeave += (_, _) => card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         return new UiKit.CardParts { Root = card, Title = t, Subtitle = s, Body = bodyHost };
     }
 
     private const double RoomDeviceCardWrapWidth = 860;
-    private static readonly Brush RoomDeviceCardHoverBorder = RoomFrozenBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
 
     /// <summary>Inline "Brightness [slider] 42%" for a device card's header row.</summary>
     private DockPanel RoomDeviceBrightnessRow(StyledSlider slider, TextBlock valueLabel)
@@ -358,7 +416,7 @@ public partial class RoomView
     private static readonly Brush RoomStatusOffBorder = RoomFrozenBrush(Color.FromArgb(0x55, 0x9E, 0x9E, 0x9E));
 
     /// <summary>Glass logo tile: bundled/installed app icon when available, otherwise a tinted glyph.</summary>
-    private static Border IntegrationLogoTile(string? app, MaterialIconKind fallback, Color color, double size = 44)
+    private static Border IntegrationLogoTile(string? app, MaterialIconKind fallback, Color color, double size = 36)
     {
         System.Windows.Media.Imaging.BitmapSource? img = null;
         if (app != null)
@@ -381,27 +439,50 @@ public partial class RoomView
         };
     }
 
-    /// <summary>Section header with the integration logo: [logo] GOVEE  3 devices.</summary>
+    /// <summary>Open canvas section header with the integration logo: [logo] GOVEE  3 devices, then a hairline.</summary>
     private static FrameworkElement IntegrationSectionHeader(string? app, MaterialIconKind fallback, Color color, string text, string? count)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 10, 0, 10) };
-        var logo = IntegrationLogoTile(app, fallback, color, 24);
-        logo.Margin = new Thickness(0, 0, 10, 0);
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        var logo = IntegrationLogoTile(app, fallback, color, 18);
+        logo.Margin = new Thickness(0, 0, 8, 0);
         row.Children.Add(logo);
-        var label = new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
-        label.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        var label = new TextBlock { Text = text.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         row.Children.Add(label);
-        var c = new TextBlock { Text = count ?? "", FontSize = 11, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var c = new TextBlock { Text = count ?? "", FontSize = 11, Opacity = 0.7, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         c.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         row.Children.Add(c);
-        return row;
+        var panel = new StackPanel { Margin = new Thickness(0, OpenCanvas.SectionSpacing, 0, 0) };
+        panel.Children.Add(row);
+        panel.Children.Add(OpenCanvas.Divider());
+        return panel;
+    }
+
+    /// <summary>Strips the dark box off a UiKit.ListContainer so its rows sit on the page background.</summary>
+    private static void OpenListContainer(Border list)
+    {
+        list.ClearValue(Border.BackgroundProperty);
+        list.BorderThickness = new Thickness(0);
+        list.CornerRadius = new CornerRadius(0);
+        list.Padding = new Thickness(0);
+    }
+
+    /// <summary>UiKit.ListRow as an open row: square corners and a 1px bottom hairline.</summary>
+    private static void OpenListRow(Border row)
+    {
+        row.CornerRadius = new CornerRadius(0);
+        row.MinHeight = 48;
+        row.Padding = new Thickness(4, 8, 4, 8);
+        row.BorderThickness = new Thickness(0, 0, 0, 1);
+        row.SnapsToDevicePixels = true;
+        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
     }
 
     /// <summary>Accent call-to-action button used in empty states.</summary>
     private static Border RoomCtaButton(MaterialIconKind kind, string label, Action onClick) =>
         RoomHeroButton(kind, label, label, onClick);
 
-    /// <summary>Big glass empty state with an accent icon tile and calls to action.</summary>
+    /// <summary>Open empty state (no box): accent icon tile, text and calls to action on the page background.</summary>
     private static Border RoomEmptyState(MaterialIconKind icon, string title, string body, params FrameworkElement[] actions)
     {
         var a = ThemeManager.Accent;
@@ -410,20 +491,12 @@ public partial class RoomView
             Padding = new Thickness(28, 26, 28, 26),
             Margin = new Thickness(0, 0, 0, 14),
         };
-        GlassStyle.ApplyGlassCard(card, 16, accentBorder: true);
         var (tileFill, tileBorder) = GlassStyle.AccentPillBrushes(a);
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
         card.Child = stack;
         var tileIcon = new MaterialIcon { Kind = icon, Width = 26, Height = 26 };
         tileIcon.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
-        // Cheap faux glow behind the tile instead of a DropShadowEffect.
         var tileHost = new Grid { HorizontalAlignment = HorizontalAlignment.Center };
-        tileHost.Children.Add(new Border
-        {
-            Width = 84, Height = 84, Margin = new Thickness(-16),
-            Background = GlassStyle.FauxGlow(a, 42),
-            IsHitTestVisible = false,
-        });
         tileHost.Children.Add(new Border
         {
             Width = 52, Height = 52,

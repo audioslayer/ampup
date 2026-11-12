@@ -225,12 +225,11 @@ public partial class OsdView : UserControl
         Grid.SetColumn(osdPreview, 1);
         overlaySplit.Children.Add(osdPreview);
 
-        var popupsCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.BellOutline,
-            "On-Screen Overlays", "Quick feedback over any app, and where it shows up", null, overlaySplit,
+        var popupsCard = OpenSection(
+            "On-Screen Overlays", "Quick feedback over any app, and where it shows up", overlaySplit,
             help: "Small cards that fade in when something changes, then fade out on their own. " +
                   "Turn each one on or off, set how long it stays, and pick the monitor and corner.\n\n" +
-                  "The preview on the right shows where it lands; click it to see a real one on your screen.").Root;
-        StyleGlassCard(popupsCard);
+                  "The preview on the right shows where it lands; click it to see a real one on your screen.");
         overlaysTab.Children.Add(popupsCard);
 
         // ══════════════════ QUICK WHEELS ══════════════════
@@ -281,20 +280,50 @@ public partial class OsdView : UserControl
             "Look", new Thickness(0, 4, 0, 10)));
         wheelBody.Children.Add(BuildLookSection());
 
-        var wheelCard = UiKit.Card(WheelColor, MaterialIconKind.ChartDonut,
-            "Quick Wheels", "Hold a button, turn a knob, let go to pick", null, wheelBody,
+        var wheelCard = OpenSection(
+            "Quick Wheels", "Hold a button, turn a knob, let go to pick", wheelBody,
             help: "A radial menu for things you switch often, like profiles, audio devices, media controls or your own shortcuts.\n\n" +
                   "1. Hold the trigger button\n2. Turn any knob to move the highlight\n3. Let go to pick\n\n" +
-                  "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.").Root;
-        StyleGlassCard(wheelCard);
+                  "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.");
         wheelsTab.Children.Add(wheelCard);
     }
 
-    /// <summary>UiKit.Card as a big rounded glass card (same as the Room / Settings cards).</summary>
-    private static void StyleGlassCard(System.Windows.Controls.Border card)
+    /// <summary>
+    /// Open canvas section (no box): small caps dim title + dim subtitle + help, 1px hairline,
+    /// then the body on the page background.
+    /// </summary>
+    private static System.Windows.Controls.Border OpenSection(string title, string? subtitle, UIElement body, string? help = null)
     {
-        GlassStyle.ApplyGlassCard(card, 16);
-        card.Margin = new Thickness(0, 0, 0, 14);
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        var t = new TextBlock { Text = title.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        t.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        head.Children.Add(t);
+        if (!string.IsNullOrEmpty(subtitle))
+        {
+            var sub = new TextBlock { Text = subtitle, FontSize = 11, Opacity = 0.7, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+            sub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            head.Children.Add(sub);
+        }
+        if (!string.IsNullOrEmpty(help))
+        {
+            var tip = UiKit.HelpTip(help, title);
+            tip.Margin = new Thickness(6, 0, 0, 0);
+            head.Children.Add(tip);
+        }
+        var stack = new StackPanel();
+        stack.Children.Add(head);
+        stack.Children.Add(OpenCanvas.Divider());
+        if (body is FrameworkElement fe) fe.Margin = new Thickness(4, 12, 4, 0);
+        stack.Children.Add(body);
+        return new System.Windows.Controls.Border { Margin = new Thickness(0, OpenCanvas.SectionSpacing, 0, 0), Child = stack };
+    }
+
+    /// <summary>Open canvas sub-section title (small caps, dim) used inside the Look editor.</summary>
+    private static FrameworkElement OsdSubTitle(string text)
+    {
+        var t = new TextBlock { Text = text.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 8) };
+        t.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        return t;
     }
 
 
@@ -406,7 +435,7 @@ public partial class OsdView : UserControl
         }
 
         // ── PRESETS ── one click sets every option below
-        left.Children.Add(UiKit.SectionHeader("PRESETS"));
+        left.Children.Add(OsdSubTitle("PRESETS"));
         var presetWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
         foreach (var p in WheelPresets) presetWrap.Children.Add(MakePresetTile(p));
         left.Children.Add(presetWrap);
@@ -415,7 +444,7 @@ public partial class OsdView : UserControl
         var colB = new StackPanel();
 
         // ── SIZE ──
-        colA.Children.Add(UiKit.SectionHeader("SIZE"));
+        colA.Children.Add(OsdSubTitle("SIZE"));
         _sldLookScale = NewSlider(60, 160, "How big the Quick Wheels are");
         _lblLookScale = NewVal();
         _sldLookBg = NewSlider(10, 100, "How solid the dark background is. Lower lets more of the screen show through.");
@@ -431,7 +460,7 @@ public partial class OsdView : UserControl
         HookLookSlider(_sldLookGlow, _lblLookGlow, (o, v) => o.WheelLook.Glow = v);
 
         // ── COLOR ──
-        colA.Children.Add(UiKit.SectionHeader("COLOR"));
+        colA.Children.Add(OsdSubTitle("COLOR"));
         _lookSwatches = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
         colA.Children.Add(_lookSwatches);
         _segColors = NewSeg((l, v) => l.SegmentColors = v, ("Item", "Per item"), ("Accent", "One color"), ("Rainbow", "Rainbow"));
@@ -439,7 +468,7 @@ public partial class OsdView : UserControl
             "Per item: each item keeps its own color. One color: every segment uses the color above. Rainbow: a rainbow around the ring."));
 
         // ── RING ──
-        colB.Children.Add(UiKit.SectionHeader("RING"));
+        colB.Children.Add(OsdSubTitle("RING"));
         _segRing = NewSeg((l, v) => l.RingThickness = v, ("Thin", "Thin"), ("Normal", "Normal"), ("Thick", "Thick"));
         _segGap = NewSeg((l, v) => l.SegmentGap = v, ("None", "None"), ("Small", "Small"), ("Wide", "Wide"));
         _segHighlight = NewSeg((l, v) => l.Highlight = v, ("Fill", "Solid"), ("Outline", "Outline"));
@@ -451,7 +480,7 @@ public partial class OsdView : UserControl
             "What the middle shows: Full = icon, name, item type and the ACTIVE badge"));
 
         // ── ANIMATION ──
-        colB.Children.Add(UiKit.SectionHeader("ANIMATION"));
+        colB.Children.Add(OsdSubTitle("ANIMATION"));
         _segAnim = NewSeg((l, v) => l.Animation = v, ("Fade", "Fade"), ("Pop", "Pop"), ("Spin", "Spin"), ("None", "None"));
         var animRow = MakeLookRow("Open with", _segAnim, "How the wheel appears when you hold the button");
         animRow.Margin = new Thickness(0);
