@@ -15,6 +15,22 @@ public class HAEntity
     public string Domain => EntityId.Contains('.') ? EntityId.Split('.')[0] : "";
 }
 
+/// <summary>Light entity details for the Room > Devices discovery dialog. Every attribute is optional.</summary>
+public class HALightInfo
+{
+    public string EntityId { get; set; } = "";
+    public string FriendlyName { get; set; } = "";
+    public string Area { get; set; } = "";
+    public string State { get; set; } = ""; // "on" | "off" | "unavailable" | ...
+    public bool IsOn => string.Equals(State, "on", StringComparison.OrdinalIgnoreCase);
+    public bool IsUnavailable => string.Equals(State, "unavailable", StringComparison.OrdinalIgnoreCase);
+    public bool SupportsColor { get; set; }
+    public bool SupportsColorTemp { get; set; }
+    public bool SupportsBrightness { get; set; }
+    public int? Brightness { get; set; } // 0-255 when on
+    public (byte R, byte G, byte B)? Rgb { get; set; }
+}
+
 public class HAIntegration : IDisposable
 {
     private HttpClient? _http;
@@ -244,6 +260,149 @@ public class HAIntegration : IDisposable
             entity_id = entityId,
             rgb_color = new[] { (int)r, (int)g, (int)b },
             brightness = Math.Clamp(brightness, 1, 255),
+        });
+    }
+
+    /// <summary>
+    /// Set several lights to the same RGB color in a single light.turn_on call (room sync batching).
+    /// </summary>
+    public async Task SetLightsColorAsync(string[] entityIds, byte r, byte g, byte b, int brightness = 255)
+    {
+        if (entityIds.Length == 0) return;
+        await CallServiceInternalAsync("light", "turn_on", new
+        {
+            entity_id = entityIds,
+            rgb_color = new[] { (int)r, (int)g, (int)b },
+            brightness = Math.Clamp(brightness, 1, 255),
+        });
+    }
+
+    /// <summary>
+    /// Read on/off + brightness (0-255) for light entities in one /api/states request.
+    /// Entities missing from HA are omitted. Returns null when HA could not be reached.
+    /// </summary>
+    public async Task<Dictionary<string, (bool On, int Brightness)>?> GetLightStatesAsync(IEnumerable<string> entityIds)
+    {
+        if (_http == null) return null;
+        var wanted = new HashSet<string>(entityIds, StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, (bool On, int Brightness)>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var resp = await _http.GetAsync("/api/states");
+            if (!resp.IsSuccessStatusCode) return null;
+            var states = JArray.Parse(await resp.Content.ReadAsStringAsync());
+            foreach (var state in states)
+            {
+                var entityId = state["entity_id"]?.ToString() ?? "";
+                if (!wanted.Contains(entityId)) continue;
+                bool on = string.Equals(state["state"]?.ToString(), "on", StringComparison.OrdinalIgnoreCase);
+                int brightness = state["attributes"]?["brightness"]?.Type == JTokenType.Integer
+                    ? (int)state["attributes"]!["brightness"]!
+                    : (on ? 255 : 0);
+                result[entityId] = (on, Math.Clamp(brightness, 0, 255));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"HA GetLightStates failed: {ex.Message}");
+            return null;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// All light.* entities with capabilities and current state, plus their HA area when the
+    /// template API can resolve it (areas aren't in /api/states). Missing attributes are tolerated.
+    /// </summary>
+    public async Task<List<HALightInfo>> GetLightDetailsAsync()
+    {
+        var result = new List<HALightInfo>();
+        if (_http == null) return result;
+
+        try
+        {
+            using var resp = await _http.GetAsync("/api/states");
+            if (!resp.IsSuccessStatusCode) return result;
+            var states = JArray.Parse(await resp.Content.ReadAsStringAsync());
+            foreach (var state in states)
+            {
+                var entityId = state["entity_id"]?.ToString() ?? "";
+                if (!entityId.StartsWith("light.")) continue;
+                var attrs = state["attributes"] as JObject;
+                var info = new HALightInfo
+                {
+                    EntityId = entityId,
+                    FriendlyName = attrs?["friendly_name"]?.ToString() ?? entityId,
+                    State = state["state"]?.ToString() ?? "",
+                };
+
+                if (attrs?["supported_color_modes"] is JArray modes)
+                {
+                    foreach (var m in modes)
+                    {
+                        switch (m.ToString())
+                        {
+                            case "rgb": case "rgbw": case "rgbww": case "hs": case "xy":
+                                info.SupportsColor = true; info.SupportsBrightness = true; break;
+                            case "color_temp":
+                                info.SupportsColorTemp = true; info.SupportsBrightness = true; break;
+                            case "brightness": case "white":
+                                info.SupportsBrightness = true; break;
+                        }
+                    }
+                }
+
+                if (attrs?["brightness"]?.Type == JTokenType.Integer)
+                    info.Brightness = Math.Clamp((int)attrs["brightness"]!, 0, 255);
+                if (attrs?["rgb_color"] is JArray rgb && rgb.Count >= 3
+                    && rgb.All(v => v.Type == JTokenType.Integer || v.Type == JTokenType.Float))
+                    info.Rgb = ((byte)Math.Clamp((int)rgb[0], 0, 255),
+                                (byte)Math.Clamp((int)rgb[1], 0, 255),
+                                (byte)Math.Clamp((int)rgb[2], 0, 255));
+                result.Add(info);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"HA GetLightDetails failed: {ex.Message}");
+            return result;
+        }
+
+        // Areas: best effort through the template API (older HA / restricted tokens just skip).
+        try
+        {
+            const string template =
+                "{% for s in states.light %}{{ s.entity_id }}\t{{ area_name(s.entity_id) or '' }}\n{% endfor %}";
+            var json = JsonConvert.SerializeObject(new { template });
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
+            using var resp = await _http.PostAsync("/api/template", content);
+            if (resp.IsSuccessStatusCode)
+            {
+                var areas = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var line in (await resp.Content.ReadAsStringAsync()).Split('\n'))
+                {
+                    var parts = line.Split('\t');
+                    if (parts.Length == 2 && parts[1].Trim().Length > 0)
+                        areas[parts[0].Trim()] = parts[1].Trim();
+                }
+                foreach (var info in result)
+                    if (areas.TryGetValue(info.EntityId, out var area))
+                        info.Area = area;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"HA light areas unavailable: {ex.Message}");
+        }
+
+        return result;
+    }
+
+    public async Task SetLightPowerAsync(string entityId, bool on)
+    {
+        await CallServiceInternalAsync("light", on ? "turn_on" : "turn_off", new
+        {
+            entity_id = entityId
         });
     }
 
