@@ -76,7 +76,7 @@ public class WelcomeDialog : Window
             BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, accent.R, accent.G, accent.B)),
             Margin = new Thickness(0, 0, 14, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            Effect = new DropShadowEffect { Color = accent, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.35 },
+            Effect = AmpUp.Controls.GlassStyle.GlowEffect(accent, 18, 0.35),
         };
         try
         {

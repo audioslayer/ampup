@@ -83,7 +83,7 @@ public partial class ImportWizardWindow : Window
         RootPanel.BorderBrush = borderBrush;
         HeaderTile.Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x26));
         HeaderTile.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
-        HeaderTile.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = accent, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.35 };
+        HeaderTile.Effect = AmpUp.Controls.GlassStyle.GlowEffect(accent, 18, 0.35);
         HeaderIcon.Foreground = new SolidColorBrush(accent);
         var closeBtn = AmpUp.Controls.UiKit.IconButton(Material.Icons.MaterialIconKind.Close, "Cancel (Esc)", _ => Close(), size: 26);
         // Keep the window-level drag handler from swallowing the click
