@@ -22,8 +22,6 @@ public class AppConfig
     public double GammaB { get; set; } = 1.0;
     public string AccentColor { get; set; } = "#00E676";
     public string CardTheme { get; set; } = "Midnight";
-    /// <summary>Appearance: turn off glows and shadows for a lighter, faster interface.</summary>
-    public bool ReduceEffects { get; set; } = false;
     public string ActiveProfile { get; set; } = "Default";
     public List<string> Profiles { get; set; } = new() { "Default" };
     public Dictionary<string, string> ProfileEmojis { get; set; } = new();
@@ -781,9 +779,6 @@ public class AmbienceConfig
     /// <summary>Device IDs (Cloud) or IPs (LAN) the user removed. Scans will skip them
     /// so deleted devices don't silently reappear.</summary>
     public List<string> HiddenGoveeDeviceIds { get; set; } = new();
-    /// <summary>Home Assistant light entities added in Room > Devices. Driven by room effects
-    /// through HALightSync (rate limited, not real-time).</summary>
-    public List<HALightConfig> HomeAssistantLights { get; set; } = new();
     public bool LinkToLights { get; set; } = false;
     public bool SyncRoomToTurnUp { get; set; } = false;
     public int MusicSensitivity { get; set; } = 50; // 1-100, controls music reactive intensity
@@ -816,24 +811,6 @@ public class AmbienceConfig
     public bool RoomColorsAuto { get; set; } = true; // scenes use their own signature colors instead of the custom palette
     public int RoomTemperatureKelvin { get; set; } = 3500;
     public int RoomEffectSpeed { get; set; } = 50;
-}
-
-public class HALightConfig
-{
-    public string EntityId { get; set; } = ""; // e.g. "light.office_lamp"
-    public string Name { get; set; } = "";
-    public bool Enabled { get; set; } = true;
-    /// <summary>Tracks user's on/off intent. When false, room effects won't send colors (which would turn it on).</summary>
-    public bool PoweredOn { get; set; } = true;
-    /// <summary>When false, AmpUp leaves this light out of room effect pushes.</summary>
-    public bool SyncWithAmpUp { get; set; } = true;
-    /// <summary>Opt-in: follow Screen Sync too. Off by default — HA is much slower than Govee LAN.</summary>
-    public bool ScreenSync { get; set; } = false;
-    /// <summary>Per-light brightness scale for AmpUp-driven room/effect colors.</summary>
-    public int BrightnessScale { get; set; } = 100;
-    public int WhiteBalanceR { get; set; } = 100;
-    public int WhiteBalanceG { get; set; } = 100;
-    public int WhiteBalanceB { get; set; } = 100;
 }
 
 public class GoveeDeviceConfig

@@ -19,7 +19,7 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Active Streams -->
-                <Border Grid.Column="0" Padding="4,10">
+                <Border Grid.Column="0" Style="{StaticResource CardPanel}" Padding="16,14">
                     <StackPanel>
                         <TextBlock x:Name="StreamCountLabel" Text="0"
                                    FontSize="28" FontWeight="Black"
@@ -32,7 +32,7 @@
                 </Border>
 
                 <!-- Master Volume -->
-                <Border Grid.Column="2" Padding="4,10">
+                <Border Grid.Column="2" Style="{StaticResource CardPanel}" Padding="16,14">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <TextBlock x:Name="MasterVolLabel" Text="—"
@@ -50,7 +50,7 @@
                 </Border>
 
                 <!-- Output Device -->
-                <Border Grid.Column="4" Padding="4,10">
+                <Border Grid.Column="4" Style="{StaticResource CardPanel}" Padding="16,14">
                     <StackPanel>
                         <TextBlock Text="&#xE1B0;" FontFamily="pack://application:,,,/Fonts/#Material Symbols Outlined"
                                    FontSize="18" Foreground="{DynamicResource AccentBrush}"
@@ -68,7 +68,7 @@
                 </Border>
 
                 <!-- Input Device -->
-                <Border Grid.Column="6" Padding="4,10">
+                <Border Grid.Column="6" Style="{StaticResource CardPanel}" Padding="16,14">
                     <StackPanel>
                         <TextBlock Text="&#xE029;" FontFamily="pack://application:,,,/Fonts/#Material Symbols Outlined"
                                    FontSize="18" Foreground="{DynamicResource AccentBrush}"
@@ -87,14 +87,16 @@
             </Grid>
 
             <!-- ── SESSION LIST ───────────────────────────────────── -->
-            <!-- Open section: caps title + hairline, rows on the page background (no card). -->
-            <Border>
+            <Border Style="{StaticResource CardPanel}">
                 <StackPanel>
-                    <TextBlock Text="AUDIO SESSIONS" Style="{StaticResource OpenSectionTitle}" />
-                    <Border Style="{StaticResource OpenSectionRule}" Margin="0,0,0,8" />
+                    <!-- Header row -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Border Width="3" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" />
+                        <TextBlock Text="AUDIO SESSIONS" Style="{StaticResource HeaderText}" Margin="0" />
+                    </StackPanel>
 
                     <!-- Column headers -->
-                    <Grid Margin="4,0,4,6">
+                    <Grid Margin="0,0,0,6">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="36" />
                             <ColumnDefinition Width="*" />

@@ -65,17 +65,78 @@ public class GoveeSetupGuide : Window
             BorderBrush = CardBorder,
             BorderThickness = new Thickness(1),
             Background = BgBase,
-            CornerRadius = new CornerRadius(12),
         };
 
         var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(64) });   // title bar
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(48) });   // title bar
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // content
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(80) });   // nav bar
 
-        // --- Title bar (shared modal header) ---
-        var titleBar = IntegrationSetupGuide.BuildGuideHeader(this, "💡", "Govee Setup Guide", AccentBrush.Color, () => { DialogResult = false; Close(); });
+        // --- Title bar ---
+        var titleBar = new Grid { Background = Res("BgDarkBrush") };
+        titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        titleBar.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ButtonState == MouseButtonState.Pressed) try { DragMove(); } catch (InvalidOperationException) { }
+        };
+
+        var titleStack = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16, 0, 0, 0)
+        };
+
+        var titleIcon = new TextBlock
+        {
+            Text = "💡",
+            FontSize = 16,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        var titleText = new TextBlock
+        {
+            Text = "Govee Setup Guide",
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = TextPrimary,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        titleStack.Children.Add(titleIcon);
+        titleStack.Children.Add(titleText);
+        Grid.SetColumn(titleStack, 0);
+
+        var closeBtn = new Button
+        {
+            Content = "✕",
+            Width = 48,
+            Height = 48,
+            Background = Brushes.Transparent,
+            Foreground = TextSec,
+            BorderThickness = new Thickness(0),
+            FontSize = 14,
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        closeBtn.Click += (_, _) => { DialogResult = false; Close(); };
+        closeBtn.MouseEnter += (_, _) => closeBtn.Foreground = DangerRed;
+        closeBtn.MouseLeave += (_, _) => closeBtn.Foreground = TextSec;
+        Grid.SetColumn(closeBtn, 1);
+
+        titleBar.Children.Add(titleStack);
+        titleBar.Children.Add(closeBtn);
         Grid.SetRow(titleBar, 0);
+
+        // Separator under title bar
+        var titleSep = new Border
+        {
+            Height = 1,
+            Background = CardBorder,
+            VerticalAlignment = VerticalAlignment.Bottom
+        };
+        titleBar.Children.Add(titleSep);
 
         // --- Step content area ---
         _stepContent = new ContentPresenter
@@ -142,7 +203,13 @@ public class GoveeSetupGuide : Window
             BorderThickness = new Thickness(2),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 24),
-            Effect = GlassStyle.GlowEffect(circleColor, 20, 0.25)
+            Effect = new DropShadowEffect
+            {
+                Color = circleColor,
+                BlurRadius = 20,
+                ShadowDepth = 0,
+                Opacity = 0.25
+            }
         };
         var iconText = new TextBlock
         {
@@ -219,7 +286,13 @@ public class GoveeSetupGuide : Window
             BorderThickness = new Thickness(2),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 24),
-            Effect = GlassStyle.GlowEffect(Color.FromRgb(0x00, 0xE6, 0x76), 20, 0.25)
+            Effect = new DropShadowEffect
+            {
+                Color = Color.FromRgb(0x00, 0xE6, 0x76),
+                BlurRadius = 20,
+                ShadowDepth = 0,
+                Opacity = 0.25
+            }
         };
         iconCard.Child = new TextBlock
         {

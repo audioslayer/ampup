@@ -35,13 +35,13 @@ public partial class MixerView
 
     private void BuildSmartMixSection()
     {
-        SmartMixContent.Children.Add(OpenHeader("Smart Mix", out _));
+        SmartMixContent.Children.Add(UiKit.SectionHeader("SMART MIX"));
         var intro = new TextBlock
         {
             Text = "Automatic mixing that follows what you're doing — lower music while people talk, and switch profiles with the app in focus.",
-            FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 8, 0, 4),
+            FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, -4, 0, 12),
         };
-        intro.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        intro.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         SmartMixContent.Children.Add(intro);
 
         SmartMixContent.Children.Add(BuildDuckingCard());
@@ -61,13 +61,13 @@ public partial class MixerView
 
         // Trigger
         _duckBody.Children.Add(SubLabel("WHEN THIS APP IS PLAYING", null, out _));
-        _duckBody.Children.Add(OpenList(out _duckTriggerRows));
+        _duckBody.Children.Add(UiKit.ListContainer(out _duckTriggerRows));
 
         // Targets
         var targetsLabel = SubLabel("LOWER THESE APPS", "", out _duckTargetCount);
         targetsLabel.Margin = new Thickness(0, 14, 0, 6);
         _duckBody.Children.Add(targetsLabel);
-        _duckBody.Children.Add(OpenList(out _duckTargetRows));
+        _duckBody.Children.Add(UiKit.ListContainer(out _duckTargetRows));
 
         // Amount + fades
         var sliders = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
@@ -79,8 +79,10 @@ public partial class MixerView
             0, 3000, 10, 500, v => $"{(int)v} ms", out _duckFadeInSlider, out _duckFadeInLabel));
         _duckBody.Children.Add(sliders);
 
-        return OpenFeature(SmartDuckColor, MaterialIconKind.AccountVoice, "Voice ducking",
-            "Lower other apps while a voice or call app is playing audio.", sw, _duckBody, divider: true, afterBuild: RebuildDuckLists);
+        var card = UiKit.Card(SmartDuckColor, MaterialIconKind.AccountVoice, "Voice ducking",
+            "Lower other apps while a voice or call app is playing audio.", sw, _duckBody);
+        RebuildDuckLists();
+        return card.Root;
     }
 
     private FrameworkElement BuildAutoSwitchCard()
@@ -95,7 +97,7 @@ public partial class MixerView
         _autoBody = new StackPanel { Visibility = Visibility.Collapsed };
 
         _autoBody.Children.Add(SubLabel("RULES", "", out _autoRuleCount));
-        _autoBody.Children.Add(OpenList(out _autoRuleRows));
+        _autoBody.Children.Add(UiKit.ListContainer(out _autoRuleRows));
 
         // Revert option
         var revertSw = MakeSmartSwitch(on => { _autoSwitchRevert = on; OnSmartMixChanged(null, EventArgs.Empty); },
@@ -115,56 +117,10 @@ public partial class MixerView
         revertRow.Children.Add(revertSw);
         _autoBody.Children.Add(revertRow);
 
-        return OpenFeature(SmartProfileColor, MaterialIconKind.SwapHorizontal, "Auto profile switching",
-            "Switch to a profile automatically when a specific app is in focus.", sw, _autoBody, divider: false, afterBuild: RebuildAutoSwitchRules);
-    }
-
-    // ── Open canvas helpers (local; OpenCanvas.Section has no live count out-param) ──
-
-    /// <summary>Open section header: caps dim title, optional live count, 1px hairline. No box.</summary>
-    internal static FrameworkElement OpenHeader(string title, out TextBlock countText)
-    {
-        var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
-        var names = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-        var t = new TextBlock { Text = title.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.SemiBold };
-        t.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        names.Children.Add(t);
-        countText = new TextBlock { FontSize = 11, Margin = new Thickness(8, 0, 0, 0), Opacity = 0.7 };
-        countText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        names.Children.Add(countText);
-        panel.Children.Add(names);
-        panel.Children.Add(OpenCanvas.Divider());
-        return panel;
-    }
-
-    /// <summary>Plain list host on the page background (replaces the boxed UiKit.ListContainer).</summary>
-    internal static Border OpenList(out StackPanel rows)
-    {
-        rows = new StackPanel();
-        return new Border { Background = Brushes.Transparent, Child = rows };
-    }
-
-    /// <summary>Open feature row: [icon tile] [title + sub] [switch], body expands inline under a hairline indent.</summary>
-    private static FrameworkElement OpenFeature(Color color, MaterialIconKind icon, string title, string subtitle,
-        FrameworkElement sw, FrameworkElement body, bool divider, Action afterBuild)
-    {
-        var root = new StackPanel();
-        root.Children.Add(OpenCanvas.Row(UiKit.IconTile(color, icon, 30), title, subtitle, sw, divider: false));
-        var indent = new Border
-        {
-            Margin = new Thickness(18, 0, 0, 12),
-            Padding = new Thickness(20, 4, 4, 4),
-            BorderThickness = new Thickness(1, 0, 0, 0),
-            SnapsToDevicePixels = true,
-            Child = body,
-        };
-        indent.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        // The indent follows the body's visibility so a collapsed feature leaves no gap.
-        indent.SetBinding(UIElement.VisibilityProperty, new System.Windows.Data.Binding(nameof(Visibility)) { Source = body });
-        root.Children.Add(indent);
-        if (divider) root.Children.Add(OpenCanvas.Divider());
-        afterBuild();
-        return root;
+        var card = UiKit.Card(SmartProfileColor, MaterialIconKind.SwapHorizontal, "Auto profile switching",
+            "Switch to a profile automatically when a specific app is in focus.", sw, _autoBody);
+        RebuildAutoSwitchRules();
+        return card.Root;
     }
 
     // ── Load / collect ─────────────────────────────────────────────────

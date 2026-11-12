@@ -1,43 +1,19 @@
 using System.Windows;
 using System.Windows.Controls;
-using AmpUp.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using AmpUp.Core.Models;
-using Material.Icons;
 
 namespace AmpUp.Views;
 
-// Devices (Hardware) settings page: compact mode chooser, then a side list of devices with the
-// selected device's open detail on the right (OpenCanvas.MasterDetail).
-// SegHardwareMode (hidden) stays the source of truth; the mode options just drive and mirror it.
+// Devices (Hardware) settings page: mode chooser cards, device cards with photo slots.
+// SegHardwareMode (hidden) stays the source of truth; the cards just drive and mirror it.
 public partial class SettingsView
 {
-    private readonly System.Windows.Shapes.Ellipse _devListDotTurnUp = NewDeviceListDot();
-    private readonly System.Windows.Shapes.Ellipse _devListDotStreamController = NewDeviceListDot();
-
-    private static System.Windows.Shapes.Ellipse NewDeviceListDot() => new() { Width = 7, Height = 7 };
-
-    /// <summary>Moves the two device detail Borders out of DeviceCardGrid into a side list + open detail.</summary>
-    private void BuildDeviceMasterDetail()
-    {
-        if (DeviceCardGrid.Parent is not Panel host) return;
-        DeviceCardGrid.Children.Remove(DevCardTurnUp);
-        DeviceCardGrid.Children.Remove(DevCardStreamController);
-        DeviceCardGrid.Visibility = Visibility.Collapsed;
-
-        var md = new OpenCanvas.MasterDetail();
-        md.AddItem("turnup", "Turn Up", MaterialIconKind.Knob, _devListDotTurnUp);
-        md.AddItem("n3", "Stream Controller", MaterialIconKind.ViewGridOutline, _devListDotStreamController);
-        md.SelectionChanged += key => md.ContentHost.Child = key == "n3" ? DevCardStreamController : DevCardTurnUp;
-        md.ContentHost.Child = md.SelectedKey == "n3" ? DevCardStreamController : DevCardTurnUp;
-        host.Children.Insert(host.Children.IndexOf(DeviceCardGrid) + 1, md);
-    }
-
     private void InitDevicesPage()
     {
-        BuildDeviceMasterDetail();
         LoadDeviceImage("turnup", ImgTurnUp, ArtTurnUp);
         LoadDeviceImage("n3", ImgStreamController, ArtStreamController);
         BtnBuyN3.Click += (_, _) =>
@@ -49,11 +25,10 @@ public partial class SettingsView
         ConnectionCard.SizeChanged += (_, e) =>
         {
             double w = e.NewSize.Width;
+            DeviceCardGrid.Columns = w < 780 ? 1 : 2;
             ModeCardGrid.Columns = w < 640 ? 2 : 4;
         };
-        // BeginInvoke: OpenCanvas drops its cached accent brushes in its own OnAccentChanged handler first.
-        ThemeManager.OnAccentChanged += () => Dispatcher.BeginInvoke(RefreshDevicesPage);
-        ThemeManager.OnReduceEffectsChanged += () => Dispatcher.Invoke(RefreshDevicesPage);
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshDevicesPage);
         RefreshDevicesPage();
     }
 
@@ -108,9 +83,9 @@ public partial class SettingsView
         {
             bool on = i == sel;
             var (card, check) = cards[i];
-            // Open option: cached accent fill/border on the selected one only, no glow.
-            card.Background = on ? OpenCanvas.SelectedFill : Brushes.Transparent;
-            card.BorderBrush = on ? OpenCanvas.SelectedBorder : Brushes.Transparent;
+            card.SetResourceReference(Border.BorderBrushProperty, on ? "AccentBrush" : "CardBorderBrush");
+            card.SetResourceReference(Border.BackgroundProperty, on ? "AccentBg30Brush" : "BgDarkBrush");
+            card.Effect = on ? MakeGlow(22, 0.45) : null;
             check.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -119,8 +94,6 @@ public partial class SettingsView
         bool scAllowed = mode != HardwareMode.TurnUpOnly;
         StyleDeviceCard(DevCardTurnUp, _turnUpConnected, turnUpAllowed);
         StyleDeviceCard(DevCardStreamController, _streamControllerConnected, scAllowed);
-        StyleDeviceListDot(_devListDotTurnUp, _turnUpConnected, turnUpAllowed);
-        StyleDeviceListDot(_devListDotStreamController, _streamControllerConnected, scAllowed);
 
         // "Drives tabs" pills mirror the hidden SegActiveSurface (0 TurnUp, 1 StreamController, 2 Both).
         bool dual = mode == HardwareMode.DualMode;
@@ -167,17 +140,20 @@ public partial class SettingsView
         text.SetResourceReference(TextBlock.ForegroundProperty, on ? "TextPrimaryBrush" : "TextSecBrush");
     }
 
-    private static void StyleDeviceListDot(System.Windows.Shapes.Ellipse dot, bool connected, bool allowed)
-    {
-        dot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty,
-            !allowed ? "TextDimBrush" : connected ? "SuccessGrnBrush" : "DangerRedBrush");
-        dot.ToolTip = !allowed ? "Not used in the current hardware mode" : connected ? "Connected" : "Not connected";
-    }
-
     private static void StyleDeviceCard(Border card, bool connected, bool allowed)
     {
-        // Open detail pane: no border or glow; dim it when the hardware mode doesn't use this device.
+        bool lit = connected && allowed;
+        card.SetResourceReference(Border.BorderBrushProperty, lit ? "AccentBorder55Brush" : "CardBorderBrush");
+        card.Effect = lit ? MakeGlow(30, 0.4) : null;
         card.Opacity = allowed ? 1.0 : 0.5;
         card.ToolTip = allowed ? null : "Not used in the current hardware mode";
     }
+
+    private static DropShadowEffect MakeGlow(double blur, double opacity) => new()
+    {
+        Color = ThemeManager.Accent,
+        BlurRadius = blur,
+        ShadowDepth = 0,
+        Opacity = opacity,
+    };
 }

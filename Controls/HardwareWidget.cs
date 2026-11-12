@@ -90,8 +90,8 @@ namespace AmpUp.Controls
             borderBrush.Freeze();
             BorderBrush = borderBrush;
 
-            // Drop shadow for 3D depth (single widget; off with Reduce effects)
-            Effect = ThemeManager.ReduceEffects ? null : new DropShadowEffect
+            // Drop shadow for 3D depth
+            Effect = new DropShadowEffect
             {
                 Color = Colors.Black,
                 BlurRadius = 30,
@@ -266,6 +266,15 @@ namespace AmpUp.Controls
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
                 BorderThickness = new Thickness(1),
                 Cursor = Cursors.Hand,
+                // Inner shadow effect for 3D button look
+                Effect = new DropShadowEffect
+                {
+                    Color = Colors.Black,
+                    BlurRadius = 4,
+                    ShadowDepth = 2,
+                    Opacity = 0.4,
+                    Direction = 270
+                }
             };
             Canvas.SetLeft(button, btnX);
             Canvas.SetTop(button, ButtonY);

@@ -163,18 +163,10 @@ public partial class OsdView : UserControl
             Foreground = new SolidColorBrush(ThemeManager.Accent),
         };
 
-        // Glass page header with the icon dock tab bar on the right: pop-up overlays, and Quick Wheels
+        // No page header, like the Room page: the tab bar sits at the top. Two tabs (same underline bar as Room): pop-up overlays, and Quick Wheels
         var overlaysTab = new StackPanel();
         var wheelsTab = new StackPanel { Visibility = Visibility.Collapsed };
-        var osdHelp = UiKit.HelpTip("Overlays are small cards that show volume, profile and audio device changes over any app.\n\n" +
-                          "Quick Wheels are radial menus: hold a button, turn a knob, let go to pick.", "On-Screen Display");
-        osdHelp.Margin = new Thickness(12, 0, 0, 0);
-        osdHelp.VerticalAlignment = VerticalAlignment.Center;
-        var headerActions = new StackPanel { Orientation = Orientation.Horizontal };
-        headerActions.Children.Add(BuildOsdTabDock(overlaysTab, wheelsTab));
-        headerActions.Children.Add(osdHelp);
-        RootPanel.Children.Add(UiKit.PageHeader("On-Screen Display", "Pop-up overlays and Quick Wheels",
-            headerActions, MaterialIconKind.MonitorDashboard));
+        RootPanel.Children.Add(BuildOsdTabBar(overlaysTab, wheelsTab));
         RootPanel.Children.Add(overlaysTab);
         RootPanel.Children.Add(wheelsTab);
 
@@ -225,11 +217,11 @@ public partial class OsdView : UserControl
         Grid.SetColumn(osdPreview, 1);
         overlaySplit.Children.Add(osdPreview);
 
-        var popupsCard = OpenSection(
-            "On-Screen Overlays", "Quick feedback over any app, and where it shows up", overlaySplit,
+        var popupsCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.BellOutline,
+            "On-Screen Overlays", "Quick feedback over any app, and where it shows up", null, overlaySplit,
             help: "Small cards that fade in when something changes, then fade out on their own. " +
                   "Turn each one on or off, set how long it stays, and pick the monitor and corner.\n\n" +
-                  "The preview on the right shows where it lands; click it to see a real one on your screen.");
+                  "The preview on the right shows where it lands; click it to see a real one on your screen.").Root;
         overlaysTab.Children.Add(popupsCard);
 
         // ══════════════════ QUICK WHEELS ══════════════════
@@ -280,50 +272,12 @@ public partial class OsdView : UserControl
             "Look", new Thickness(0, 4, 0, 10)));
         wheelBody.Children.Add(BuildLookSection());
 
-        var wheelCard = OpenSection(
-            "Quick Wheels", "Hold a button, turn a knob, let go to pick", wheelBody,
+        var wheelCard = UiKit.Card(WheelColor, MaterialIconKind.ChartDonut,
+            "Quick Wheels", "Hold a button, turn a knob, let go to pick", null, wheelBody,
             help: "A radial menu for things you switch often, like profiles, audio devices, media controls or your own shortcuts.\n\n" +
                   "1. Hold the trigger button\n2. Turn any knob to move the highlight\n3. Let go to pick\n\n" +
-                  "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.");
+                  "You can also point and click with the mouse. Taking a button for a wheel replaces its hold action.").Root;
         wheelsTab.Children.Add(wheelCard);
-    }
-
-    /// <summary>
-    /// Open canvas section (no box): small caps dim title + dim subtitle + help, 1px hairline,
-    /// then the body on the page background.
-    /// </summary>
-    private static System.Windows.Controls.Border OpenSection(string title, string? subtitle, UIElement body, string? help = null)
-    {
-        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-        var t = new TextBlock { Text = title.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-        t.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        head.Children.Add(t);
-        if (!string.IsNullOrEmpty(subtitle))
-        {
-            var sub = new TextBlock { Text = subtitle, FontSize = 11, Opacity = 0.7, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-            sub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-            head.Children.Add(sub);
-        }
-        if (!string.IsNullOrEmpty(help))
-        {
-            var tip = UiKit.HelpTip(help, title);
-            tip.Margin = new Thickness(6, 0, 0, 0);
-            head.Children.Add(tip);
-        }
-        var stack = new StackPanel();
-        stack.Children.Add(head);
-        stack.Children.Add(OpenCanvas.Divider());
-        if (body is FrameworkElement fe) fe.Margin = new Thickness(4, 12, 4, 0);
-        stack.Children.Add(body);
-        return new System.Windows.Controls.Border { Margin = new Thickness(0, OpenCanvas.SectionSpacing, 0, 0), Child = stack };
-    }
-
-    /// <summary>Open canvas sub-section title (small caps, dim) used inside the Look editor.</summary>
-    private static FrameworkElement OsdSubTitle(string text)
-    {
-        var t = new TextBlock { Text = text.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 8) };
-        t.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        return t;
     }
 
 
@@ -331,28 +285,61 @@ public partial class OsdView : UserControl
 
     private int _osdTabIndex;
 
-    /// <summary>Header icon dock (OVERLAYS / QUICK WHEELS); shows the matching page.</summary>
-    private FrameworkElement BuildOsdTabDock(params FrameworkElement[] pages)
+    /// <summary>Material underline tab bar (OVERLAYS / QUICK WHEELS), styled like the Room page's.</summary>
+    private FrameworkElement BuildOsdTabBar(params FrameworkElement[] pages)
     {
-        var dock = new IconDock();
-        dock.AddItem("overlays", "OVERLAYS", MaterialIconKind.BellOutline, "Overlays");
-        dock.AddItem("wheels", "QUICK WHEELS", MaterialIconKind.ChartDonut, "Quick Wheels");
+        var names = new[] { "OVERLAYS", "QUICK WHEELS" };
+        var tabs = new System.Windows.Controls.Border[names.Length];
 
-        void ShowPage()
+        void Paint()
         {
-            for (int i = 0; i < pages.Length; i++)
-                pages[i].Visibility = i == _osdTabIndex ? Visibility.Visible : Visibility.Collapsed;
+            var accent = ThemeManager.Accent;
+            for (int i = 0; i < tabs.Length; i++)
+            {
+                bool on = i == _osdTabIndex;
+                tabs[i].BorderBrush = new SolidColorBrush(on ? accent : Colors.Transparent);
+                if (tabs[i].Child is TextBlock t)
+                {
+                    t.Foreground = on ? new SolidColorBrush(accent) : FindBrush("TextSecBrush");
+                    t.FontWeight = on ? FontWeights.Bold : FontWeights.SemiBold;
+                }
+                pages[i].Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            }
         }
 
-        dock.SelectedIndex = _osdTabIndex;
-        dock.SelectionChanged += (_, _) =>
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        for (int i = 0; i < names.Length; i++)
         {
-            if (dock.SelectedIndex < 0) return;
-            _osdTabIndex = dock.SelectedIndex;
-            ShowPage();
+            int idx = i;
+            var label = new TextBlock { Text = names[i], FontSize = 11, FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center };
+            var tab = new System.Windows.Controls.Border
+            {
+                Padding = new Thickness(22, 10, 22, 10),
+                Cursor = Cursors.Hand,
+                BorderThickness = new Thickness(0, 0, 0, 2), // 2px underline slot
+                Background = Brushes.Transparent,
+                Child = label,
+            };
+            tab.MouseEnter += (_, _) => { if (idx != _osdTabIndex) label.Foreground = FindBrush("TextPrimaryBrush"); };
+            tab.MouseLeave += (_, _) => { if (idx != _osdTabIndex) label.Foreground = FindBrush("TextSecBrush"); };
+            tab.MouseLeftButtonDown += (_, _) => { _osdTabIndex = idx; Paint(); };
+            tabs[i] = tab;
+            row.Children.Add(tab);
+        }
+        _accentRepaints.Add(Paint);
+        Paint();
+
+        var underline = new System.Windows.Controls.Border { BorderThickness = new Thickness(0, 0, 0, 1), Child = row };
+        underline.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "InputBgBrush");
+        var card = new System.Windows.Controls.Border
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+            Padding = new Thickness(8, 6, 8, 6),
+            Child = underline,
         };
-        ShowPage();
-        return dock;
+        card.SetResourceReference(StyleProperty, "CardPanel");
+        return card;
     }
 
     // ══════════════════ CUSTOMIZE WHEELS ══════════════════
@@ -435,7 +422,7 @@ public partial class OsdView : UserControl
         }
 
         // ── PRESETS ── one click sets every option below
-        left.Children.Add(OsdSubTitle("PRESETS"));
+        left.Children.Add(UiKit.SectionHeader("PRESETS"));
         var presetWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
         foreach (var p in WheelPresets) presetWrap.Children.Add(MakePresetTile(p));
         left.Children.Add(presetWrap);
@@ -444,7 +431,7 @@ public partial class OsdView : UserControl
         var colB = new StackPanel();
 
         // ── SIZE ──
-        colA.Children.Add(OsdSubTitle("SIZE"));
+        colA.Children.Add(UiKit.SectionHeader("SIZE"));
         _sldLookScale = NewSlider(60, 160, "How big the Quick Wheels are");
         _lblLookScale = NewVal();
         _sldLookBg = NewSlider(10, 100, "How solid the dark background is. Lower lets more of the screen show through.");
@@ -460,7 +447,7 @@ public partial class OsdView : UserControl
         HookLookSlider(_sldLookGlow, _lblLookGlow, (o, v) => o.WheelLook.Glow = v);
 
         // ── COLOR ──
-        colA.Children.Add(OsdSubTitle("COLOR"));
+        colA.Children.Add(UiKit.SectionHeader("COLOR"));
         _lookSwatches = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
         colA.Children.Add(_lookSwatches);
         _segColors = NewSeg((l, v) => l.SegmentColors = v, ("Item", "Per item"), ("Accent", "One color"), ("Rainbow", "Rainbow"));
@@ -468,7 +455,7 @@ public partial class OsdView : UserControl
             "Per item: each item keeps its own color. One color: every segment uses the color above. Rainbow: a rainbow around the ring."));
 
         // ── RING ──
-        colB.Children.Add(OsdSubTitle("RING"));
+        colB.Children.Add(UiKit.SectionHeader("RING"));
         _segRing = NewSeg((l, v) => l.RingThickness = v, ("Thin", "Thin"), ("Normal", "Normal"), ("Thick", "Thick"));
         _segGap = NewSeg((l, v) => l.SegmentGap = v, ("None", "None"), ("Small", "Small"), ("Wide", "Wide"));
         _segHighlight = NewSeg((l, v) => l.Highlight = v, ("Fill", "Solid"), ("Outline", "Outline"));
@@ -480,7 +467,7 @@ public partial class OsdView : UserControl
             "What the middle shows: Full = icon, name, item type and the ACTIVE badge"));
 
         // ── ANIMATION ──
-        colB.Children.Add(OsdSubTitle("ANIMATION"));
+        colB.Children.Add(UiKit.SectionHeader("ANIMATION"));
         _segAnim = NewSeg((l, v) => l.Animation = v, ("Fade", "Fade"), ("Pop", "Pop"), ("Spin", "Spin"), ("None", "None"));
         var animRow = MakeLookRow("Open with", _segAnim, "How the wheel appears when you hold the button");
         animRow.Margin = new Thickness(0);
@@ -2485,8 +2472,8 @@ public partial class OsdView : UserControl
         {
             var a = ThemeManager.Accent;
             _osdMiniCard.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, a.R, a.G, a.B));
-            // Single preview element: glow via GlassStyle so Reduce effects removes it.
-            _osdMiniCard.Effect = GlassStyle.GlowEffect(a, 10, 0.35);
+            _osdMiniCard.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                { Color = a, BlurRadius = 10, Opacity = 0.35, ShadowDepth = 0 };
             catLabel.Foreground = new SolidColorBrush(Color.FromArgb(0x88, a.R, a.G, a.B));
             icon.Foreground = new SolidColorBrush(a);
             value.Foreground = new SolidColorBrush(a);
@@ -2497,7 +2484,6 @@ public partial class OsdView : UserControl
         };
         _paintOsdMini();
         _accentRepaints.Add(_paintOsdMini);
-        ThemeManager.OnReduceEffectsChanged += () => Dispatcher.Invoke(() => _paintOsdMini?.Invoke());
         PlaceOsdMini(_currentPosition);
 
         var stack = new StackPanel { Margin = new Thickness(24, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top,

@@ -9,7 +9,6 @@
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
                 <ResourceDictionary Source="Theme.xaml" />
-                <ResourceDictionary Source="Styles/GlassStyles.xaml" />
                 <ResourceDictionary Source="Icons/PhosphorIcons.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <Style TargetType="Window">

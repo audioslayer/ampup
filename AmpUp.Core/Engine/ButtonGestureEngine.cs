@@ -81,8 +81,6 @@ public class ButtonGestureEngine : IDisposable
         _lastConfig = config;
 
         bool wasHeld;
-        bool fireTapNow = false;
-        long immediateGeneration = 0;
         lock (_stateLock)
         {
             // Mark the press released before disposing its timer. Timer.Dispose
@@ -105,24 +103,9 @@ public class ButtonGestureEngine : IDisposable
             DisposeTimer(_clickTimers, idx);
             long clickGeneration = _clickGeneration.GetValueOrDefault(idx) + 1;
             _clickGeneration[idx] = clickGeneration;
-
-            // No double-press action on this button: there is nothing to wait for, so fire the
-            // tap right away instead of holding it for the double-click window.
-            var upBtn = ResolveButtonConfig(idx);
-            if (upBtn != null && string.Equals(upBtn.DoublePressAction ?? "none", "none", StringComparison.OrdinalIgnoreCase))
-            {
-                fireTapNow = true;
-                immediateGeneration = clickGeneration;
-            }
-            else
-            {
-                _clickTimers[idx] = new System.Threading.Timer(
-                    _ => OnClickWindowExpired(idx, clickGeneration), null, DoubleClickWindowMs, Timeout.Infinite);
-            }
+            _clickTimers[idx] = new System.Threading.Timer(
+                _ => OnClickWindowExpired(idx, clickGeneration), null, DoubleClickWindowMs, Timeout.Infinite);
         }
-
-        if (fireTapNow)
-            OnClickWindowExpired(idx, immediateGeneration);
     }
 
     private void OnHoldFired(int idx, long generation)

@@ -134,22 +134,6 @@ public static class ThemeManager
     /// <summary>Event fired after accent color changes. Use to rebuild code-behind UI elements.</summary>
     public static event Action? OnAccentChanged;
 
-    /// <summary>
-    /// Reduce effects (Settings > General > Appearance): no glows or shadows, flat borders.
-    /// Read by Controls.GlassStyle; views that build UI in code can listen to OnReduceEffectsChanged.
-    /// </summary>
-    public static bool ReduceEffects { get; private set; }
-
-    public static void SetReduceEffects(bool on)
-    {
-        if (ReduceEffects == on) return;
-        ReduceEffects = on;
-        OnReduceEffectsChanged?.Invoke();
-    }
-
-    /// <summary>Event fired after the Reduce effects option changes.</summary>
-    public static event Action? OnReduceEffectsChanged;
-
     /// <summary>Creates a Color with the given alpha and the RGB from the source.</summary>
     public static Color WithAlpha(Color c, byte alpha) => Color.FromArgb(alpha, c.R, c.G, c.B);
 

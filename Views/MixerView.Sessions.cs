@@ -75,10 +75,9 @@ public partial class MixerView
         var header = new Grid { Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = "Show or hide audio sessions" };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        header.Children.Add(OpenHeader("Audio Sessions", out _sessionCountText));
-        _sessionChevron = UiKit.Icon(MaterialIconKind.ChevronDown, 18, "TextDimBrush");
-        _sessionChevron.Margin = new Thickness(0, 0, 4, 4);
-        _sessionChevron.VerticalAlignment = VerticalAlignment.Top;
+        header.Children.Add(UiKit.SectionHeader("AUDIO SESSIONS", null, out _sessionCountText));
+        _sessionChevron = UiKit.Icon(MaterialIconKind.ChevronDown, 18, "AccentBrush");
+        _sessionChevron.Margin = new Thickness(0, 0, 4, 6);
         _sessionChevron.RenderTransformOrigin = new Point(0.5, 0.5);
         _sessionChevron.RenderTransform = new RotateTransform(-90);
         Grid.SetColumn(_sessionChevron, 1);
@@ -89,9 +88,9 @@ public partial class MixerView
         var intro = new TextBlock
         {
             Text = "Apps playing audio right now — set their level, mute them, or put them on a knob.",
-            FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 8, 0, 8),
+            FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, -4, 0, 10),
         };
-        intro.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        intro.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         AudioSessionsContent.Children.Add(intro);
 
         _sessionBody = new StackPanel { Visibility = Visibility.Collapsed };
@@ -125,7 +124,7 @@ public partial class MixerView
     {
         if (_sessionBody == null) return;
 
-        _sessionListContainer = OpenList(out var rows);
+        _sessionListContainer = UiKit.ListContainer(out var rows);
         _sessionListPanel = rows;
         _sessionBody.Children.Add(_sessionListContainer);
 

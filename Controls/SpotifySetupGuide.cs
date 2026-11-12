@@ -65,11 +65,10 @@ public class SpotifySetupGuide : Window
             BorderBrush = CardBorder,
             BorderThickness = new Thickness(1),
             Background = BgBase,
-            CornerRadius = new CornerRadius(12),
         };
 
         var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(64) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(48) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(80) });
 
@@ -98,7 +97,60 @@ public class SpotifySetupGuide : Window
     }
 
     private UIElement BuildTitleBar()
-        => IntegrationSetupGuide.BuildGuideHeader(this, "♪", "Spotify Setup Guide", SpotifyGreen.Color, () => { DialogResult = false; Close(); });
+    {
+        var bar = new Grid { Background = Res("BgDarkBrush") };
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        bar.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ButtonState == MouseButtonState.Pressed) try { DragMove(); } catch (InvalidOperationException) { }
+        };
+
+        var stack = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16, 0, 0, 0),
+        };
+        stack.Children.Add(new TextBlock
+        {
+            Text = "♪",
+            FontSize = 18,
+            Foreground = SpotifyGreen,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
+            FontWeight = FontWeights.Bold,
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Spotify Setup Guide",
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = TextPrimary,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        Grid.SetColumn(stack, 0);
+        bar.Children.Add(stack);
+
+        var close = new Button
+        {
+            Content = "✕",
+            Width = 48, Height = 48,
+            Background = Brushes.Transparent,
+            Foreground = TextSec,
+            BorderThickness = new Thickness(0),
+            FontSize = 14,
+            Cursor = Cursors.Hand,
+        };
+        close.Click += (_, _) => { DialogResult = false; Close(); };
+        close.MouseEnter += (_, _) => close.Foreground = DangerRed;
+        close.MouseLeave += (_, _) => close.Foreground = TextSec;
+        Grid.SetColumn(close, 1);
+        bar.Children.Add(close);
+
+        bar.Children.Add(new Border { Height = 1, Background = CardBorder, VerticalAlignment = VerticalAlignment.Bottom });
+        return bar;
+    }
 
     // ── Step builders ───────────────────────────────────────────────────
 
@@ -204,7 +256,13 @@ public class SpotifySetupGuide : Window
             BorderThickness = new Thickness(2),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 20),
-            Effect = GlassStyle.GlowEffect(c, 20, 0.3),
+            Effect = new DropShadowEffect
+            {
+                Color = c,
+                BlurRadius = 20,
+                ShadowDepth = 0,
+                Opacity = 0.3,
+            },
         };
         card.Child = new TextBlock
         {

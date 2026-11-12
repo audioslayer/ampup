@@ -36,6 +36,7 @@ public partial class ButtonsView
         public int EncoderIdx = -1;     // -1 for the side buttons
         public string Name = "";
         public Ellipse Outline = null!;
+        public DropShadowEffect Glow = null!;
         public MaterialIcon Icon = null!;
         public MaterialIcon? PressIcon;
         public TextBlock Sub = null!;
@@ -161,7 +162,7 @@ public partial class ButtonsView
             Stroke = new SolidColorBrush(BpLine(0xCC)), StrokeThickness = 2,
             Fill = new RadialGradientBrush(Color.FromArgb(0xE6, 0x10, 0x1C, 0x2A), Color.FromArgb(0xE6, 0x08, 0x0F, 0x18))
                 { GradientOrigin = new Point(0.3, 0.2), Center = new Point(0.4, 0.3), RadiusX = 0.9, RadiusY = 1.1 },
-            Effect = GlassStyle.GlowEffect(ThemeManager.Accent, 28, 0.25), // single hero body; null when Reduce effects
+            Effect = new DropShadowEffect { Color = ThemeManager.Accent, BlurRadius = 28, ShadowDepth = 0, Opacity = 0.25 },
         };
         At(body, BpBodyX, BpBodyY);
         c.Children.Add(body);
@@ -260,11 +261,13 @@ public partial class ButtonsView
             StrokeDashArray = new DoubleCollection { 0.5, 1.2 },
             Margin = new Thickness(d * 0.025),
         });
+        ctl.Glow = new DropShadowEffect { Color = ThemeManager.Accent, BlurRadius = 22, ShadowDepth = 0, Opacity = 0 };
         ctl.Outline = new Ellipse
         {
             Margin = new Thickness(d * 0.07),
             Fill = new RadialGradientBrush(Color.FromRgb(0x18, 0x26, 0x36), Color.FromRgb(0x08, 0x0E, 0x16))
                 { GradientOrigin = new Point(0.35, 0.28), RadiusX = 0.7, RadiusY = 0.7 },
+            Effect = ctl.Glow,
         };
         g.Children.Add(ctl.Outline);
         // Machined top face
@@ -280,6 +283,7 @@ public partial class ButtonsView
             Width = Math.Max(3, d * 0.018), Height = d * 0.09, CornerRadius = new CornerRadius(2),
             VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, d * 0.1, 0, 0),
             Background = new SolidColorBrush(ThemeManager.Accent),
+            Effect = new DropShadowEffect { Color = ThemeManager.Accent, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.9 },
             IsHitTestVisible = false,
         });
 
@@ -325,11 +329,13 @@ public partial class ButtonsView
             Stroke = new SolidColorBrush(BpLine(0x4A)), StrokeThickness = 1,
             StrokeDashArray = new DoubleCollection { 3, 2 },
         });
+        ctl.Glow = new DropShadowEffect { Color = ThemeManager.Accent, BlurRadius = 18, ShadowDepth = 0, Opacity = 0 };
         ctl.Outline = new Ellipse
         {
             Margin = new Thickness(8),
             Fill = new RadialGradientBrush(Color.FromRgb(0x16, 0x22, 0x30), Color.FromRgb(0x08, 0x0E, 0x16))
                 { GradientOrigin = new Point(0.35, 0.3), RadiusX = 0.7, RadiusY = 0.7 },
+            Effect = ctl.Glow,
         };
         g.Children.Add(ctl.Outline);
         ctl.Icon = new MaterialIcon { Width = d * 0.36, Height = d * 0.36, IsHitTestVisible = false };
@@ -422,15 +428,17 @@ public partial class ButtonsView
         bool selected = _scSelectedButtonIdx == ctl.ButtonIdx;
         ctl.Outline.Stroke = new SolidColorBrush(selected ? ThemeManager.Accent : BpLine(ctl.Hover ? (byte)0xDD : (byte)0x99));
         ctl.Outline.StrokeThickness = selected ? 2.6 : 1.6;
-        // Glow only on the single selected control (hover = brighter stroke above); null when Reduce effects
-        ctl.Outline.Effect = selected ? GlassStyle.GlowEffect(ThemeManager.Accent, 22, 0.95) : null;
+        ctl.Glow.Color = ThemeManager.Accent;
+        ctl.Glow.Opacity = selected ? 0.95 : ctl.Hover ? 0.5 : 0;
     }
 
     private static void SetBlueprintIcon(MaterialIcon icon, MaterialIconKind? kind)
     {
         icon.Kind = kind ?? MaterialIconKind.Plus;
         icon.Foreground = new SolidColorBrush(kind != null ? ThemeManager.Accent : BpLine(0x55));
-        icon.Effect = null; // repeated per control: no per-icon glow (perf)
+        icon.Effect = kind != null
+            ? new DropShadowEffect { Color = ThemeManager.Accent, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.6 }
+            : null;
     }
 
     private static MaterialIconKind? BlueprintActionIcon(string? action)

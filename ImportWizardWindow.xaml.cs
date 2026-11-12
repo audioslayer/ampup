@@ -71,7 +71,7 @@ public partial class ImportWizardWindow : Window
     public ImportWizardWindow()
     {
         InitializeComponent();
-        MouseLeftButtonDown += (_, e) => { if (e.Handled) return; try { DragMove(); } catch (InvalidOperationException) { } };
+        MouseLeftButtonDown += (_, _) => { try { DragMove(); } catch (InvalidOperationException) { } };
 
         // Apply accent color to border gradient, title, input elements
         var accent = ThemeManager.Accent;
@@ -81,18 +81,7 @@ public partial class ImportWizardWindow : Window
             new Point(0, 0), new Point(1, 1));
         borderBrush.Freeze();
         RootPanel.BorderBrush = borderBrush;
-        HeaderTile.Background = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x26));
-        HeaderTile.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
-        HeaderTile.Effect = AmpUp.Controls.GlassStyle.GlowEffect(accent, 18, 0.35);
-        HeaderIcon.Foreground = new SolidColorBrush(accent);
-        var closeBtn = AmpUp.Controls.UiKit.IconButton(Material.Icons.MaterialIconKind.Close, "Cancel (Esc)", _ => Close(), size: 26);
-        // Keep the window-level drag handler from swallowing the click
-        closeBtn.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        CloseHost.Child = closeBtn;
-        PreviewKeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Escape) { e.Handled = true; Close(); }
-        };
+        TitleLabel.Foreground = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x66));
         ProfileNameBox.CaretBrush = new SolidColorBrush(accent);
         var inputBorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x33));
         inputBorderBrush.Freeze();

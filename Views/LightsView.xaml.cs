@@ -70,8 +70,10 @@ public partial class LightsView : UserControl
     private readonly Color[] _colors3 = new Color[5];
     private readonly Color[] _colors4 = new Color[5];
 
-    // Mode tabs (PER KNOB / GLOBAL / CALIBRATION) — icon dock in the page header
-    private IconDock? _modeDock;
+    // Mode tabs
+    private Border? _perKnobTab;
+    private Border? _globalTab;
+    private Border? _calibrationTab;
 
     // Calibration mode state (orthogonal to _globalEnabled — it's a UI view
     // mode only, never persisted). When true, calibration panel is shown and
@@ -209,17 +211,7 @@ public partial class LightsView : UserControl
             if (!_loading) QueueSave();
         };
 
-        var lightsHelp = UiKit.HelpTip(
-            "Per Knob gives each knob's LEDs its own effect and colors. Global runs one effect across every knob "
-            + "(per-knob settings are kept for later). Calibration has test colors, mute dimming and gamma.\n\n"
-            + "Right-click a knob's strip for copy / paste shortcuts.",
-            "Lights");
-        var headerActions = new StackPanel { Orientation = Orientation.Horizontal };
-        headerActions.Children.Add(BuildModeDock());
-        lightsHelp.Margin = new Thickness(12, 0, 0, 0);
-        lightsHelp.VerticalAlignment = VerticalAlignment.Center;
-        headerActions.Children.Add(lightsHelp);
-        PageHeaderHost.Content = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED", headerActions,
+        PageHeaderHost.Content = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED",
             icon: Material.Icons.MaterialIconKind.LightbulbOnOutline);
 
         BuildPresetsSection();
@@ -500,14 +492,15 @@ public partial class LightsView : UserControl
         else
             previewColor = ThemeManager.Accent;
 
-        // Open swatch: no box, hover tint only.
         var card = new Border
         {
             Width = 110,
             CornerRadius = new CornerRadius(8), Padding = new Thickness(8),
             Margin = new Thickness(0, 0, 8, 8), Cursor = Cursors.Hand,
-            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(1),
         };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var stack = new StackPanel();
 
@@ -567,7 +560,22 @@ public partial class LightsView : UserControl
         card.Child = stack;
 
         // Hover effect
-        OpenCanvas.AttachHover(card);
+        var presetTransform = new TranslateTransform(0, 0);
+        card.RenderTransform = presetTransform;
+        card.MouseEnter += (s, _) =>
+        {
+            var b = (Border)s!;
+            presetTransform.Y = -1;
+            b.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, previewColor.R, previewColor.G, previewColor.B));
+            b.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+        };
+        card.MouseLeave += (s, _) =>
+        {
+            var b = (Border)s!;
+            presetTransform.Y = 0;
+            b.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            b.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        };
 
         // Click to apply
         card.MouseLeftButtonUp += (_, _) => ApplyPreset(preset);
@@ -696,6 +704,50 @@ public partial class LightsView : UserControl
     private void BuildGlobalCard()
     {
         var panel = GlobalLightCardPanel;
+        var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
+
+        // Mode toggle: Material-style underline tabs "Per Knob | Global"
+        var toggleBar = new Border
+        {
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        toggleBar.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
+
+        var toggleRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+
+        var perKnobTab = BuildModeTab("PER KNOB", true, accent);
+        var globalTab = BuildModeTab("GLOBAL", false, accent);
+        var calibTab = BuildModeTab("CALIBRATION", false, accent);
+        _perKnobTab = perKnobTab;
+        _globalTab = globalTab;
+        _calibrationTab = calibTab;
+
+        perKnobTab.MouseLeftButtonDown += (_, _) =>
+        {
+            _calibrationMode = false;
+            _globalEnabled = false;
+            UpdateGlobalVisibility();
+            if (!_loading) QueueSave();
+        };
+        globalTab.MouseLeftButtonDown += (_, _) =>
+        {
+            _calibrationMode = false;
+            _globalEnabled = true;
+            UpdateGlobalVisibility();
+            if (!_loading) QueueSave();
+        };
+        calibTab.MouseLeftButtonDown += (_, _) =>
+        {
+            _calibrationMode = true;
+            UpdateGlobalVisibility();
+        };
+
+        toggleRow.Children.Add(perKnobTab);
+        toggleRow.Children.Add(globalTab);
+        toggleRow.Children.Add(calibTab);
+        toggleBar.Child = toggleRow;
+        panel.Children.Add(toggleBar);
 
         // Settings panel (collapsed when disabled) — holds individual section cards
         var settings = new StackPanel { Visibility = Visibility.Collapsed };
@@ -765,6 +817,10 @@ public partial class LightsView : UserControl
                 Child = inner,
                 ToolTip = $"Click to toggle {label}",
             };
+            var toggleTransform = new TranslateTransform(0, 0);
+            toggleBorder.RenderTransform = toggleTransform;
+            toggleBorder.MouseEnter += (_, _) => { toggleTransform.Y = -1; };
+            toggleBorder.MouseLeave += (_, _) => { toggleTransform.Y = 0; };
             toggleBorder.MouseLeftButtonDown += (_, _) =>
             {
                 _ledEnabled[idx] = !_ledEnabled[idx];
@@ -1174,14 +1230,14 @@ public partial class LightsView : UserControl
 
         if (on)
         {
-            border.Background = OpenCanvas.SelectedFill;
-            border.BorderBrush = OpenCanvas.SelectedBorder;
+            border.Background = new SolidColorBrush(Color.FromArgb(0x22, accent.R, accent.G, accent.B));
+            border.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, accent.R, accent.G, accent.B));
             border.Opacity = 1.0;
         }
         else
         {
-            border.Background = Brushes.Transparent;
-            border.BorderBrush = Brushes.Transparent;
+            border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             border.Opacity = 0.4;
         }
 
@@ -1208,10 +1264,15 @@ public partial class LightsView : UserControl
     {
         bool globalEnabled = _globalEnabled;
         bool calib = _calibrationMode;
+        var accent = ((SolidColorBrush)FindResource("AccentBrush")).Color;
 
         // Sync tab visuals (3-way: per-knob / global / calibration)
-        if (_modeDock != null)
-            _modeDock.SelectedIndex = calib ? 2 : globalEnabled ? 1 : 0;
+        if (_perKnobTab != null && _globalTab != null && _calibrationTab != null)
+        {
+            SetModeTabActive(_perKnobTab, !globalEnabled && !calib, accent);
+            SetModeTabActive(_globalTab, globalEnabled && !calib, accent);
+            SetModeTabActive(_calibrationTab, calib, accent);
+        }
 
         if (_globalSettingsPanel != null)
             _globalSettingsPanel.Visibility = (globalEnabled && !calib) ? Visibility.Visible : Visibility.Collapsed;
@@ -1235,38 +1296,60 @@ public partial class LightsView : UserControl
             UpdateGlobalEffectVisibility(_globalEffectPicker.SelectedEffect);
     }
 
-    /// <summary>Header icon dock for the PER KNOB / GLOBAL / CALIBRATION views.</summary>
-    private IconDock BuildModeDock()
+    private static Border BuildModeTab(string text, bool active, Color accent)
     {
-        var dock = new IconDock();
-        dock.AddItem("perknob", "PER KNOB", MaterialIconKind.Knob, "Per Knob");
-        dock.AddItem("global", "GLOBAL", MaterialIconKind.LightbulbGroupOutline, "Global");
-        dock.AddItem("calibration", "CALIBRATION", MaterialIconKind.Tune, "Calibration");
-        dock.SelectedIndex = _calibrationMode ? 2 : _globalEnabled ? 1 : 0;
-        dock.SelectionChanged += (_, _) =>
+        var tab = new Border
         {
-            switch (dock.SelectedIndex)
-            {
-                case 0:
-                    _calibrationMode = false;
-                    _globalEnabled = false;
-                    UpdateGlobalVisibility();
-                    if (!_loading) QueueSave();
-                    break;
-                case 1:
-                    _calibrationMode = false;
-                    _globalEnabled = true;
-                    UpdateGlobalVisibility();
-                    if (!_loading) QueueSave();
-                    break;
-                case 2:
-                    _calibrationMode = true;
-                    UpdateGlobalVisibility();
-                    break;
-            }
+            Padding = new Thickness(20, 10, 20, 10),
+            Cursor = Cursors.Hand,
+            BorderBrush = new SolidColorBrush(Colors.Transparent),
+            BorderThickness = new Thickness(0, 0, 0, 2),
+            Background = new SolidColorBrush(Colors.Transparent),
         };
-        _modeDock = dock;
-        return dock;
+        tab.Child = new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        tab.MouseEnter += (_, _) =>
+        {
+            if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
+                t.Foreground = LightsView.ThemeBrush("TextPrimaryBrush");
+        };
+        tab.MouseLeave += (_, _) =>
+        {
+            if (tab.BorderBrush is SolidColorBrush br && br.Color.A == 0 && tab.Child is TextBlock t)
+                t.Foreground = LightsView.ThemeBrush("TextSecBrush");
+        };
+        SetModeTabActive(tab, active, accent);
+        return tab;
+    }
+
+    private static void SetModeTabActive(Border tab, bool active, Color accent)
+    {
+        var label = tab.Child as TextBlock;
+        if (active)
+        {
+            tab.BorderBrush = new SolidColorBrush(accent);
+            tab.BorderThickness = new Thickness(0, 0, 0, 2);
+            if (label != null)
+            {
+                label.Foreground = new SolidColorBrush(accent);
+                label.FontWeight = FontWeights.Bold;
+            }
+        }
+        else
+        {
+            tab.BorderBrush = new SolidColorBrush(Colors.Transparent);
+            tab.BorderThickness = new Thickness(0, 0, 0, 2);
+            if (label != null)
+            {
+                label.Foreground = LightsView.ThemeBrush("TextSecBrush");
+                label.FontWeight = FontWeights.SemiBold;
+            }
+        }
     }
 
     // Color palette presets — each is a (name, color1, color2) tuple
@@ -1353,15 +1436,20 @@ public partial class LightsView : UserControl
                 if (!_loading) QueueSave();
             };
 
-            // Hover: accent border + slightly lighter bg (cached resource brushes, no lift)
+            // Hover glow — accent border + slightly lighter bg + lift
+            var swatchTransform = new TranslateTransform(0, 0);
+            swatch.RenderTransform = swatchTransform;
             swatch.MouseEnter += (_, _) =>
             {
-                swatch.SetResourceReference(Border.BorderBrushProperty, "AccentLabel88Brush");
+                swatchTransform.Y = -1;
+                var accent = ThemeManager.Accent;
+                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B));
                 swatch.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                 label.Foreground = LightsView.ThemeBrush("TextSecBrush");
             };
             swatch.MouseLeave += (_, _) =>
             {
+                swatchTransform.Y = 0;
                 swatch.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                 swatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
                 label.Foreground = LightsView.ThemeBrush("TextDimBrush");
@@ -1455,16 +1543,15 @@ public partial class LightsView : UserControl
             {
                 Width = 132,
                 Height = 92,
-                CornerRadius = new CornerRadius(10),
+                CornerRadius = new CornerRadius(8),
                 BorderThickness = new Thickness(1),
                 Margin = new Thickness(4, 0, 4, 0),
                 Padding = new Thickness(8, 6, 8, 6),
                 Cursor = Cursors.Hand,
                 ToolTip = "Click to edit this knob",
-                // Open canvas: no box until hovered/selected.
-                Background = Brushes.Transparent,
-                BorderBrush = Brushes.Transparent,
             };
+            card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
             var content = new StackPanel
             {
@@ -1511,14 +1598,26 @@ public partial class LightsView : UserControl
             content.Children.Add(effectName);
             card.Child = content;
 
+            var selectorTransform = new TranslateTransform(0, 0);
+            card.RenderTransform = selectorTransform;
             card.MouseLeftButtonDown += (_, _) => SelectKnob(idx);
             card.MouseEnter += (_, _) =>
             {
-                if (_selectedKnob != idx) card.Background = OpenCanvas.HoverBrush;
+                selectorTransform.Y = -1;
+                if (_selectedKnob != idx)
+                {
+                    card.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+                    card.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+                }
             };
             card.MouseLeave += (_, _) =>
             {
-                if (_selectedKnob != idx) card.Background = Brushes.Transparent;
+                selectorTransform.Y = 0;
+                if (_selectedKnob != idx)
+                {
+                    card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+                    card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+                }
             };
 
             _selectorCards[i] = card;
@@ -1555,13 +1654,15 @@ public partial class LightsView : UserControl
         bool active = idx == _selectedKnob;
         if (active)
         {
-            card.Background = OpenCanvas.SelectedFill;
-            card.BorderBrush = OpenCanvas.SelectedBorder;
+            card.Background = new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+            card.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
+            card.BorderThickness = new Thickness(2);
         }
         else
         {
-            card.Background = card.IsMouseOver ? OpenCanvas.HoverBrush : Brushes.Transparent;
-            card.BorderBrush = Brushes.Transparent;
+            card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            card.BorderThickness = new Thickness(1);
         }
 
         card.Opacity = _ledEnabled[idx] ? 1.0 : 0.4;
@@ -2976,16 +3077,7 @@ public partial class LightsView : UserControl
     }
 
     /// <summary>Shared accent-bar section header (UiKit) — theme brushes update live.</summary>
-    /// <summary>Open canvas section title: small caps dim label over a 1px hairline.</summary>
-    private static FrameworkElement MakeSectionHeader(string title)
-    {
-        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
-        var t = new TextBlock { Text = title.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) };
-        t.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        panel.Children.Add(t);
-        panel.Children.Add(OpenCanvas.Divider());
-        return panel;
-    }
+    private static FrameworkElement MakeSectionHeader(string title) => UiKit.SectionHeader(title);
 
     private Border MakeSeparator(int spacing = 10)
     {
@@ -3054,13 +3146,17 @@ public partial class LightsView : UserControl
         content.Children.Add(MakeSectionHeader(title));
         foreach (var child in children)
             content.Children.Add(child);
-        // Open canvas section: no fill/border, just spacing above.
-        return new Border
+        var border = new Border
         {
-            Padding = new Thickness(0),
-            Margin = new Thickness(0, 0, 0, OpenCanvas.SectionSpacing),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0, 0, 0, 10),
             Child = content,
         };
+        border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return border;
     }
 
     private void RefreshAccentColors()

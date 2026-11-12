@@ -132,11 +132,7 @@ public partial class RoomView : UserControl
         // Room tab is selected. LoadConfig also performs one hidden startup
         // refresh so opening Devices is never required for detection.
         _goveeStateRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
-        _goveeStateRefreshTimer.Tick += async (_, _) =>
-        {
-            _ = RefreshHaLightStatesAsync();
-            await RefreshGoveeDeviceStatesAsync();
-        };
+        _goveeStateRefreshTimer.Tick += async (_, _) => await RefreshGoveeDeviceStatesAsync();
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
         Loaded += (_, _) =>
@@ -144,7 +140,6 @@ public partial class RoomView : UserControl
             HookOwnerWindow();
             _goveeStateRefreshTimer.Start();
             _ = RefreshGoveeDeviceStatesAsync();
-            _ = RefreshHaLightStatesAsync();
         };
         Unloaded += (_, _) =>
         {
@@ -160,14 +155,11 @@ public partial class RoomView : UserControl
             {
                 if (IsLoaded) _goveeStateRefreshTimer.Start();
                 _ = RefreshGoveeDeviceStatesAsync();
-                _ = RefreshHaLightStatesAsync();
             }
             else
             {
                 _goveeStateRefreshTimer.Stop();
             }
-            // Screen Sync status/preview UI timers only tick while the page is shown.
-            UpdateScreenSyncTimersForWindowState();
         };
 
         BuildTopBar();
@@ -209,8 +201,7 @@ public partial class RoomView : UserControl
 
     private void UpdateScreenSyncTimersForWindowState()
     {
-        // Also quiesce while the Room page itself is hidden (another page selected).
-        if (IsOwnerWindowQuiesced || !IsVisible)
+        if (IsOwnerWindowQuiesced)
         {
             _screenSyncStatusTimer?.Stop();
             _screenSyncPreviewTimer?.Stop();
@@ -262,7 +253,6 @@ public partial class RoomView : UserControl
         // ConfigManager migrates persisted configs too; keep this assignment
         // here so directly supplied/profile configs follow the same contract.
         config.Ambience.SpatialSync = true;
-        config.Ambience.HomeAssistantLights ??= new List<HALightConfig>();
         _config = config;
         _onSave = onSave;
         _loading = false;
@@ -464,11 +454,10 @@ public partial class RoomView : UserControl
 
         if (!hasGovee && !hasCorsair)
         {
-            DevicePanel.Children.Add(RoomEmptyState(MaterialIconKind.LightbulbGroupOutline,
-                "No lighting integrations enabled",
-                "Turn on Govee or Corsair iCUE in Settings > Integrations to light up your room.",
-                RoomCtaButton(MaterialIconKind.Plus, "Add Govee lights", () => NavigateToSettings?.Invoke()),
-                RoomCtaButton(MaterialIconKind.CogOutline, "Open Settings", () => NavigateToSettings?.Invoke())));
+            DevicePanel.Children.Add(MakeSetupCard(
+                "No integrations enabled",
+                "Enable Govee or Corsair iCUE in Settings to get started.",
+                "Open Settings", () => NavigateToSettings?.Invoke()));
             return;
         }
 
@@ -502,8 +491,71 @@ public partial class RoomView : UserControl
         var stack = new StackPanel();
         wrapper.Child = stack;
 
-        // ── Hero header (status pills + icon dock tab bar) — RoomView.Redesign.cs ──
-        stack.Children.Add(BuildRoomHero());
+        // ── Tab bar in its own card ──
+        var tabCard = new Border
+        {
+            Style = FindStyle("CardPanel") as Style,
+            Margin = new Thickness(0, 0, 0, 10),
+            Padding = new Thickness(8, 6, 8, 6),
+        };
+        var accent = ThemeManager.Accent;
+        var tabNames = new[] { "ROOM EFFECT", "DEVICES", "SCREEN SYNC" };
+        var tabCount = tabNames.Length;
+        var tabBorders = new Border[tabCount];
+
+        var tabContainer = new Border
+        {
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Margin = new Thickness(0),
+        };
+        tabContainer.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
+        var tabRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        for (int i = 0; i < tabCount; i++)
+        {
+            var idx = i;
+            var tab = new Border
+            {
+                Padding = new Thickness(22, 10, 22, 10),
+                Cursor = Cursors.Hand,
+                BorderBrush = new SolidColorBrush(Colors.Transparent),
+                BorderThickness = new Thickness(0, 0, 0, 2), // 2px underline slot
+                Background = new SolidColorBrush(Colors.Transparent),
+            };
+            tab.Child = new TextBlock
+            {
+                Text = tabNames[i], FontSize = 11, FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = FindBrush("TextSecBrush"),
+            };
+            tabBorders[i] = tab;
+            tab.MouseEnter += (_, _) =>
+            {
+                if (idx != _roomTabIndex && tab.Child is TextBlock t)
+                    t.Foreground = FindBrush("TextPrimaryBrush");
+            };
+            tab.MouseLeave += (_, _) =>
+            {
+                if (idx != _roomTabIndex && tab.Child is TextBlock t)
+                    t.Foreground = FindBrush("TextSecBrush");
+            };
+            tab.MouseLeftButtonDown += (_, _) =>
+            {
+                _roomTabIndex = idx;
+                for (int j = 0; j < tabCount; j++)
+                    SetRoomTabActive(tabBorders[j], j == idx, ThemeManager.Accent);
+                RebuildRoomTabContent();
+            };
+            tabRow.Children.Add(tab);
+        }
+        for (int i = 0; i < tabCount; i++)
+            SetRoomTabActive(tabBorders[i], i == _roomTabIndex, accent);
+        tabContainer.Child = tabRow;
+        tabCard.Child = tabContainer;
+        stack.Children.Add(tabCard);
 
         // Dynamic toggle row — rebuilt per tab in RebuildRoomTabContent
         _toggleRowContainer = new StackPanel();
@@ -516,6 +568,33 @@ public partial class RoomView : UserControl
         return wrapper;
     }
 
+    private static void SetRoomTabActive(Border tab, bool active, Color accent)
+    {
+        var label = tab.Child as TextBlock;
+        if (active)
+        {
+            // Accent underline, bright label
+            tab.BorderBrush = new SolidColorBrush(accent);
+            tab.BorderThickness = new Thickness(0, 0, 0, 2);
+            if (label != null)
+            {
+                label.Foreground = new SolidColorBrush(accent);
+                label.FontWeight = FontWeights.Bold;
+            }
+        }
+        else
+        {
+            // No underline, muted label
+            tab.BorderBrush = new SolidColorBrush(Colors.Transparent);
+            tab.BorderThickness = new Thickness(0, 0, 0, 2);
+            if (label != null)
+            {
+                label.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
+                label.FontWeight = FontWeights.SemiBold;
+            }
+        }
+    }
+
     private void RebuildRoomTabContent()
     {
         if (_roomTabContent == null || _config == null) return;
@@ -526,8 +605,7 @@ public partial class RoomView : UserControl
         // Build tab-specific toggle row (floating, no card wrapper)
         if (_toggleRowContainer != null && _roomTabIndex == 0)
         {
-            var toggleRow = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
-            _toggleRowContainer.Children.Add(OpenCanvas.Section("Modes"));
+            var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
             BuildTabToggleRow(toggleRow, _roomTabIndex);
             _toggleRowContainer.Children.Add(toggleRow);
             BuildToggleSettingsRow(_toggleRowContainer);
@@ -569,8 +647,7 @@ public partial class RoomView : UserControl
 
         _loading = true;
         _toggleRowContainer.Children.Clear();
-        var toggleRow = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
-            _toggleRowContainer.Children.Add(OpenCanvas.Section("Modes"));
+        var toggleRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4), HorizontalAlignment = HorizontalAlignment.Center };
         BuildTabToggleRow(toggleRow, _roomTabIndex);
         _toggleRowContainer.Children.Add(toggleRow);
         BuildToggleSettingsRow(_toggleRowContainer);
@@ -589,7 +666,7 @@ public partial class RoomView : UserControl
         _loading = false;
     }
 
-    private void BuildTabToggleRow(Panel row, int tabIndex)
+    private void BuildTabToggleRow(WrapPanel row, int tabIndex)
     {
         if (tabIndex != 0 || _config == null) return; // Only Room Effect tab has toggle row
 
@@ -1155,9 +1232,11 @@ public partial class RoomView : UserControl
         // Category tab bar — Material underline style
         var categoryBarContainer = new Border
         {
-            Margin = new Thickness(0, 0, 0, 12),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Margin = new Thickness(0, 0, 0, 8),
         };
-        var categoryTabBar = new WrapPanel { Orientation = Orientation.Horizontal };
+        categoryBarContainer.SetResourceReference(Border.BorderBrushProperty, "InputBgBrush");
+        var categoryTabBar = new StackPanel { Orientation = Orientation.Horizontal };
         // Tab index → visible-category index in EffectPickerControl:
         //   0 → 4 (favorites), 1 → 0 (static), 2 → 1 (anim), 3 → 2 (react), 4 → 3 (global)
         var categoryNames = new[] { "FAVORITES", "STATIC", "ANIMATED", "REACTIVE", "SCENES", "TEMPERATURE" };
@@ -1217,31 +1296,33 @@ public partial class RoomView : UserControl
         {
             bool active = _effectCategory == ci;
             var accent = ThemeManager.Accent;
-            // Pill chip (same visuals as the Room tab bar — PaintRoomPillTab)
             var tab = new Border
             {
-                Padding = new Thickness(14, 6, 14, 6),
-                Margin = new Thickness(0, 0, 6, 6),
-                CornerRadius = new CornerRadius(14),
-                BorderThickness = new Thickness(1),
+                Padding = new Thickness(18, 8, 18, 8),
                 Cursor = Cursors.Hand,
+                BorderBrush = new SolidColorBrush(active ? accent : Colors.Transparent),
+                BorderThickness = new Thickness(0, 0, 0, 2),
+                Background = new SolidColorBrush(Colors.Transparent),
             };
             tab.Child = new TextBlock
             {
                 Text = categoryNames[ci], FontSize = 10,
+                FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold,
+                Foreground = active ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)),
             };
-            PaintRoomPillTab(tab, active, false);
             categoryTabs[ci] = tab;
             int capturedCat = ci;
 
             // Hover state for inactive tabs
             tab.MouseEnter += (_, _) =>
             {
-                if (_effectCategory != capturedCat) PaintRoomPillTab(tab, false, true);
+                if (_effectCategory != capturedCat && tab.Child is TextBlock t)
+                    t.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
             };
             tab.MouseLeave += (_, _) =>
             {
-                if (_effectCategory != capturedCat) PaintRoomPillTab(tab, false, false);
+                if (_effectCategory != capturedCat && tab.Child is TextBlock t)
+                    t.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
             };
 
             tab.MouseLeftButtonUp += (_, _) =>
@@ -1257,8 +1338,15 @@ public partial class RoomView : UserControl
                 else
                     SendRoomTemperature(_roomTemperatureKelvin);
                 // Update tab visuals
+                var ac = ThemeManager.Accent;
                 for (int j = 0; j < categoryTabs.Length; j++)
-                    PaintRoomPillTab(categoryTabs[j], j == capturedCat, false);
+                {
+                    bool isActive = j == capturedCat;
+                    categoryTabs[j].BorderBrush = new SolidColorBrush(isActive ? ac : Colors.Transparent);
+                    var tb = (TextBlock)categoryTabs[j].Child;
+                    tb.FontWeight = isActive ? FontWeights.Bold : FontWeights.SemiBold;
+                    tb.Foreground = isActive ? new SolidColorBrush(ac) : new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
+                }
             };
             categoryTabBar.Children.Add(tab);
         }
@@ -1702,9 +1790,21 @@ public partial class RoomView : UserControl
     }
 
     /// <summary>
-    /// Open (unboxed) section container used throughout the Layout tab.
+    /// Dark card container used throughout the Layout tab.
     /// </summary>
-    private Border MakeLayoutCard() => new() { Margin = new Thickness(0, OpenCanvas.SectionSpacing, 0, 0) };
+    private Border MakeLayoutCard()
+    {
+        var card = new Border
+        {
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return card;
+    }
 
     /// <summary>
     /// Bigger dimension input with label under it: "[ 12 ]" over "WIDTH".
@@ -1974,8 +2074,9 @@ public partial class RoomView : UserControl
         _goveePowerControls.Clear();
         _goveeBrightnessControls.Clear();
         _deviceControls.Clear();
-        _haPowerControls.Clear();
-        _haStatusDots.Clear();
+
+        stack.Children.Add(UiKit.PageHeader("Devices", "Power, brightness and sync for every light",
+            icon: Material.Icons.MaterialIconKind.LightbulbGroupOutline));
 
         // ── Govee devices ──
         bool hasGovee = _config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Count > 0;
@@ -2068,11 +2169,9 @@ public partial class RoomView : UserControl
                 }));
 
                 var devColor = hasCloud ? Color.FromRgb(0x42, 0xA5, 0xF5) : Color.FromRgb(0x26, 0xC6, 0xDA);
-                // Filled by the LAN brightness row below; empty (collapsed) for cloud-only devices.
-                var brightHost = new ContentControl { Focusable = false, IsTabStop = false, Visibility = hasLan ? Visibility.Visible : Visibility.Collapsed };
-                var devCard = BuildRoomDeviceCard(devColor,
-                    IntegrationLogoTile("govee", segs > 1 ? MaterialIconKind.LedStripVariant : MaterialIconKind.LightbulbOutline, devColor),
-                    displayName, string.Join("  ·  ", subParts), controls, body, onOff, brightHost);
+                var devCard = UiKit.Card(devColor,
+                    segs > 1 ? MaterialIconKind.LedStripVariant : MaterialIconKind.LightbulbOutline,
+                    displayName, string.Join("  ·  ", subParts), controls, body);
                 if (hasCloud) devCard.Subtitle.ToolTip = "Cloud-only device — controlled through the Govee API";
 
                 // Cloud-only rows stop here — brightness/segment streaming isn't
@@ -2085,7 +2184,7 @@ public partial class RoomView : UserControl
                         Minimum = 0, Maximum = 100,
                         Value = Math.Clamp(devConfig.BrightnessScale, 0, 100),
                         Height = 30,
-                        AccentColor = devColor,
+                        AccentColor = ThemeManager.Accent,
                         ShowLabel = false,
                         HorizontalAlignment = HorizontalAlignment.Stretch,
                     };
@@ -2123,7 +2222,19 @@ public partial class RoomView : UserControl
                     _goveeBrightnessControls[devConfig] = (brightSlider, brightLabel);
                     _deviceControls[devConfig.Ip] = (onOff, brightSlider);
 
-                    brightHost.Content = RoomDeviceBrightnessRow(brightSlider, brightLabel);
+                    var brightRow = new DockPanel();
+                    var brightName = new TextBlock
+                    {
+                        Text = "Brightness", FontSize = 11, Width = 70,
+                        Foreground = FindBrush("TextSecBrush"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                    };
+                    DockPanel.SetDock(brightName, Dock.Left);
+                    DockPanel.SetDock(brightLabel, Dock.Right);
+                    brightRow.Children.Add(brightName);
+                    brightRow.Children.Add(brightLabel);
+                    brightRow.Children.Add(brightSlider);
+                    body.Children.Add(brightRow);
 
                     // Online/offline status — read-only probe, doesn't touch config.
                     var probeIp = devConfig.Ip;
@@ -2154,17 +2265,10 @@ public partial class RoomView : UserControl
 
             if (goveeChildren.Count > 0)
             {
-                stack.Children.Add(IntegrationSectionHeader("govee", MaterialIconKind.LightbulbOutline, Color.FromRgb(0x26, 0xC6, 0xDA), "GOVEE",
+                stack.Children.Add(UiKit.SectionHeader("GOVEE",
                     goveeChildren.Count == 1 ? "1 device" : $"{goveeChildren.Count} devices"));
                 foreach (var c in goveeChildren) stack.Children.Add(c);
             }
-        }
-        else if (_config.Ambience.GoveeDevices.Count == 0)
-        {
-            stack.Children.Add(IntegrationSectionHeader("govee", MaterialIconKind.LightbulbOutline, Color.FromRgb(0x26, 0xC6, 0xDA), "GOVEE", null));
-            stack.Children.Add(RoomEmptyState(MaterialIconKind.LightbulbOutline, "No Govee lights yet",
-                "Turn on Govee in Settings > Integrations, then scan your network or add a Govee API key.",
-                RoomCtaButton(MaterialIconKind.Plus, "Add Govee lights", () => NavigateToSettings?.Invoke())));
         }
 
         // ── Corsair devices ──
@@ -2172,13 +2276,13 @@ public partial class RoomView : UserControl
         if (hasCorsair)
         {
             int corsairCount = _corsairSync?.Devices.Count ?? 0;
-            stack.Children.Add(IntegrationSectionHeader("corsair", MaterialIconKind.Keyboard, Color.FromRgb(0xFF, 0xCA, 0x28), "CORSAIR",
+            stack.Children.Add(UiKit.SectionHeader("CORSAIR",
                 corsairCount == 0 ? "" : corsairCount == 1 ? "1 device" : $"{corsairCount} devices"));
 
             if (_corsairSync?.Devices.Count > 0)
             {
                 var corBody = new StackPanel();
-                var rows = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+                var list = UiKit.ListContainer(out var rows);
                 foreach (var dev in _corsairSync.Devices)
                 {
                     var cdot = new System.Windows.Shapes.Ellipse
@@ -2193,7 +2297,7 @@ public partial class RoomView : UserControl
                     right.Children.Add(cdot);
                     rows.Children.Add(UiKit.ListRow(UiKit.Icon(MaterialIconKind.LedStripVariant, 16), dev.Name, null, right));
                 }
-                corBody.Children.Add(rows);
+                corBody.Children.Add(list);
 
                 // Brightness slider for all Corsair
                 var corBrightSlider = new StyledSlider
@@ -2201,7 +2305,7 @@ public partial class RoomView : UserControl
                     Minimum = 1, Maximum = 100,
                     Value = Math.Min(_config.Corsair.LightBrightness, 100),
                     Height = 30,
-                    AccentColor = Color.FromRgb(0xFF, 0xCA, 0x28),
+                    AccentColor = ThemeManager.Accent,
                     ShowLabel = false,
                     HorizontalAlignment = HorizontalAlignment.Stretch,
                 };
@@ -2222,22 +2326,36 @@ public partial class RoomView : UserControl
                     corBrightLabel.Text = $"{pct}%";
                     QueueSave();
                 };
-                var corBrightRow = RoomDeviceBrightnessRow(corBrightSlider, corBrightLabel);
+                var corBrightRow = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
+                var corBrightName = new TextBlock
+                {
+                    Text = "Brightness", FontSize = 11, Width = 70,
+                    Foreground = FindBrush("TextSecBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                DockPanel.SetDock(corBrightName, Dock.Left);
+                DockPanel.SetDock(corBrightLabel, Dock.Right);
+                corBrightRow.Children.Add(corBrightName);
+                corBrightRow.Children.Add(corBrightLabel);
+                corBrightRow.Children.Add(corBrightSlider);
+                corBody.Children.Add(corBrightRow);
 
-                var corColor = Color.FromRgb(0xFF, 0xCA, 0x28);
-                stack.Children.Add(BuildRoomDeviceCard(corColor, IntegrationLogoTile("corsair", MaterialIconKind.Keyboard, corColor),
-                    "Corsair iCUE", "Brightness applies to all Corsair devices", null, corBody, null, corBrightRow).Root);
+                stack.Children.Add(UiKit.Card(Color.FromRgb(0xFF, 0xCA, 0x28), MaterialIconKind.Keyboard,
+                    "Corsair iCUE", "Brightness applies to all Corsair devices", null, corBody).Root);
             }
             else
             {
-                stack.Children.Add(RoomEmptyState(MaterialIconKind.Keyboard, "No Corsair devices detected",
-                    "Make sure iCUE is running with the SDK enabled, then come back to this tab."));
+                stack.Children.Add(UiKit.EmptyState(MaterialIconKind.Keyboard, "No Corsair devices detected",
+                    "Make sure iCUE is running, then come back to this tab."));
             }
         }
 
-        // ── Home Assistant lights ──
-        // Lists the lights, or shows an "Add Home Assistant lights" empty state when there are none.
-        BuildHaLightsSection(stack);
+        if (!hasGovee && !hasCorsair)
+        {
+            stack.Children.Add(UiKit.SectionHeader("LIGHTS"));
+            stack.Children.Add(UiKit.EmptyState(MaterialIconKind.LightbulbGroupOutline, "No devices configured",
+                "Enable Govee or Corsair in Settings to control them here."));
+        }
 
         // ── AmpUp hardware (Turn Up) ──
         var turnUpSwitch = MakeScreenSyncSwitch(_config.Ambience.ScreenSync.SyncToTurnUp, on =>
@@ -2263,301 +2381,9 @@ public partial class RoomView : UserControl
         var tuBody = new StackPanel();
         tuBody.Children.Add(row1);
         tuBody.Children.Add(row2);
-        stack.Children.Add(IntegrationSectionHeader(null, MaterialIconKind.Tune, Color.FromRgb(0x69, 0xF0, 0xAE), "TURN UP", null));
-        stack.Children.Add(RoomCard(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.Tune,
+        stack.Children.Add(UiKit.SectionHeader("TURN UP"));
+        stack.Children.Add(UiKit.Card(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.Tune,
             "Hardware LEDs", "Let the knob LEDs follow your screen and room lights", null, tuBody).Root);
-    }
-
-    // ── Home Assistant lights (Room > Devices) ──
-
-    private static readonly Color HaLightCardColor = Color.FromRgb(0x82, 0xCF, 0xFF); // matches layout tray "ha" cyan
-    private readonly Dictionary<HALightConfig, CheckBox> _haPowerControls = new();
-    private readonly Dictionary<HALightConfig, System.Windows.Shapes.Ellipse> _haStatusDots = new();
-    private readonly Dictionary<string, DateTime> _haManualControlAt = new(StringComparer.OrdinalIgnoreCase);
-    private bool _haStateRefreshInProgress;
-
-    /// <summary>True when the entity is a Room > Devices HA light (so the legacy layout path skips it).</summary>
-    private static bool IsRoomDevicesHaLight(AppConfig config, string entityId)
-    {
-        var lights = config.Ambience.HomeAssistantLights;
-        if (lights == null) return false;
-        foreach (var light in lights)
-            if (light.Enabled && string.Equals(light.EntityId, entityId, StringComparison.OrdinalIgnoreCase))
-                return true;
-        return false;
-    }
-
-    /// <summary>Builds the HOME ASSISTANT section. Returns true when at least one light is listed.</summary>
-    private bool BuildHaLightsSection(StackPanel stack)
-    {
-        if (_config == null) return false;
-        var lights = _config.Ambience.HomeAssistantLights ?? new List<HALightConfig>();
-
-        stack.Children.Add(IntegrationSectionHeader(null, MaterialIconKind.HomeAssistant, HaLightCardColor, "HOME ASSISTANT",
-            lights.Count == 0 ? "" : lights.Count == 1 ? "1 light" : $"{lights.Count} lights"));
-
-        var pickerHost = new StackPanel();
-        if (lights.Count == 0)
-        {
-            stack.Children.Add(RoomEmptyState(MaterialIconKind.HomeAssistant, "No Home Assistant lights",
-                "Pick light entities from Home Assistant to use in room effects.",
-                RoomCtaButton(MaterialIconKind.Plus, "Add Home Assistant lights", () => OpenHaLightPicker(pickerHost))));
-        }
-        else
-        {
-            var addRow = UiKit.LinkRow(MaterialIconKind.Plus, "Add Home Assistant lights", true,
-                () => OpenHaLightPicker(pickerHost),
-                "Pick light entities from Home Assistant to use in room effects");
-            addRow.HorizontalAlignment = HorizontalAlignment.Left;
-            addRow.Margin = new Thickness(0, 0, 0, 8);
-            stack.Children.Add(addRow);
-        }
-        stack.Children.Add(pickerHost);
-
-        foreach (var light in lights)
-            stack.Children.Add(BuildHaLightCard(light));
-
-        return lights.Count > 0;
-    }
-
-    private void OpenHaLightPicker(StackPanel host)
-    {
-        if (_config == null) return;
-        host.Children.Clear();
-
-        var ha = _ha;
-        if (!_config.HomeAssistant.Enabled || ha == null)
-        {
-            host.Children.Add(UiKit.EmptyState(MaterialIconKind.HomeAssistant, "Home Assistant isn't connected",
-                "Connect it in Settings > Integrations > Home Assistant, then come back here to add lights.",
-                UiKit.LinkRow(MaterialIconKind.CogOutline, "Open Settings", true, () => NavigateToSettings?.Invoke())));
-            return;
-        }
-
-        var existing = (_config.Ambience.HomeAssistantLights ?? new List<HALightConfig>()).Select(l => l.EntityId);
-        var picked = HALightPickerDialog.Prompt(Window.GetWindow(this), ha, existing);
-        if (picked == null || picked.Count == 0) return;
-        AddHaLights(picked.Select(l => new HAEntity { EntityId = l.EntityId, FriendlyName = l.FriendlyName }).ToList());
-    }
-
-    private void AddHaLights(List<HAEntity> picked)
-    {
-        if (_config == null) return;
-        // Copy-on-write: the room frame / Screen Sync threads enumerate this list.
-        var updated = new List<HALightConfig>(_config.Ambience.HomeAssistantLights ?? new List<HALightConfig>());
-        foreach (var entity in picked)
-        {
-            if (updated.Any(l => string.Equals(l.EntityId, entity.EntityId, StringComparison.OrdinalIgnoreCase)))
-                continue;
-            updated.Add(new HALightConfig
-            {
-                EntityId = entity.EntityId,
-                Name = string.IsNullOrWhiteSpace(entity.FriendlyName) ? entity.EntityId : entity.FriendlyName,
-            });
-        }
-        _config.Ambience.HomeAssistantLights = updated;
-        QueueSave();
-        RebuildRoomTabContent();
-        _ = RefreshHaLightStatesAsync();
-    }
-
-    private void RemoveHaLight(HALightConfig light)
-    {
-        if (_config == null) return;
-        var updated = new List<HALightConfig>(_config.Ambience.HomeAssistantLights ?? new List<HALightConfig>());
-        updated.Remove(light);
-        _config.Ambience.HomeAssistantLights = updated;
-        App.HaLights?.Invalidate(light.EntityId);
-        QueueSave();
-        RebuildRoomTabContent();
-    }
-
-    private Border BuildHaLightCard(HALightConfig light)
-    {
-        var capturedLight = light;
-        string displayName = string.IsNullOrWhiteSpace(light.Name) ? light.EntityId : light.Name;
-
-        // CheckBoxes are the logical models; MakeLabeledDeviceSwitch mirrors them visually.
-        var onOff = new CheckBox { IsChecked = light.PoweredOn };
-        onOff.Checked += async (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            await SetHaLightPowerAsync(capturedLight, true);
-        };
-        onOff.Unchecked += async (_, _) =>
-        {
-            if (_loading || _config == null) return;
-            await SetHaLightPowerAsync(capturedLight, false);
-        };
-        _haPowerControls[light] = onOff;
-
-        var ampUpSync = new CheckBox { IsChecked = light.SyncWithAmpUp };
-        ampUpSync.Checked += (_, _) => { if (_loading || _config == null) return; capturedLight.SyncWithAmpUp = true; App.HaLights?.Invalidate(capturedLight.EntityId); QueueSave(); };
-        ampUpSync.Unchecked += (_, _) => { if (_loading || _config == null) return; capturedLight.SyncWithAmpUp = false; QueueSave(); };
-
-        var screenSync = new CheckBox { IsChecked = light.ScreenSync };
-        screenSync.Checked += (_, _) => { if (_loading || _config == null) return; capturedLight.ScreenSync = true; App.HaLights?.Invalidate(capturedLight.EntityId); QueueSave(); };
-        screenSync.Unchecked += (_, _) => { if (_loading || _config == null) return; capturedLight.ScreenSync = false; QueueSave(); };
-
-        var dot = new System.Windows.Shapes.Ellipse
-        {
-            Width = 8, Height = 8,
-            Margin = new Thickness(0, 0, 14, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Fill = FindBrush("TextDimBrush"),
-            ToolTip = "Checking Home Assistant…",
-        };
-        _haStatusDots[light] = dot;
-
-        var controls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        controls.Children.Add(dot);
-        controls.Children.Add(MakeLabeledDeviceSwitch("Power", onOff, null));
-        controls.Children.Add(MakeLabeledDeviceSwitch("Sync", ampUpSync,
-            "Sync with AmpUp — room effects, Music Reactive and VU Fill drive this light. Home Assistant updates a few times per second, so fast effects look smoother on Govee."));
-        controls.Children.Add(MakeLabeledDeviceSwitch("Screen", screenSync,
-            "Follow Screen Sync too. Slower than Govee: Home Assistant only updates a few times per second, so expect some lag. Off by default."));
-        controls.Children.Add(UiKit.MoreButton(() => new List<GlassMenuItem>
-        {
-            new("Remove light", MaterialIconKind.DeleteOutline, () => RemoveHaLight(capturedLight), IsDanger: true),
-        }));
-
-        var body = new StackPanel();
-
-        // Brightness = scale for AmpUp-driven colors. With no room effect running it
-        // also sets the light's brightness in Home Assistant directly (debounced).
-        var brightSlider = new StyledSlider
-        {
-            Minimum = 1, Maximum = 100,
-            Value = Math.Clamp(light.BrightnessScale, 1, 100),
-            Height = 30,
-            AccentColor = HaLightCardColor,
-            ShowLabel = false,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        var brightLabel = new TextBlock
-        {
-            Text = $"{(int)brightSlider.Value}%", FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-            MinWidth = 34, TextAlignment = TextAlignment.Right,
-            Margin = new Thickness(8, 0, 0, 0),
-        };
-        var brightDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-        brightDebounce.Tick += (_, _) =>
-        {
-            brightDebounce.Stop();
-            var ha = _ha;
-            if (ha == null || _config?.HomeAssistant.Enabled != true || !capturedLight.PoweredOn) return;
-            if (_roomRgb != null && capturedLight.SyncWithAmpUp) return; // the effect applies the new scale itself
-            MarkHaManualControl(capturedLight.EntityId);
-            _ = ha.SetLightBrightnessAsync(capturedLight.EntityId, capturedLight.BrightnessScale / 100f);
-        };
-        brightSlider.ValueChanged += (_, _) =>
-        {
-            int pct = (int)brightSlider.Value;
-            brightLabel.Text = $"{pct}%";
-            if (_loading) return;
-            capturedLight.BrightnessScale = pct;
-            QueueSave();
-            brightDebounce.Stop();
-            brightDebounce.Start();
-        };
-
-        var brightRow = RoomDeviceBrightnessRow(brightSlider, brightLabel);
-
-        body.Children.Add(BuildWhiteBalanceAdvancedSection(
-            light.WhiteBalanceR, light.WhiteBalanceG, light.WhiteBalanceB,
-            v => capturedLight.WhiteBalanceR = v, v => capturedLight.WhiteBalanceG = v, v => capturedLight.WhiteBalanceB = v));
-
-        var card = BuildRoomDeviceCard(HaLightCardColor, IntegrationLogoTile(null, MaterialIconKind.HomeAssistant, HaLightCardColor),
-            displayName, $"HA  ·  {light.EntityId}  ·  slower than Govee", controls, body, onOff, brightRow);
-        card.Subtitle.ToolTip = "Home Assistant light — static colors and slow effects work best. "
-            + "Updates are limited to a few per second, so it won't mirror fast effects or the screen in real time.";
-        return card.Root;
-    }
-
-    private void MarkHaManualControl(string entityId) => _haManualControlAt[entityId] = DateTime.UtcNow;
-
-    private async Task SetHaLightPowerAsync(HALightConfig light, bool on)
-    {
-        light.PoweredOn = on;
-        MarkHaManualControl(light.EntityId);
-        App.HaLights?.Invalidate(light.EntityId); // resend the effect color right after turning on
-        QueueSave();
-        var ha = _ha;
-        if (ha == null || _config?.HomeAssistant.Enabled != true) return;
-        try { await ha.SetLightPowerAsync(light.EntityId, on); }
-        catch (Exception ex) { Logger.Log($"[Room] HA light power failed: {ex.Message}"); }
-    }
-
-    /// <summary>
-    /// Poll HA for on/off of the Room > Devices lights (same 15s cadence as Govee). Only power
-    /// is reflected: brightness while an effect runs is AmpUp's own output, so mirroring it
-    /// back into the scale slider would fight the effect. Lights toggled here in the last few
-    /// seconds are skipped so a slow HA state can't flip the switch back.
-    /// </summary>
-    private async Task RefreshHaLightStatesAsync()
-    {
-        var config = _config;
-        var ha = _ha;
-        if (_haStateRefreshInProgress || config == null || ha == null || !config.HomeAssistant.Enabled)
-            return;
-        var lights = (config.Ambience.HomeAssistantLights ?? new List<HALightConfig>()).ToArray();
-        if (lights.Length == 0) return;
-
-        _haStateRefreshInProgress = true;
-        try
-        {
-            var requestedAt = DateTime.UtcNow;
-            var states = await ha.GetLightStatesAsync(lights.Select(l => l.EntityId));
-            if (!ReferenceEquals(_config, config)) return;
-
-            bool changed = false;
-            _loading = true;
-            try
-            {
-                foreach (var light in lights)
-                {
-                    bool found = states != null && states.ContainsKey(light.EntityId);
-                    if (_haStatusDots.TryGetValue(light, out var dot))
-                    {
-                        dot.Fill = found
-                            ? new SolidColorBrush(Color.FromRgb(0x00, 0xDD, 0x77))
-                            : new SolidColorBrush(Color.FromRgb(0xFF, 0x44, 0x44));
-                        dot.ToolTip = states == null ? "Home Assistant not reachable"
-                            : found ? "Online (Home Assistant)" : "Entity not found in Home Assistant";
-                    }
-                    if (!found) continue;
-
-                    if (_haManualControlAt.TryGetValue(light.EntityId, out var manualAt)
-                        && (manualAt > requestedAt.AddSeconds(-10)))
-                        continue;
-
-                    bool on = states![light.EntityId].On;
-                    if (light.PoweredOn == on) continue;
-                    light.PoweredOn = on;
-                    changed = true;
-                    if (on) App.HaLights?.Invalidate(light.EntityId);
-                    if (_haPowerControls.TryGetValue(light, out var power))
-                        power.IsChecked = on;
-                }
-            }
-            finally
-            {
-                _loading = false;
-            }
-
-            if (changed) _onSave?.Invoke(config);
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"[Room] HA light state refresh failed: {ex.Message}");
-        }
-        finally
-        {
-            _haStateRefreshInProgress = false;
-        }
     }
 
     /// <summary>Label + hint on the left, control right-aligned (Screen Sync style).</summary>
@@ -2604,12 +2430,6 @@ public partial class RoomView : UserControl
 
     /// <summary>Collapsible "Advanced" block holding per-device White Balance (Screen Sync).</summary>
     private StackPanel BuildGoveeAdvancedSection(GoveeDeviceConfig wbCfg)
-        => BuildWhiteBalanceAdvancedSection(
-            wbCfg.WhiteBalanceR, wbCfg.WhiteBalanceG, wbCfg.WhiteBalanceB,
-            v => wbCfg.WhiteBalanceR = v, v => wbCfg.WhiteBalanceG = v, v => wbCfg.WhiteBalanceB = v);
-
-    private StackPanel BuildWhiteBalanceAdvancedSection(int wbR, int wbG, int wbB,
-        Action<int> setR, Action<int> setG, Action<int> setB)
     {
         var outer = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
         var chevron = UiKit.Icon(MaterialIconKind.ChevronRight, 14);
@@ -2629,7 +2449,7 @@ public partial class RoomView : UserControl
             Text = "ADVANCED", FontSize = 10, FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextSecBrush"), VerticalAlignment = VerticalAlignment.Center,
         });
-        int wbTrimmed = (wbR < 100 ? 1 : 0) + (wbG < 100 ? 1 : 0) + (wbB < 100 ? 1 : 0);
+        int wbTrimmed = (wbCfg.WhiteBalanceR < 100 ? 1 : 0) + (wbCfg.WhiteBalanceG < 100 ? 1 : 0) + (wbCfg.WhiteBalanceB < 100 ? 1 : 0);
         if (wbTrimmed > 0)
             toggleRow.Children.Add(new TextBlock
             {
@@ -2682,9 +2502,9 @@ public partial class RoomView : UserControl
             row.Children.Add(sl);
             return row;
         }
-        panel.Children.Add(MakeWb("Red", Color.FromRgb(0xFF, 0x52, 0x52), wbR, setR));
-        panel.Children.Add(MakeWb("Green", Color.FromRgb(0x00, 0xE6, 0x76), wbG, setG));
-        panel.Children.Add(MakeWb("Blue", Color.FromRgb(0x44, 0x8A, 0xFF), wbB, setB));
+        panel.Children.Add(MakeWb("Red", Color.FromRgb(0xFF, 0x52, 0x52), wbCfg.WhiteBalanceR, v => wbCfg.WhiteBalanceR = v));
+        panel.Children.Add(MakeWb("Green", Color.FromRgb(0x00, 0xE6, 0x76), wbCfg.WhiteBalanceG, v => wbCfg.WhiteBalanceG = v));
+        panel.Children.Add(MakeWb("Blue", Color.FromRgb(0x44, 0x8A, 0xFF), wbCfg.WhiteBalanceB, v => wbCfg.WhiteBalanceB = v));
         outer.Children.Add(panel);
 
         toggleRow.MouseLeftButtonDown += (_, _) =>
@@ -2750,10 +2570,10 @@ public partial class RoomView : UserControl
                 Margin = new Thickness(0, 0, 6, 0),
                 Cursor = Cursors.Hand,
                 Background = active
-                    ? GlassStyle.AccentPillBrushes().Fill
+                    ? new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0xE6, 0x76))
                     : FindBrush("CardBorderBrush"),
                 BorderBrush = active
-                    ? GlassStyle.AccentPillBrushes().Border
+                    ? new SolidColorBrush(Color.FromArgb(0x60, 0x00, 0xE6, 0x76))
                     : FindBrush("InputBorderBrush"),
                 BorderThickness = new Thickness(1),
             };
@@ -4336,7 +4156,9 @@ public partial class RoomView : UserControl
     {
         if (_config == null) return;
 
-        stack.Children.Add(OpenCanvas.Section("Modes"));
+        stack.Children.Add(UiKit.PageHeader("Screen Sync", "Mirror your screen's colors to your room lights",
+            icon: Material.Icons.MaterialIconKind.MonitorShimmer));
+        stack.Children.Add(UiKit.SectionHeader("MODES"));
 
         bool syncRunning = _config.Ambience.ScreenSync.Enabled;
         Action<bool> setSyncSwitch = _ => { };
@@ -4361,7 +4183,7 @@ public partial class RoomView : UserControl
         var syncActions = new StackPanel { Orientation = Orientation.Horizontal };
         syncActions.Children.Add(syncBadge);
         syncActions.Children.Add(screenSyncSwitch);
-        var screenSyncTile = RoomCard(Color.FromRgb(0x44, 0x8A, 0xFF), MaterialIconKind.MonitorShimmer,
+        var screenSyncTile = UiKit.Card(Color.FromRgb(0x44, 0x8A, 0xFF), MaterialIconKind.MonitorShimmer,
             "Screen Sync", "Lights follow your screen", syncActions).Root;
 
         // Game Mode — auto-enable screen sync when fullscreen app detected
@@ -4372,13 +4194,13 @@ public partial class RoomView : UserControl
                 _config.Ambience.GameModeEnabled = on;
                 QueueSave();
             }, out _, "Turn Game Mode on or off");
-        var gameTile = RoomCard(Color.FromRgb(0xFF, 0x6B, 0x35), MaterialIconKind.GamepadVariantOutline,
+        var gameTile = UiKit.Card(Color.FromRgb(0xFF, 0x6B, 0x35), MaterialIconKind.GamepadVariantOutline,
             "Game Mode",
             "Turns Screen Sync on while a fullscreen game is focused (browsers and video players ignored)",
             gameSwitch).Root;
         // One column — side-by-side cards read as confusing.
         stack.Children.Add(screenSyncTile);
-        stack.Children.Add(gameTile);
+        stack.Children.Add(Spaced(gameTile));
 
         // ── Settings cards ──
         _screenSyncSettingsPanel = new StackPanel();
@@ -4580,7 +4402,7 @@ public partial class RoomView : UserControl
         cropRow.Margin = new Thickness(0);
         sourceBody.Children.Add(cropRow);
 
-        var sourceCard = RoomCard(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.Monitor,
+        var sourceCard = UiKit.Card(Color.FromRgb(0x42, 0xA5, 0xF5), MaterialIconKind.Monitor,
             "Source", "What gets captured and how often", null, sourceBody).Root;
 
         // ══════════════════ LOOK ══════════════════
@@ -4642,11 +4464,12 @@ public partial class RoomView : UserControl
         if (lookBody.Children[lookBody.Children.Count - 1] is FrameworkElement lastLook)
             lastLook.Margin = new Thickness(0);
 
-        var lookCard = RoomCard(Color.FromRgb(0xAB, 0x47, 0xBC), MaterialIconKind.PaletteOutline,
+        var lookCard = UiKit.Card(Color.FromRgb(0xAB, 0x47, 0xBC), MaterialIconKind.PaletteOutline,
             "Look", "Color intensity and responsiveness", null, lookBody).Root;
 
-        stack.Children.Add(sourceCard);
-        stack.Children.Add(lookCard);
+        stack.Children.Add(UiKit.SectionHeader("SETTINGS"));
+        stack.Children.Add(Spaced(sourceCard));
+        stack.Children.Add(Spaced(lookCard));
 
         // ══════════════════ PREVIEW ══════════════════
         _screenEdgeControl = new Controls.ScreenEdgeControl
@@ -4691,7 +4514,7 @@ public partial class RoomView : UserControl
         var previewBody = new StackPanel();
         previewBody.Children.Add(_screenEdgeControl);
         previewBody.Children.Add(_dreamStatusLabel);
-        stack.Children.Add(RoomCard(Color.FromRgb(0x26, 0xC6, 0xDA), MaterialIconKind.EyeOutline,
+        stack.Children.Add(UiKit.Card(Color.FromRgb(0x26, 0xC6, 0xDA), MaterialIconKind.EyeOutline,
             "Preview", "Live capture zones — drag the crop lines to set content boundaries", null, previewBody).Root);
 
         // Status update timer — updates status label and the SCREEN SYNC tile badge.
@@ -4743,7 +4566,6 @@ public partial class RoomView : UserControl
 
         // ══════════════════ DEVICES ══════════════════
         var devList = UiKit.ListContainer(out var devBody);
-        OpenListContainer(devList);
         bool hasMonitor = _config.RoomLayout.Monitor != null;
         int devRows = 0;
         foreach (var goveeDevice in _config.Ambience.GoveeDevices)
@@ -4827,20 +4649,20 @@ public partial class RoomView : UserControl
             };
             controls.Children.Add(cropCombo);
 
-            OpenListRow(rowBorder);
             devBody.Children.Add(rowBorder);
             devRows++;
         }
+        stack.Children.Add(UiKit.SectionHeader("DEVICES",
+            devRows == 0 ? "" : devRows == 1 ? "1 light" : $"{devRows} lights"));
         if (devRows == 0)
         {
-            stack.Children.Add(OpenCanvas.Section("Edge mapping"));
             stack.Children.Add(UiKit.EmptyState(MaterialIconKind.LightbulbGroupOutline, "No LAN Govee devices yet",
                 "Add devices in the DEVICES tab to map them to screen edges."));
         }
         else
         {
-            stack.Children.Add(RoomCard(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.BorderOutside,
-                "Edge mapping", (devRows == 1 ? "1 light" : $"{devRows} lights") + " · which part of the screen each light follows", null, devList).Root);
+            stack.Children.Add(UiKit.Card(Color.FromRgb(0x69, 0xF0, 0xAE), MaterialIconKind.BorderOutside,
+                "Edge mapping", "Which part of the screen each light follows", null, devList).Root);
         }
     }
 
@@ -5793,16 +5615,15 @@ public partial class RoomView : UserControl
         bool isActive = initialActive;
         var icoColor = iconColor ?? ThemeManager.Accent;
 
-        // Open canvas row: no box, 1px bottom hairline, hover tint only.
         var tile = new Border
         {
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(4, 10, 4, 10),
-            MinHeight = 52,
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 8, 12, 8),
+            Margin = new Thickness(0, 0, 8, 8),
             Cursor = Cursors.Hand,
-            SnapsToDevicePixels = true,
+            MinWidth = 220,
         };
-        tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var iconTile = UiKit.IconTile(icoColor, icon, 30);
         iconTile.Margin = new Thickness(0, 0, 10, 0);
@@ -5810,7 +5631,7 @@ public partial class RoomView : UserControl
 
         var titleText = new TextBlock { Text = title, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         titleText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        var subtitleText = new TextBlock { Text = subtitle, FontSize = 11, Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        var subtitleText = new TextBlock { Text = subtitle, FontSize = 10.5, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 230 };
         subtitleText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
 
         var leftStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -5845,9 +5666,17 @@ public partial class RoomView : UserControl
 
         void UpdateVisuals(bool hover = false)
         {
-            // Open row: cached hover brush; active state = accent title (resource reference, no allocation).
-            tile.Background = hover ? OpenCanvas.HoverBrush : Brushes.Transparent;
-            titleText.SetResourceReference(TextBlock.ForegroundProperty, isActive ? "AccentBrush" : "TextPrimaryBrush");
+            var a = ThemeManager.Accent;
+            if (isActive)
+            {
+                tile.Background = new SolidColorBrush(Color.FromArgb(0x1C, a.R, a.G, a.B));
+                tile.BorderBrush = new SolidColorBrush(Color.FromArgb(hover ? (byte)0xC0 : (byte)0x80, a.R, a.G, a.B));
+            }
+            else
+            {
+                tile.SetResourceReference(Border.BackgroundProperty, hover ? "InputBgBrush" : "CardBgBrush");
+                tile.SetResourceReference(Border.BorderBrushProperty, hover ? "InputBorderBrush" : "CardBorderBrush");
+            }
         }
 
         Action<bool> setSwitch = _ => { };
@@ -6353,7 +6182,6 @@ public partial class RoomView : UserControl
             foreach (var dev in _config.RoomLayout.Devices)
             {
                 if (dev.DeviceType != "ha") continue;
-                if (IsRoomDevicesHaLight(_config, dev.DeviceId)) continue; // driven by HALightSync
                 _ha.SetLightColorFireAndForget(dev.DeviceId, rgb.R, rgb.G, rgb.B, scaledBrightness);
             }
         }
@@ -7060,7 +6888,6 @@ public partial class RoomView : UserControl
             foreach (var dev in config.RoomLayout.Devices)
             {
                 if (dev.DeviceType != "ha") continue;
-                if (IsRoomDevicesHaLight(config, dev.DeviceId)) continue; // driven by HALightSync below
                 if (!_haLastSend.TryGetValue(dev.DeviceId, out var last) ||
                     (DateTime.UtcNow - last).TotalMilliseconds >= 500)
                 {
@@ -7081,23 +6908,6 @@ public partial class RoomView : UserControl
                             (byte)nr, (byte)ng, (byte)nb, Math.Max(brightness, 1));
                     }
                 }
-            }
-        }
-
-        // ── HA lights added in Room > Devices (HALightSync coalesces + rate-limits off-thread) ──
-        var haLightSync = App.HaLights;
-        if (haLightSync != null && !_roomPatternCorsairOnly && config.HomeAssistant.Enabled)
-        {
-            foreach (var light in config.Ambience.HomeAssistantLights ?? new List<HALightConfig>())
-            {
-                if (!light.Enabled || !light.SyncWithAmpUp || !light.PoweredOn) continue;
-                int hr = r, hg = g, hb = b;
-                if (_spatialMapper?.GetDevicePosition(light.EntityId) != null)
-                {
-                    var sampled = _spatialMapper.SampleForDevice(light.EntityId, frameForSync, 1);
-                    if (sampled.Length > 0) { hr = sampled[0].R; hg = sampled[0].G; hb = sampled[0].B; }
-                }
-                haLightSync.Submit(light, (byte)Math.Clamp(hr, 0, 255), (byte)Math.Clamp(hg, 0, 255), (byte)Math.Clamp(hb, 0, 255));
             }
         }
 
@@ -7879,33 +7689,37 @@ public partial class RoomView : UserControl
 
     // ── UI Helpers ────────────────────────────────────────────────────
 
-    // Open canvas section title: small caps dim label (the old accent bar stays as a collapsed
-    // placeholder so the (bar, label) tuple callers keep working).
     private (Border bar, TextBlock label) MakeSectionHeader(string text)
     {
-        var bar = new Border { Width = 0, Visibility = Visibility.Collapsed };
+        var bar = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = FindBrush("AccentBrush"),
+            Margin = new Thickness(0, 0, 10, 0),
+        };
         var label = new TextBlock
         {
-            Text = text.ToUpperInvariant(),
-            FontSize = 11,
+            Text = text,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
+            Foreground = FindBrush("AccentBrush"),
             VerticalAlignment = VerticalAlignment.Center,
         };
-        label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         _sectionHeaders.Add((bar, label));
         return (bar, label);
     }
 
-    /// <summary>Section title over a 1px hairline (open canvas).</summary>
     private StackPanel WrapHeader(Border bar, TextBlock label)
     {
-        var outer = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
         row.Children.Add(bar);
         row.Children.Add(label);
-        outer.Children.Add(row);
-        outer.Children.Add(OpenCanvas.Divider());
-        return outer;
+        return row;
     }
 
     private TextBlock MakeSubLabel(string text) => new()
@@ -7925,17 +7739,24 @@ public partial class RoomView : UserControl
         Margin = new Thickness(0, 4, 0, 12),
     };
 
-    /// <summary>Open canvas section: caps title + hairline, then the children on the page background.</summary>
     private Border MakeSectionCard(string title, params UIElement[] children)
     {
         var content = new StackPanel();
         var (bar, label) = MakeSectionHeader(title);
         content.Children.Add(WrapHeader(bar, label));
-        var body = new StackPanel { Margin = new Thickness(4, 0, 4, 0) };
         foreach (var child in children)
-            body.Children.Add(child);
-        content.Children.Add(body);
-        return new Border { Margin = new Thickness(0, OpenCanvas.SectionSpacing, 0, 0), Child = content };
+            content.Children.Add(child);
+        var border = new Border
+        {
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = content,
+        };
+        border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        return border;
     }
 
     private TextBlock MakeErrorText(string text) => new()
@@ -7951,7 +7772,12 @@ public partial class RoomView : UserControl
 
     private void RefreshAccentColors()
     {
-        // Open canvas section titles use TextDimBrush via resource reference; nothing to repaint.
+        var accent = ThemeManager.Accent;
+        foreach (var (bar, label) in _sectionHeaders)
+        {
+            if (bar != null) bar.Background = new SolidColorBrush(accent);
+            if (label != null) label.Foreground = new SolidColorBrush(accent);
+        }
     }
 
     // ── Resource helpers ──────────────────────────────────────────────

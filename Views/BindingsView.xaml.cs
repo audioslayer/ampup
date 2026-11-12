@@ -105,7 +105,6 @@ public class BindingsView : UserControl
         // View lives for the app's lifetime (MainWindow field), so a permanent subscription is fine.
         ThemeManager.OnAccentChanged += OnThemeChanged;
         ThemeManager.OnCardThemeChanged += OnThemeChanged;
-        ThemeManager.OnReduceEffectsChanged += OnThemeChanged;
 
         _colorTimer = new System.Windows.Threading.DispatcherTimer
         {
@@ -342,7 +341,8 @@ public class BindingsView : UserControl
             VerticalAlignment = VerticalAlignment.Center,
             Background = new SolidColorBrush(ThemeManager.WithAlpha(profileColor, 0x26)),
             BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(profileColor, 0x77)),
-            Effect = GlassStyle.GlowEffect(profileColor, 22, 0.55),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+                { BlurRadius = 22, ShadowDepth = 0, Opacity = 0.55, Color = profileColor },
             Child = new MaterialIcon { Kind = profileKind, Width = 28, Height = 28, Foreground = new SolidColorBrush(profileColor) },
         };
         grid.Children.Add(tile);
@@ -426,13 +426,18 @@ public class BindingsView : UserControl
             BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x55)),
             Child = sp,
         };
-        var restBg = b.Background; var restBorder = b.BorderBrush;
-        var hoverBg = Frozen(ThemeManager.WithAlpha(a, 0x33));
-        var hoverBorder = Frozen(ThemeManager.WithAlpha(a, 0xAA));
-        b.MouseEnter += (_, _) => { b.Background = hoverBg; b.BorderBrush = hoverBorder; };
-        b.MouseLeave += (_, _) => { b.Background = restBg; b.BorderBrush = restBorder; };
+        b.MouseEnter += (_, _) =>
+        {
+            b.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x33));
+            b.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0xAA));
+        };
+        b.MouseLeave += (_, _) =>
+        {
+            b.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x1A));
+            b.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x55));
+        };
         b.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(b); };
-        GlassStyle.AttachHoverLift(b);
+        AddHoverLift(b, 1.5);
         return b;
     }
 
@@ -461,6 +466,7 @@ public class BindingsView : UserControl
             tb.Text = $"{deviceName} · {(on ? "Connected" : "Offline")}";
             tb.Foreground = new SolidColorBrush(c);
             dot.Fill = new SolidColorBrush(c);
+            dot.Effect = on ? new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 8, ShadowDepth = 0, Opacity = 0.8, Color = c } : null;
             pill.Background = new SolidColorBrush(ThemeManager.WithAlpha(c, 0x18));
             pill.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(c, 0x55));
             pill.Opacity = shownOnSurface ? 1.0 : 0.6;
@@ -537,6 +543,8 @@ public class BindingsView : UserControl
                 Source = photo,
                 Stretch = System.Windows.Media.Stretch.Uniform,
                 Margin = new Thickness(14, 10, 14, 30),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect
+                    { BlurRadius = 26, ShadowDepth = 0, Opacity = 0.45, Color = accent },
             });
         }
         else
@@ -715,12 +723,24 @@ public class BindingsView : UserControl
         return (color, kind);
     }
 
-    /// <summary>Cached-per-element frozen solid brush (hover states are built once, not per hover).</summary>
-    private static SolidColorBrush Frozen(Color c)
+    private static void AddHoverLift(FrameworkElement el, double lift)
     {
-        var br = new SolidColorBrush(c);
-        br.Freeze();
-        return br;
+        var tt = new TranslateTransform();
+        el.RenderTransform = tt;
+        el.MouseEnter += (_, _) => AnimateLift(tt, -lift);
+        el.MouseLeave += (_, _) => AnimateLift(tt, 0);
+    }
+
+    private static void AnimateLift(TranslateTransform tt, double y)
+    {
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            tt.BeginAnimation(TranslateTransform.YProperty, null);
+            tt.Y = y;
+            return;
+        }
+        tt.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(y, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
     }
 
     // ── Profile cards ───────────────────────────────────────────────────
@@ -731,23 +751,51 @@ public class BindingsView : UserControl
         var (accentColor, profileKind) = GetProfileVisuals(profileName);
         var capturedName = profileName;
 
-        // Open row (no card): the active profile reads as an open section with a thin colour bar
-        // inside the row; other profiles are compact rows. Faint hairline between profiles.
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(16),
+            BorderThickness = new Thickness(isActive ? 1.5 : 1),
+            Margin = new Thickness(0, 0, 0, 14),
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        if (isActive)
+        {
+            card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accentColor, 0xAA));
+            card.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                { BlurRadius = 24, ShadowDepth = 0, Opacity = 0.35, Color = accentColor };
+        }
+        else
+        {
+            card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            card.MouseEnter += (_, _) => card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accentColor, 0x77));
+            card.MouseLeave += (_, _) => card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            AddHoverLift(card, 2);
+        }
+
+        var glass = new Border
+        {
+            CornerRadius = new CornerRadius(15),
+            Background = new LinearGradientBrush(
+                isActive ? ThemeManager.WithAlpha(accentColor, 0x16) : Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF),
+                Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 90),
+        };
+        card.Child = glass;
+
         var outer = new Grid();
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var card = OpenCanvas.RowShell(outer);
-        card.Padding = new Thickness(0, isActive ? 16 : 12, 4, isActive ? 18 : 10);
+        glass.Child = outer;
 
+        // Accent strip in the profile's colour, fading towards the bottom.
         outer.Children.Add(new Border
         {
-            Width = 3,
-            CornerRadius = new CornerRadius(1.5),
-            Margin = new Thickness(0, 4, 0, 4),
-            Background = isActive ? Frozen(accentColor) : Brushes.Transparent,
+            Width = 4,
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 16, 0, 16),
+            Background = new LinearGradientBrush(accentColor, ThemeManager.WithAlpha(accentColor, 0x22), 90),
         });
 
-        var stack = new StackPanel { Margin = new Thickness(12, 0, 0, 0) };
+        var stack = new StackPanel { Margin = new Thickness(16, 16, 18, 16) };
         Grid.SetColumn(stack, 1);
         outer.Children.Add(stack);
 
@@ -758,8 +806,11 @@ public class BindingsView : UserControl
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         stack.Children.Add(header);
 
-        var tile = UiKit.IconTile(accentColor, profileKind, isActive ? 42 : 34);
+        var tile = UiKit.IconTile(accentColor, profileKind, 42);
         tile.Margin = new Thickness(0, 0, 14, 0);
+        if (isActive)
+            tile.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                { BlurRadius = 16, ShadowDepth = 0, Opacity = 0.6, Color = accentColor };
         header.Children.Add(tile);
 
         var names = new StackPanel
@@ -774,7 +825,7 @@ public class BindingsView : UserControl
         var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
         var title = new TextBlock
         {
-            Text = profileName, FontSize = isActive ? 16 : 14, FontWeight = FontWeights.SemiBold,
+            Text = profileName, FontSize = 16, FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
         };
         title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
@@ -826,7 +877,7 @@ public class BindingsView : UserControl
         Grid.SetColumn(actionRow, 2);
         header.Children.Add(actionRow);
 
-        var sectionContent = new StackPanel { Margin = new Thickness(isActive ? 0 : 48, isActive ? 16 : 10, 0, 0) };
+        var sectionContent = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
         stack.Children.Add(sectionContent);
 
         if (!isActive)
@@ -992,6 +1043,7 @@ public class BindingsView : UserControl
                 Width = 7, Height = 7, Margin = new Thickness(7, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Fill = new SolidColorBrush(dc),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 6, ShadowDepth = 0, Opacity = 0.8, Color = dc },
             });
         }
 
@@ -1008,10 +1060,10 @@ public class BindingsView : UserControl
         chip.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
         chip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         var tint = dotColor ?? ThemeManager.Accent;
-        var chipHover = Frozen(ThemeManager.WithAlpha(tint, 0x99));
-        chip.MouseEnter += (_, _) => chip.BorderBrush = chipHover;
+        chip.MouseEnter += (_, _) => chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(tint, 0x99));
         chip.MouseLeave += (_, _) => chip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         chip.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
+        AddHoverLift(chip, 1);
         return chip;
     }
 
@@ -1256,7 +1308,7 @@ public class BindingsView : UserControl
             var (r, g, b) = App.Rgb.GetCurrentColor(idx);
             cardBg = (r > 10 || g > 10 || b > 10)
                 ? new SolidColorBrush(Color.FromArgb(0x18, r, g, b))
-                : Brushes.Transparent;
+                : (SolidColorBrush)FindResource("BgDarkBrush");
         }
         else if (light != null && (light.R > 10 || light.G > 10 || light.B > 10))
         {
@@ -1267,14 +1319,14 @@ public class BindingsView : UserControl
         }
         else
         {
-            cardBg = Brushes.Transparent;
+            cardBg = (SolidColorBrush)FindResource("BgDarkBrush");
         }
 
         var card = new Border
         {
             Background = cardBg,
             BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
-            BorderThickness = new Thickness(0),
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 8, 10, 8),
             Margin = new Thickness(0, 0, 6, 0),
@@ -1286,6 +1338,7 @@ public class BindingsView : UserControl
         card.RenderTransform = knobCardTransform;
         card.MouseEnter += (_, _) =>
         {
+            knobCardTransform.Y = -1;
             if (!isEmpty)
                 card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x80));
             else
@@ -1293,6 +1346,7 @@ public class BindingsView : UserControl
         };
         card.MouseLeave += (_, _) =>
         {
+            knobCardTransform.Y = 0;
             card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
         };
         card.MouseLeftButtonDown += (_, _) => _onNavigateToMixer?.Invoke(profileName);
@@ -1394,9 +1448,9 @@ public class BindingsView : UserControl
 
         var card = new Border
         {
-            Background = Brushes.Transparent,
+            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
             BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
-            BorderThickness = new Thickness(0),
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 8, 10, 8),
             Margin = new Thickness(0, 0, 6, 0),
@@ -1408,6 +1462,7 @@ public class BindingsView : UserControl
         card.RenderTransform = btnCardTransform;
         card.MouseEnter += (_, _) =>
         {
+            btnCardTransform.Y = -1;
             if (!isEmpty)
                 card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x80));
             else
@@ -1415,6 +1470,7 @@ public class BindingsView : UserControl
         };
         card.MouseLeave += (_, _) =>
         {
+            btnCardTransform.Y = 0;
             card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
         };
         card.MouseLeftButtonDown += (_, _) => _onNavigateToButtons?.Invoke(profileName);

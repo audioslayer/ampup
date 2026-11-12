@@ -5,13 +5,14 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
             <ContentControl x:Name="PageHeaderHost" Focusable="False" />
-            <Border x:Name="LightsSurfaceBar" Background="Transparent" BorderThickness="0" Margin="0,0,0,14" Visibility="Collapsed">
+            <Border x:Name="LightsSurfaceBar" Style="{StaticResource CardPanel}" Margin="0,0,0,10" Visibility="Collapsed">
                 <StackPanel>
-                    <TextBlock Text="LIGHT SURFACE" Style="{StaticResource OpenSectionTitle}" />
-                    <Border Style="{StaticResource OpenSectionRule}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Width="3" Height="14" CornerRadius="2" Background="{DynamicResource AccentBrush}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                        <TextBlock Text="LIGHT SURFACE" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                    </StackPanel>
                     <controls:SegmentedControl x:Name="LightsDeviceSelector"
                                                HorizontalAlignment="Left"
-                                               Margin="4,10,0,0"
                                                MinWidth="360" />
                 </StackPanel>
             </Border>
@@ -51,7 +52,7 @@
             </StackPanel>
             </StackPanel>
 
-            <Border x:Name="StreamControllerLightsPanel" Background="Transparent" BorderThickness="0" Margin="0,10,0,0" Visibility="Collapsed">
+            <Border x:Name="StreamControllerLightsPanel" Style="{StaticResource CardPanel}" Margin="0,10,0,0" Visibility="Collapsed">
                 <StackPanel x:Name="StreamControllerLightsContent" />
             </Border>
         </StackPanel>

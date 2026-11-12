@@ -6,31 +6,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
-
-### Added
-- Mixer knob cards now show a soft live audio-spectrum backdrop tinted with each knob's color, replacing the old glow and the small volume bar beside each knob. Windows only provides a system-wide spectrum, so each card shows that shape scaled by its own app's level. It only runs while the Mixer page is open.
-- Home Assistant lights in Room > Devices: a discovery window scans Home Assistant and shows your lights as a searchable grid grouped by room, with on/off state and color support, so you can tick the ones to add. Control power, brightness and white balance from cards like the Govee ones.
-- Room effects (static colors, animated effects, Music Reactive, VU Fill) now drive Home Assistant lights. Updates are capped at a few per second, so this works best for static colors and slow effects, not real-time mirroring.
-- Home Assistant lights can optionally follow Screen Sync (off by default; slower than Govee).
-- Reduce effects option (Settings > General > Appearance) turns off glows and shadows for a lighter, faster interface.
-
-### Changed
-- Every page now uses an open layout with no box around each item: each section is a small-caps title over a thin line, and each item is a plain row with a faint divider. This covers Room (device Advanced settings open inline under their row), Lights, On-Screen Display, Mixer (knobs are open columns split by hairlines), Buttons, Groups, Overview, the Dashboard, the tray mixer and the app picker.
-- Settings: Devices shows a side list of devices with an open detail pane and a compact hardware-mode row; General, Profiles and Integrations use sections and plain rows instead of cards.
-- New "open canvas" layout foundation (Controls/OpenCanvas.cs, OPEN_CANVAS.md, Open* styles): sections with hairlines and plain rows instead of a card per item. Settings > General > Startup now uses it.
-- Room > Devices cards are now flat single-surface cards with a color strip on the left (dimmed when the light is off), and name, brightness, Power and Sync on one row (brightness wraps to a second row on narrow windows).
-- New look across the whole app: every page and dialog now shares one glass card style with rounded corners, a matching page header (icon, title and "?" help tip) and consistent section titles.
-- Every page card now shares one flat, single-layer look: a solid theme card colour with a thin theme-colour border and rounded 16px corners, with no gradient or translucent layers, so Mixer, Buttons, Lights, OSD, Room, Settings and the Dashboard all match.
-- Page tabs on Room, Lights, On-Screen Display and Settings are now clean icon + label tabs in the page header with a glowing accent underline on the active one; Left/Right arrow keys move between tabs.
-- Overview, Groups, Mixer and Buttons pages: glass cards with a subtle hover lift, a slimmer surface selector on Buttons, and a softer suggested-layout banner on Mixer.
-- Room page: a compact header matching the Lights page (icon tile, title, tabs, help tip and an Integrations shortcut), larger mode tiles, Govee / Corsair / Home Assistant device cards with logos and On/Off pills, and clearer empty states ("Add Govee lights", "Add Home Assistant lights").
-- Dialogs (app picker, integration setup guides, welcome, Turn Up import wizard) use the same header: accent icon, title and subtitle, close button and rounded corners.
-- Faster, smoother interface: glows now appear only on the selected or active element and turn off with Reduce effects, repeated cards and rows no longer draw shadows, and animations and live previews pause while their page is hidden.
-
-### Fixed
-- Button taps fire instantly when the button has no double-press action. Every tap used to wait 300 ms for a possible second press, so buttons felt laggy; buttons that do have a double-press action keep the short wait.
-
 ## [1.4.5] - 2026-11-10
 
 ### Added

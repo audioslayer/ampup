@@ -42,7 +42,6 @@ public partial class GroupsView : UserControl
     {
         InitializeComponent();
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
-        ThemeManager.OnReduceEffectsChanged += () => Dispatcher.Invoke(RefreshAccentColors);
         IsVisibleChanged += (_, e) => { if (e.NewValue is true) RebuildGroupPanel(); };
     }
 
@@ -89,6 +88,7 @@ public partial class GroupsView : UserControl
         // APP GROUPS — named and shared; any knob or encoder can use one from the Mixer
         var appGroups = _config.AppGroups;
         var appHeader = BuildSectionHeader("APP GROUPS", appGroups.Count == 0 ? "" : $"{appGroups.Count}");
+        appHeader.Margin = new Thickness(0, 14, 0, 10);
         GroupPanel.Children.Add(appHeader);
         if (appGroups.Count == 0)
         {
@@ -135,15 +135,16 @@ public partial class GroupsView : UserControl
     {
         card.BringIntoView();
         var accent = ThemeManager.Accent;
-        // Open rows have no border to pulse: flash a faint accent wash behind the row instead.
-        var start = ThemeManager.WithAlpha(accent, 0x30);
-        var brush = new SolidColorBrush(start);
-        card.Background = brush;
-        var fade = new System.Windows.Media.Animation.ColorAnimation(start, ThemeManager.WithAlpha(accent, 0), TimeSpan.FromMilliseconds(1600))
+        var brush = new SolidColorBrush(accent);
+        var oldBrush = card.BorderBrush;
+        var oldThickness = card.BorderThickness;
+        card.BorderBrush = brush;
+        card.BorderThickness = new Thickness(1.5);
+        var fade = new System.Windows.Media.Animation.ColorAnimation(accent, ThemeManager.WithAlpha(accent, 0), TimeSpan.FromMilliseconds(1600))
         {
             BeginTime = TimeSpan.FromMilliseconds(600),
         };
-        fade.Completed += (_, _) => card.Background = Brushes.Transparent;
+        fade.Completed += (_, _) => { card.BorderBrush = oldBrush; card.BorderThickness = oldThickness; };
         brush.BeginAnimation(SolidColorBrush.ColorProperty, fade);
     }
 
@@ -196,12 +197,45 @@ public partial class GroupsView : UserControl
         };
     }
 
+    /// <summary>Card hover: lift 2px and fade in a soft glow in the card's color.</summary>
+    private static void AddHoverLift(Border card, Color glowColor)
+    {
+        var tt = new TranslateTransform();
+        card.RenderTransform = tt;
+        var glow = new System.Windows.Media.Effects.DropShadowEffect
+            { BlurRadius = 22, ShadowDepth = 0, Opacity = 0, Color = glowColor };
+        card.Effect = glow;
+        void Animate(double y, double opacity)
+        {
+            if (!SystemParameters.ClientAreaAnimation)
+            {
+                tt.Y = y;
+                glow.Opacity = opacity;
+                return;
+            }
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            tt.BeginAnimation(TranslateTransform.YProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(y, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease });
+            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(opacity, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+        }
+        card.MouseEnter += (_, _) => Animate(-2, 0.10);
+        card.MouseLeave += (_, _) => Animate(0, 0);
+    }
+
     /// <summary>Large centered empty state: glowing icon tile, title, one line, call-to-action button.</summary>
     private Border BuildHeroEmptyState(MaterialIconKind icon, string title, string body, FrameworkElement action)
     {
         var a = ThemeManager.Accent;
-        // Open empty state: no box, just the content centred on the page background.
-        var card = new Border { Padding = new Thickness(24, 28, 24, 26) };
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(16),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(24, 28, 24, 26),
+            Margin = new Thickness(0, 0, 0, 14),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x33)),
+            Background = new LinearGradientBrush(ThemeManager.WithAlpha(a, 0x10), Color.FromArgb(0x06, 0xFF, 0xFF, 0xFF), 90),
+        };
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
         card.Child = stack;
 
@@ -213,6 +247,7 @@ public partial class GroupsView : UserControl
             HorizontalAlignment = HorizontalAlignment.Center,
             Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x1E)),
             BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66)),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.25, Color = a },
             Child = new MaterialIcon { Kind = icon, Width = 32, Height = 32, Foreground = new SolidColorBrush(a) },
         };
         stack.Children.Add(tile);
@@ -229,8 +264,36 @@ public partial class GroupsView : UserControl
         return card;
     }
 
-    private FrameworkElement BuildSectionHeader(string text, string count) =>
-        OpenCanvas.Section(text, string.IsNullOrEmpty(count) ? null : count);
+    private FrameworkElement BuildSectionHeader(string text, string count)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        var bar = new Border
+        {
+            Width = 3, Height = 14,
+            CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(ThemeManager.Accent),
+            Margin = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var label = new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _sectionHeaders.Add((bar, label));
+        row.Children.Add(bar);
+        row.Children.Add(label);
+        if (!string.IsNullOrEmpty(count))
+        {
+            var c = new TextBlock { Text = count, FontSize = 11, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            c.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            row.Children.Add(c);
+        }
+        return row;
+    }
 
     // ── Generic card shell ───────────────────────────────────────────
 
@@ -241,13 +304,47 @@ public partial class GroupsView : UserControl
         string name, Action<string>? onRename, string subtitle, string? nameHint,
         FrameworkElement? actions, FrameworkElement memberList)
     {
-        // Open row (no card): header line, then the member chips indented under the name.
-        var body = new StackPanel();
-        var card = OpenCanvas.RowShell(body);
-        card.Padding = new Thickness(4, 14, 4, 6);
+        var card = new Border
+        {
+            Style = FindResource("CardPanel") as Style,
+            Margin = new Thickness(0, 0, 0, 14),
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(16),
+        };
+        AddHoverLift(card, color);
+
+        var outer = new Grid();
+        outer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        card.Child = outer;
+
+        // Tinted glass header wash in the group's color, fading out down the card.
+        var wash = new Border
+        {
+            Height = 72,
+            VerticalAlignment = VerticalAlignment.Top,
+            CornerRadius = new CornerRadius(15, 15, 0, 0),
+            IsHitTestVisible = false,
+            Background = new LinearGradientBrush(ThemeManager.WithAlpha(color, 0x0A), ThemeManager.WithAlpha(color, 0x00), 90),
+        };
+        Grid.SetColumnSpan(wash, 2);
+        outer.Children.Add(wash);
+
+        var bar = new Border
+        {
+            Width = 4,
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(0, 16, 0, 16),
+            Background = new SolidColorBrush(color),
+        };
+        outer.Children.Add(bar);
+
+        var body = new StackPanel { Margin = new Thickness(16, 16, 18, 16) };
+        Grid.SetColumn(body, 1);
+        outer.Children.Add(body);
 
         // Header row
-        var header = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+        var header = new Grid { Margin = new Thickness(0, 0, 0, 12) };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -295,7 +392,6 @@ public partial class GroupsView : UserControl
             header.Children.Add(actions);
         }
 
-        memberList.Margin = new Thickness(52, 0, 0, 0);
         body.Children.Add(memberList);
         return card;
     }
@@ -1311,7 +1407,10 @@ public partial class GroupsView : UserControl
                 (Color)ColorConverter.ConvertFromString("#EE111111"),
                 (Color)ColorConverter.ConvertFromString("#DD0A0A0A"),
                 new System.Windows.Point(0, 0), new System.Windows.Point(1, 1)),
-            Effect = GlassStyle.GlowEffect(accent, 24, 0.15),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = accent, BlurRadius = 24, Opacity = 0.15, ShadowDepth = 0
+            },
             Opacity = 0,
         };
         outerBorder.RenderTransform = new ScaleTransform(0.95, 0.95);

@@ -8,7 +8,6 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using AmpUp.Core.Services;
 using AmpUp.Services;
-using Material.Icons;
 
 namespace AmpUp.Views;
 
@@ -52,7 +51,7 @@ public partial class SettingsView : UserControl
     private bool _configLoaded;
     private bool _turnUpConnected;
     private bool _streamControllerConnected;
-    private static readonly string[] SettingsTabTitles = { "Devices", "General", "Profiles", "Integrations" };
+    private readonly List<Border> _settingsTabs = new();
     private int _settingsTabIndex;
     private const int IntegrationsTabIndex = 3;
 
@@ -67,6 +66,7 @@ public partial class SettingsView : UserControl
         BindReveal(ChkCorsairEnabled, CorsairDeviceList);
         BindReveal(ChkSignalRgbEnabled, SignalRgbSettingsPanel);
         BindReveal(ChkSignalRgbProfileSync, SignalRgbProfileSyncPanel);
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshSettingsTabColors);
 
         _debounceTimer = new DispatcherTimer
         {
@@ -85,8 +85,6 @@ public partial class SettingsView : UserControl
         ChkStartWithWindows.Unchecked += OnValueChanged;
         ChkAutoSuggestLayout.Checked += OnValueChanged;
         ChkAutoSuggestLayout.Unchecked += OnValueChanged;
-        ChkReduceEffects.Checked += OnReduceEffectsToggled;
-        ChkReduceEffects.Unchecked += OnReduceEffectsToggled;
         CmbProfiles.SelectionChanged += OnProfileSelectionChanged;
 
         // Port selector
@@ -238,27 +236,52 @@ public partial class SettingsView : UserControl
 
     private void BuildSettingsTabs()
     {
-        MaterialIconKind[] icons =
+        string[] tabNames = { "DEVICES", "GENERAL", "PROFILES", "INTEGRATIONS" };
+        SettingsTabRow.Children.Clear();
+        _settingsTabs.Clear();
+
+        for (int i = 0; i < tabNames.Length; i++)
         {
-            MaterialIconKind.Devices, MaterialIconKind.CogOutline,
-            MaterialIconKind.AccountSwitchOutline, MaterialIconKind.Apps,
-        };
-        for (int i = 0; i < SettingsTabTitles.Length; i++)
-            SettingsDock.AddItem(SettingsTabTitles[i].ToLowerInvariant(), SettingsTabTitles[i].ToUpperInvariant(), icons[i], SettingsTabTitles[i]);
-        SettingsDock.SelectionChanged += (_, _) =>
-        {
-            if (SettingsDock.SelectedIndex >= 0 && SettingsDock.SelectedIndex != _settingsTabIndex)
-                SelectSettingsTab(SettingsDock.SelectedIndex);
-        };
+            int index = i;
+            var tab = new Border
+            {
+                Padding = new Thickness(22, 10, 22, 10),
+                Cursor = Cursors.Hand,
+                BorderBrush = Brushes.Transparent,
+                BorderThickness = new Thickness(0, 0, 0, 2),
+                Background = Brushes.Transparent,
+                Child = new TextBlock
+                {
+                    Text = tabNames[i],
+                    FontSize = 11,
+                    FontWeight = FontWeights.SemiBold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                },
+            };
+
+            tab.MouseEnter += (_, _) =>
+            {
+                if (index != _settingsTabIndex && tab.Child is TextBlock label)
+                    label.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            };
+            tab.MouseLeave += (_, _) =>
+            {
+                if (index != _settingsTabIndex && tab.Child is TextBlock label)
+                    label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+            };
+            tab.MouseLeftButtonDown += (_, _) => SelectSettingsTab(index);
+
+            _settingsTabs.Add(tab);
+            SettingsTabRow.Children.Add(tab);
+        }
 
         SelectSettingsTab(_settingsTabIndex, scrollToTop: false);
     }
 
     private void SelectSettingsTab(int index, bool scrollToTop = true)
     {
-        _settingsTabIndex = Math.Clamp(index, 0, SettingsTabTitles.Length - 1);
-        SettingsDock.SelectedIndex = _settingsTabIndex;
-        SettingsSectionTitle.Text = SettingsTabTitles[_settingsTabIndex];
+        _settingsTabIndex = Math.Clamp(index, 0, _settingsTabs.Count - 1);
+        RefreshSettingsTabColors();
 
         ConnectionCard.Visibility = _settingsTabIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
         GeneralCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -274,6 +297,23 @@ public partial class SettingsView : UserControl
 
         if (scrollToTop)
             SettingsScrollViewer.ScrollToTop();
+    }
+
+    private void RefreshSettingsTabColors()
+    {
+        for (int i = 0; i < _settingsTabs.Count; i++)
+        {
+            bool active = i == _settingsTabIndex;
+            Border tab = _settingsTabs[i];
+            tab.BorderBrush = active ? new SolidColorBrush(ThemeManager.Accent) : Brushes.Transparent;
+            if (tab.Child is not TextBlock label) continue;
+
+            label.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
+            if (active)
+                label.Foreground = new SolidColorBrush(ThemeManager.Accent);
+            else
+                label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        }
     }
 
     // Reference to AmbienceSync for LAN scanning (set from App.xaml.cs)
@@ -309,7 +349,6 @@ public partial class SettingsView : UserControl
         RefreshPortList(selectPort: config.Serial.Port);
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
         ChkAutoSuggestLayout.IsChecked = config.AutoSuggestLayout;
-        ChkReduceEffects.IsChecked = config.ReduceEffects;
 
         // Profiles
         CmbProfiles.ClearItems();
@@ -614,14 +653,6 @@ public partial class SettingsView : UserControl
         if (_loading) return;
         _debounceTimer.Stop();
         _debounceTimer.Start();
-    }
-
-    /// <summary>Reduce effects applies live (GlassStyle reads it), then saves with the rest.</summary>
-    private void OnReduceEffectsToggled(object? sender, EventArgs e)
-    {
-        if (_loading) return;
-        ThemeManager.SetReduceEffects(ChkReduceEffects.IsChecked == true);
-        OnValueChanged(sender, e);
     }
 
     private void OnPasswordChanged(object sender, RoutedEventArgs e)
@@ -951,7 +982,6 @@ public partial class SettingsView : UserControl
 
         _config.StartWithWindows = ChkStartWithWindows.IsChecked == true;
         _config.AutoSuggestLayout = ChkAutoSuggestLayout.IsChecked == true;
-        _config.ReduceEffects = ChkReduceEffects.IsChecked == true;
 
         // Integrations
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;
@@ -1847,15 +1877,18 @@ public partial class SettingsView : UserControl
     }
 
     /// <summary>
-    /// Hover lifts the tile and sweeps a light sheen across it; click opens the link in the
-    /// default browser. No shadow effect (never animate effect properties); <paramref name="glow"/>
-    /// is kept for call compatibility.
+    /// Hover lifts the tile with a brand-colored glow and sweeps a light sheen
+    /// across it; click opens the link in the default browser.
     /// </summary>
     private static void WireCommunityTile(System.Windows.Controls.Border tile,
         System.Windows.Shapes.Rectangle shine, Color glow, string url)
     {
         var lift = (TranslateTransform)tile.RenderTransform;
-        tile.Effect = null;
+        var shadow = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color = glow, BlurRadius = 0, ShadowDepth = 0, Opacity = 0,
+        };
+        tile.Effect = shadow;
         var shineMove = (TranslateTransform)((TransformGroup)shine.RenderTransform).Children[1];
         var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
 
@@ -1865,6 +1898,8 @@ public partial class SettingsView : UserControl
         tile.MouseEnter += (_, _) =>
         {
             lift.BeginAnimation(TranslateTransform.YProperty, Anim(-4, 220));
+            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty, Anim(28, 260));
+            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, Anim(0.55, 260));
 
             shine.Opacity = 1;
             shineMove.BeginAnimation(TranslateTransform.XProperty,
@@ -1874,6 +1909,8 @@ public partial class SettingsView : UserControl
         tile.MouseLeave += (_, _) =>
         {
             lift.BeginAnimation(TranslateTransform.YProperty, Anim(0, 260));
+            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty, Anim(0, 300));
+            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, Anim(0, 300));
         };
         tile.MouseLeftButtonDown += (_, _) => lift.BeginAnimation(TranslateTransform.YProperty, Anim(-1, 90));
         tile.MouseLeftButtonUp += (_, _) =>

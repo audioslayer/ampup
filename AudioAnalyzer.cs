@@ -69,37 +69,7 @@ public class AudioAnalyzer : IDisposable
         return window;
     }
 
-    // Reference-counted "consumers" (e.g. the Mixer page's spectrum backdrops)
-    // keep capture alive independently of the light-driven Start()/Stop() calls,
-    // so App.UpdateAudioAnalyzer() stopping it can't blank a visible Mixer page
-    // and the Mixer page hiding can't stop capture an AudioReactive light needs.
-    private int _consumerCount;
-    private volatile bool _ownerWantsRunning;
-
-    public bool IsRunning => _running;
-
-    public void AddConsumer()
-    {
-        Interlocked.Increment(ref _consumerCount);
-        StartCore();
-    }
-
-    public void RemoveConsumer()
-    {
-        if (Interlocked.Decrement(ref _consumerCount) <= 0)
-        {
-            Interlocked.Exchange(ref _consumerCount, 0);
-            if (!_ownerWantsRunning) StopCore();
-        }
-    }
-
     public void Start()
-    {
-        _ownerWantsRunning = true;
-        StartCore();
-    }
-
-    private void StartCore()
     {
         if (_running || _disposed) return;
 
@@ -145,13 +115,6 @@ public class AudioAnalyzer : IDisposable
     }
 
     public void Stop()
-    {
-        _ownerWantsRunning = false;
-        if (Volatile.Read(ref _consumerCount) > 0) return;
-        StopCore();
-    }
-
-    private void StopCore()
     {
         if (!_running) return;
 

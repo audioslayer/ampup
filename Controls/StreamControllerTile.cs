@@ -92,7 +92,7 @@ public class StreamControllerTile : Border
     private bool _themeEventsSubscribed;
 
     // Cached visual-state packages — hover/selection transitions reuse these
-    // instead of allocating fresh brushes + glow effects every time.
+    // instead of allocating fresh brushes + DropShadowEffects every time.
     // Rebuilt lazily when the accent color changes (ApplyVisualState runs on
     // ThemeManager.OnAccentChanged / OnCardThemeChanged, so a theme swap
     // naturally invalidates the cache). Brushes are frozen; the effects stay
@@ -101,12 +101,13 @@ public class StreamControllerTile : Border
     private Color _statePackAccent;
     private SolidColorBrush? _dragHoverBorderBrush;
     private SolidColorBrush? _dragHoverBackground;
-    private Effect? _dragHoverEffect;
+    private DropShadowEffect? _dragHoverEffect;
     private LinearGradientBrush? _selectedBorderBrush;
     private LinearGradientBrush? _selectedBackground;
-    private Effect? _selectedEffect;
+    private DropShadowEffect? _selectedEffect;
     private SolidColorBrush? _hoverBorderBrush;
     private SolidColorBrush? _hoverBackground;
+    private DropShadowEffect? _hoverEffect;
 
     public StreamControllerTile()
     {
@@ -328,7 +329,6 @@ public class StreamControllerTile : Border
         if (_themeEventsSubscribed) return;
         ThemeManager.OnAccentChanged += OnThemeChanged;
         ThemeManager.OnCardThemeChanged += OnThemeChanged;
-        ThemeManager.OnReduceEffectsChanged += OnReduceEffectsChanged;
         _themeEventsSubscribed = true;
     }
 
@@ -337,7 +337,6 @@ public class StreamControllerTile : Border
         if (!_themeEventsSubscribed) return;
         ThemeManager.OnAccentChanged -= OnThemeChanged;
         ThemeManager.OnCardThemeChanged -= OnThemeChanged;
-        ThemeManager.OnReduceEffectsChanged -= OnReduceEffectsChanged;
         _themeEventsSubscribed = false;
     }
 
@@ -345,16 +344,6 @@ public class StreamControllerTile : Border
     {
         if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
         _ = Dispatcher.BeginInvoke((Action)ApplyVisualState);
-    }
-
-    private void OnReduceEffectsChanged()
-    {
-        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
-        _ = Dispatcher.BeginInvoke((Action)(() =>
-        {
-            _dragHoverBorderBrush = null; // force EnsureStatePackages to rebuild the glow effects
-            ApplyVisualState();
-        }));
     }
 
     private UIElement BuildSideButtonContent(bool isEncoder)
@@ -573,7 +562,7 @@ public class StreamControllerTile : Border
         else if (_isHovered)
         {
             BorderBrush = _hoverBorderBrush;
-            Effect = null; // hover = brighter border only (no per-tile effect)
+            Effect = _hoverEffect;
             Background = _hoverBackground;
         }
         else
@@ -605,8 +594,13 @@ public class StreamControllerTile : Border
         // Drag-hover package
         _dragHoverBorderBrush = Solid(0xFF, accent);
         _dragHoverBackground = Solid(0x33, accent);
-        // Single drop target / single selected tile only; null when Reduce effects is on
-        _dragHoverEffect = GlassStyle.GlowEffect(accent, 24, 0.85);
+        _dragHoverEffect = new DropShadowEffect
+        {
+            Color = accent,
+            BlurRadius = 24,
+            ShadowDepth = 0,
+            Opacity = 0.85,
+        };
 
         // Selected package
         var selectedBorder = new LinearGradientBrush
@@ -636,11 +630,24 @@ public class StreamControllerTile : Border
         selectedBackground.Freeze();
         _selectedBackground = selectedBackground;
 
-        _selectedEffect = GlassStyle.GlowEffect(accent, 28, 0.9);
+        _selectedEffect = new DropShadowEffect
+        {
+            Color = accent,
+            BlurRadius = 28,
+            ShadowDepth = 0,
+            Opacity = 0.9,
+        };
 
         // Hover package
         _hoverBorderBrush = Solid(0x99, accent);
         _hoverBackground = Solid(0x14, accent);
+        _hoverEffect = new DropShadowEffect
+        {
+            Color = accent,
+            BlurRadius = 14,
+            ShadowDepth = 0,
+            Opacity = 0.45,
+        };
     }
 
     private bool IsEmpty()

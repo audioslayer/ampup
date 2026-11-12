@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using AmpUp.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -83,9 +82,7 @@ public partial class SettingsView
             textDescriptor.AddValueChanged(text, (_, _) => RefreshIntegrationStatuses());
 
         BtnIntegrationSetupGuide.Click += OnIntegrationSetupGuide;
-        // BeginInvoke: OpenCanvas drops its cached accent brushes in its own OnAccentChanged handler first.
-        ThemeManager.OnAccentChanged += () => Dispatcher.BeginInvoke(RefreshIntegrationNavSelection);
-        ThemeManager.OnReduceEffectsChanged += () => Dispatcher.Invoke(RefreshIntegrationNavSelection);
+        ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshIntegrationNavSelection);
 
         SelectIntegration(_selectedIntegration);
     }
@@ -213,14 +210,23 @@ public partial class SettingsView
 
     private void RefreshIntegrationNavSelection()
     {
+        var accent = ThemeManager.Accent;
         foreach (var entry in _integrations)
         {
             if (entry.Row == null) continue;
             bool active = entry.Id == _selectedIntegration;
-            // Open-canvas selection: cached accent fill + border, no glow.
-            entry.Row.Background = active ? OpenCanvas.SelectedFill : Brushes.Transparent;
-            entry.Row.BorderBrush = active ? OpenCanvas.SelectedBorder : Brushes.Transparent;
-            entry.Row.Effect = null;
+            entry.Row.Background = active
+                ? new SolidColorBrush(Color.FromArgb(0x26, accent.R, accent.G, accent.B))
+                : Brushes.Transparent;
+            entry.Row.BorderBrush = active
+                ? new SolidColorBrush(Color.FromArgb(0x88, accent.R, accent.G, accent.B))
+                : Brushes.Transparent;
+            entry.Row.Effect = active
+                ? new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = accent, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.45,
+                }
+                : null;
         }
     }
 

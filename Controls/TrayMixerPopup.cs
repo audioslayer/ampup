@@ -116,11 +116,17 @@ public class TrayMixerPopup : Window
         {
             CornerRadius = new CornerRadius(10),
             Background = (Brush)Application.Current.FindResource("BgBaseBrush"), // was #F20F0F0F
-            // No DropShadowEffect: the popup hosts live VU meters, and an effect here would re-rasterize
-            // the whole popup every meter frame. A slightly brighter border carries the edge instead.
-            BorderBrush = new SolidColorBrush(Color.FromArgb(90, accent.R, accent.G, accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(60, accent.R, accent.G, accent.B)),
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(8, 8, 8, 8)
+            Effect = new DropShadowEffect
+            {
+                Color = Colors.Black,
+                BlurRadius = 16,
+                ShadowDepth = 2,
+                Opacity = 0.5,
+                Direction = 270
+            },
+            Margin = new Thickness(8, 8, 8, 8) // room for shadow
         };
 
         var root = new DockPanel();
@@ -917,6 +923,14 @@ public class TrayMixerPopup : Window
                     FontWeight = FontWeights.SemiBold,
                 }
             };
+            // Glow effect on assigned badge
+            badge.Effect = new DropShadowEffect
+            {
+                Color = accent,
+                BlurRadius = 6,
+                ShadowDepth = 0,
+                Opacity = 0.3,
+            };
             badgeContainer.Children.Add(badge);
         }
         else
@@ -1687,16 +1701,16 @@ public class TrayMixerPopup : Window
     private UIElement BuildMasterRow(MMDevice device, float vol, bool muted)
     {
         var accent = GetAccentColor();
-        // Master row: open row (no box); the accent icon tile marks it, a hairline separates it from app rows
+        // Master row: accent-tinted bg + border to distinguish clearly from app rows
         var row = new Border
         {
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0, 0, 0, 1),
+            Background = new SolidColorBrush(Color.FromArgb(0x18, accent.R, accent.G, accent.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x45, accent.R, accent.G, accent.B)),
+            BorderThickness = new Thickness(1),
             Padding = new Thickness(12, 9, 12, 9),
             Margin = new Thickness(6, 4, 6, 2),
-            SnapsToDevicePixels = true,
+            CornerRadius = new CornerRadius(6),
         };
-        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var panel = new DockPanel { LastChildFill = true };
 

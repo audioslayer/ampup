@@ -325,13 +325,8 @@ public partial class ButtonsView : UserControl
     {
         InitializeComponent();
 
-        var help = UiKit.HelpTip(
-            "Each Turn Up button has three gestures: tap, double-press and hold. Pick an action for each; "
-            + "right-click a button card to copy or paste its setup.\n\n"
-            + "With a Stream Controller connected, switch the surface to edit its keys and encoders.",
-            "Buttons");
         PageHeaderHost.Content = UiKit.PageHeader("Buttons", "Tap, double-press and hold actions",
-            help, Material.Icons.MaterialIconKind.GestureTapButton);
+            icon: Material.Icons.MaterialIconKind.GestureTapButton);
 
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _debounce.Tick += (_, _) =>
@@ -346,10 +341,6 @@ public partial class ButtonsView : UserControl
         InitializeDeviceSelector();
         BuildStreamControllerDesigner();
         SetupColumnContextMenus();
-
-        // Open canvas: columns are plain areas split by hairlines (XAML); only a subtle hover tint.
-        foreach (var card in _columnCards)
-            if (card != null) OpenCanvas.AttachHover(card);
     }
 
     private void SetupColumnContextMenus()
@@ -2189,7 +2180,7 @@ public partial class ButtonsView : UserControl
                 FontSize = 11,
                 Cursor = Cursors.Hand,
             };
-            item.MouseEnter += (_, _) => item.Background = GlassStyle.AccentPillBrushes().Fill;
+            item.MouseEnter += (_, _) => item.Background = new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0xE6, 0x76));
             item.MouseLeave += (_, _) => item.Background = Brushes.Transparent;
             item.Click += (_, _) =>
             {

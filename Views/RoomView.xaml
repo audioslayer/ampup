@@ -13,12 +13,11 @@
 
         <!-- Main content area -->
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel x:Name="DevicePanel" Margin="2,2,2,24" />
+            <StackPanel x:Name="DevicePanel" Margin="0,0,0,24" />
         </ScrollViewer>
 
-        <!-- Footer bar: superseded by the Room hero header (status pills + Integrations button).
-             Kept collapsed so TopBar / UpdateTopBarStatus keep working unchanged. -->
-        <Border Grid.Row="1" Style="{StaticResource CardPanel}" Margin="0,8,0,0" Visibility="Collapsed">
+        <!-- Footer bar -->
+        <Border Grid.Row="1" Style="{StaticResource CardPanel}" Margin="0,8,0,0">
             <StackPanel x:Name="TopBar" />
         </Border>
     </Grid>

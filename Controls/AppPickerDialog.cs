@@ -74,88 +74,74 @@ public class AppPickerDialog : Window
         var root = new Border
         {
             Background = (System.Windows.Media.Brush)Application.Current.FindResource("BgDarkBrush"),
-            BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("CardBorderBrush"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-        };
-
-        var mainPanel = new StackPanel { Margin = new Thickness(20, 16, 20, 18) };
-
-        // Header: glowing accent icon tile + title / subtitle, close on the right (same chrome as GroupNameDialog)
-        var accent = ThemeManager.Accent;
-        var headerRow = new Grid { Margin = new Thickness(0, 0, 0, 16), Background = System.Windows.Media.Brushes.Transparent };
-        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var tile = UiKit.IconTile(accent, MaterialIconKind.Application, 38);
-        tile.Margin = new Thickness(0, 0, 12, 0);
-        tile.Effect = GlassStyle.GlowEffect(accent, 18, 0.35);
-        headerRow.Children.Add(tile);
-        var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var title = new TextBlock { Text = "Pick an App", FontSize = 15, FontWeight = FontWeights.SemiBold };
-        title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        var subtitle = new TextBlock { Text = "Running apps and common presets", FontSize = 11, Margin = new Thickness(0, 2, 0, 0) };
-        subtitle.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
-        titles.Children.Add(title);
-        titles.Children.Add(subtitle);
-        Grid.SetColumn(titles, 1);
-        headerRow.Children.Add(titles);
-        var closeBtn = UiKit.IconButton(MaterialIconKind.Close, "Cancel (Esc)", _ =>
-        {
-            DialogResult = false;
-            Close();
-        }, size: 26);
-        closeBtn.VerticalAlignment = VerticalAlignment.Top;
-        // Keep the window-level drag handler from swallowing the click
-        closeBtn.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        Grid.SetColumn(closeBtn, 2);
-        headerRow.Children.Add(closeBtn);
-        mainPanel.Children.Add(headerRow);
-
-        // Search box (icon + text, accent border while focused)
-        var searchBorder = new Border
-        {
-            Background = (System.Windows.Media.Brush)Application.Current.FindResource("InputBgBrush"),
-            BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("CardBorderBrush"),
+            BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("InputBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(12, 2, 12, 2),
-            Margin = new Thickness(0, 0, 0, 12),
+        };
+
+        var mainPanel = new StackPanel { Margin = new Thickness(16) };
+
+        // Header row with title + close button
+        var headerRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var title = new TextBlock
+        {
+            Text = "PICK AN APP",
+            FontSize = 13,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(ThemeManager.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var closeBtn = new TextBlock
+        {
+            Text = "✕",
+            FontSize = 16,
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x66, 0x66, 0x66)),
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        closeBtn.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;
+            DialogResult = false;
+            Close();
+        };
+        DockPanel.SetDock(closeBtn, Dock.Right);
+        headerRow.Children.Add(closeBtn);
+        headerRow.Children.Add(title);
+        mainPanel.Children.Add(headerRow);
+
+        // Search box
+        var searchBorder = new Border
+        {
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("CardBgBrush"),
+            BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("InputBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 0, 8, 0),
+            Margin = new Thickness(0, 0, 0, 10),
         };
         _searchBox = new TextBox
         {
             Background = System.Windows.Media.Brushes.Transparent,
             BorderThickness = new Thickness(0),
-            FontSize = 12.5,
-            Height = 34,
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xE8, 0xE8, 0xE8)),
+            FontSize = 12,
+            Height = 32,
             VerticalContentAlignment = VerticalAlignment.Center,
-            CaretBrush = new SolidColorBrush(accent),
         };
-        _searchBox.SetResourceReference(TextBox.ForegroundProperty, "TextPrimaryBrush");
         // Placeholder
         var placeholder = new TextBlock
         {
             Text = "Search apps...",
-            FontSize = 12.5,
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8A, 0x8A, 0x8A)),
+            FontSize = 12,
             IsHitTestVisible = false,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(2, 0, 0, 0),
         };
-        placeholder.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        var searchHost = new Grid();
-        searchHost.Children.Add(_searchBox);
-        searchHost.Children.Add(placeholder);
         var searchGrid = new Grid();
-        searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var searchIcon = UiKit.Icon(MaterialIconKind.Magnify, 16);
-        searchIcon.Margin = new Thickness(0, 0, 8, 0);
-        searchIcon.VerticalAlignment = VerticalAlignment.Center;
-        searchGrid.Children.Add(searchIcon);
-        Grid.SetColumn(searchHost, 1);
-        searchGrid.Children.Add(searchHost);
-        _searchBox.GotKeyboardFocus += (_, _) => searchBorder.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x88));
-        _searchBox.LostKeyboardFocus += (_, _) => searchBorder.BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("CardBorderBrush");
+        searchGrid.Children.Add(_searchBox);
+        searchGrid.Children.Add(placeholder);
         _searchBox.TextChanged += (_, _) =>
         {
             placeholder.Visibility = string.IsNullOrEmpty(_searchBox.Text)
@@ -169,7 +155,7 @@ public class AppPickerDialog : Window
         var scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            MaxHeight = 370,
+            MaxHeight = 400,
         };
         _resultsPanel = new StackPanel();
         scroll.Content = _resultsPanel;
@@ -346,13 +332,12 @@ public class AppPickerDialog : Window
     {
         var row = new Border
         {
-            Background = System.Windows.Media.Brushes.Transparent,
-            BorderThickness = new Thickness(0, 0, 0, 1),
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("CardBgBrush"),
+            CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 8, 10, 8),
-            SnapsToDevicePixels = true,
+            Margin = new Thickness(0, 2, 0, 2),
             Cursor = Cursors.Hand,
         };
-        row.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var content = new DockPanel();
 
@@ -418,7 +403,15 @@ public class AppPickerDialog : Window
         row.Child = content;
 
         // Hover effect
-        OpenCanvas.AttachHover(row);
+        row.MouseEnter += (_, _) =>
+        {
+            row.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x30,
+                ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+        };
+        row.MouseLeave += (_, _) =>
+        {
+            row.Background = (System.Windows.Media.Brush)Application.Current.FindResource("CardBgBrush");
+        };
 
         // Click to select
         row.MouseLeftButtonDown += (_, e) =>
