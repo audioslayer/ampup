@@ -16,6 +16,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - Room page redesign: glass hero header with live status pills (active effect, Screen Sync, Music Reactive / VU Fill / Game Mode, lights on) and an Integrations shortcut, a segmented pill tab bar, pill effect-category chips, larger glowing mode tiles, big rounded glass cards, Govee / Corsair / Home Assistant device cards with integration logos, On/Off pills and an accent glow while on, and clearer empty states ("Add Govee lights", "Add Home Assistant lights").
 
+### Fixed
+- Button taps fire instantly when the button has no double-press action. Every tap used to wait 300 ms for a possible second press, so buttons felt laggy; buttons that do have a double-press action keep the short wait.
+
 ## [1.4.5] - 2026-11-10
 
 ### Added
