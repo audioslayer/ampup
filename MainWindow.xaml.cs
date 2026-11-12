@@ -1777,6 +1777,11 @@ public partial class MainWindow : FluentWindow
     {
         _ambienceView.SetSync(sync);
         _ambienceView.NavigateToSettings = () => NavigateTo(_settingsView, NavSettings);
+        _ambienceView.NavigateToIntegration = key =>
+        {
+            NavigateTo(_settingsView, NavSettings);
+            _settingsView.ShowIntegration(key);
+        };
         _buttonsView.SetAmbienceSync(sync);
         _settingsView.SetAmbienceSync(sync);
     }

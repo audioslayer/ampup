@@ -118,6 +118,13 @@ public partial class RoomView : UserControl
 
     // Navigation callback (set by MainWindow to navigate to Settings)
     public Action? NavigateToSettings { get; set; }
+    /// <summary>Opens Settings > Integrations on a service ("govee", "homeassistant", ...; "" = last selected).</summary>
+    public Action<string>? NavigateToIntegration { get; set; }
+    private void OpenIntegrations(string key)
+    {
+        if (NavigateToIntegration != null) NavigateToIntegration(key);
+        else NavigateToSettings?.Invoke();
+    }
     public bool IsMusicReactiveActive => _corsairMusicTimer?.IsEnabled == true || _vuFillActive
         || (_roomRgb != null && _activePattern == "AudioReactive");
 
@@ -338,7 +345,7 @@ public partial class RoomView : UserControl
             Margin = new Thickness(0, 0, 16, 0),
             ToolTip = "Go to Settings to configure integrations",
         };
-        settingsBtn.MouseLeftButtonUp += (_, _) => NavigateToSettings?.Invoke();
+        settingsBtn.MouseLeftButtonUp += (_, _) => OpenIntegrations("");
         row.Children.Add(settingsBtn);
 
         // Status indicator
@@ -469,7 +476,7 @@ public partial class RoomView : UserControl
             DevicePanel.Children.Add(MakeSetupCard(
                 "No integrations enabled",
                 "Enable Govee or Corsair iCUE in Settings to get started.",
-                "Open Settings", () => NavigateToSettings?.Invoke()));
+                "Open Settings", () => OpenIntegrations("govee")));
             return;
         }
 
@@ -530,7 +537,7 @@ public partial class RoomView : UserControl
         dock.Margin = new Thickness(0, 0, 12, 0);
         actions.Children.Add(dock);
         actions.Children.Add(RoomHeaderButton(MaterialIconKind.CogOutline, "Integrations",
-            "Set up Govee, Corsair iCUE and Home Assistant in Settings", () => NavigateToSettings?.Invoke()));
+            "Set up Govee, Corsair iCUE and Home Assistant in Settings", () => OpenIntegrations("")));
         var help = UiKit.HelpTip("Room effects, Music Reactive, VU Fill and Screen Sync all drive the same lights, "
             + "so turning one on hands the lights over from the others. Govee, Corsair iCUE and Home Assistant "
             + "lights are managed on the Devices tab.", "Room lighting");
@@ -2435,7 +2442,7 @@ public partial class RoomView : UserControl
         {
             host.Children.Add(UiKit.EmptyState(MaterialIconKind.HomeAssistant, "Home Assistant isn't connected",
                 "Connect it in Settings > Integrations > Home Assistant, then come back here to add lights.",
-                UiKit.LinkRow(MaterialIconKind.CogOutline, "Open Settings", true, () => NavigateToSettings?.Invoke())));
+                UiKit.LinkRow(MaterialIconKind.CogOutline, "Open Settings", true, () => OpenIntegrations("homeassistant"))));
             return;
         }
 
