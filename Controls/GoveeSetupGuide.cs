@@ -142,13 +142,7 @@ public class GoveeSetupGuide : Window
             BorderThickness = new Thickness(2),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 24),
-            Effect = new DropShadowEffect
-            {
-                Color = circleColor,
-                BlurRadius = 20,
-                ShadowDepth = 0,
-                Opacity = 0.25
-            }
+            Effect = GlassStyle.GlowEffect(circleColor, 20, 0.25)
         };
         var iconText = new TextBlock
         {
@@ -225,13 +219,7 @@ public class GoveeSetupGuide : Window
             BorderThickness = new Thickness(2),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 24),
-            Effect = new DropShadowEffect
-            {
-                Color = Color.FromRgb(0x00, 0xE6, 0x76),
-                BlurRadius = 20,
-                ShadowDepth = 0,
-                Opacity = 0.25
-            }
+            Effect = GlassStyle.GlowEffect(Color.FromRgb(0x00, 0xE6, 0x76), 20, 0.25)
         };
         iconCard.Child = new TextBlock
         {

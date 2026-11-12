@@ -89,7 +89,7 @@ public class AppPickerDialog : Window
         headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var tile = UiKit.IconTile(accent, MaterialIconKind.Application, 38);
         tile.Margin = new Thickness(0, 0, 12, 0);
-        tile.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = accent, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.35 };
+        tile.Effect = GlassStyle.GlowEffect(accent, 18, 0.35);
         headerRow.Children.Add(tile);
         var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var title = new TextBlock { Text = "Pick an App", FontSize = 15, FontWeight = FontWeights.SemiBold };

@@ -16,6 +16,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Reduce effects option (Settings > General > Appearance) turns off glows and shadows for a lighter, faster interface.
 
 ### Changed
+- Overview, Groups and the tray mixer now use the shared glass card style. Glows remain only on single active elements and turn off with Reduce effects; repeated rows, chips and the tray popup no longer use costly shadows.
+- Room, Lights, OSD and Settings now use the shared glass card style; removed per-card glow shadows and the animated community-tile glow, and Screen Sync preview timers pause while the Room page is hidden, for smoother scrolling and lower CPU.
+- Buttons, dialogs and main window: glows now only appear on the selected or active element and follow Reduce effects; removed per-tile and per-row shadows for faster rendering.
 - Shared glass style foundation: card chrome, pills, glows and hover lifts are now defined once (cheap frozen brushes, no per-card shadows), starting with the Groups cards and page tab dock.
 - Page tab bars on Room, Lights, On-Screen Display and Settings are now a compact icon dock in the page header: round icon buttons with tooltips, the active one expands into an accent pill with its name, and Left/Right arrow keys switch tabs.
 - Mixer page: consistency pass to match the redesigned pages: "?" help tip in the header, rounder knob/curve/Stream Controller cards, unified MIXER SURFACE section title, softer suggested-layout banner.

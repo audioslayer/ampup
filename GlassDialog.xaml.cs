@@ -48,7 +48,7 @@ public partial class GlassDialog : Window
     private void SetIcon(Color color, MaterialIconKind kind)
     {
         var tile = UiKit.IconTile(color, kind, 34);
-        tile.Effect = new DropShadowEffect { Color = color, BlurRadius = 16, ShadowDepth = 0, Opacity = 0.35 };
+        tile.Effect = AmpUp.Controls.GlassStyle.GlowEffect(color, 16, 0.35);
         IconHost.Content = tile;
     }
 

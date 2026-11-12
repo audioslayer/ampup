@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using AmpUp.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -29,6 +30,7 @@ public partial class SettingsView
             ModeCardGrid.Columns = w < 640 ? 2 : 4;
         };
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshDevicesPage);
+        ThemeManager.OnReduceEffectsChanged += () => Dispatcher.Invoke(RefreshDevicesPage);
         RefreshDevicesPage();
     }
 
@@ -85,7 +87,8 @@ public partial class SettingsView
             var (card, check) = cards[i];
             card.SetResourceReference(Border.BorderBrushProperty, on ? "AccentBrush" : "CardBorderBrush");
             card.SetResourceReference(Border.BackgroundProperty, on ? "AccentBg30Brush" : "BgDarkBrush");
-            card.Effect = on ? MakeGlow(22, 0.45) : null;
+            // Only the single selected mode card glows (GlassStyle: off with Reduce effects).
+            card.Effect = on ? GlassStyle.GlowEffect(ThemeManager.Accent, 22, 0.45) : null;
             check.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -143,17 +146,10 @@ public partial class SettingsView
     private static void StyleDeviceCard(Border card, bool connected, bool allowed)
     {
         bool lit = connected && allowed;
-        card.SetResourceReference(Border.BorderBrushProperty, lit ? "AccentBorder55Brush" : "CardBorderBrush");
-        card.Effect = lit ? MakeGlow(30, 0.4) : null;
+        // Several device cards can be lit at once: brighter accent border, no shadow effect.
+        card.SetResourceReference(Border.BorderBrushProperty, lit ? "AccentLabel88Brush" : "CardBorderBrush");
+        card.Effect = null;
         card.Opacity = allowed ? 1.0 : 0.5;
         card.ToolTip = allowed ? null : "Not used in the current hardware mode";
     }
-
-    private static DropShadowEffect MakeGlow(double blur, double opacity) => new()
-    {
-        Color = ThemeManager.Accent,
-        BlurRadius = blur,
-        ShadowDepth = 0,
-        Opacity = opacity,
-    };
 }

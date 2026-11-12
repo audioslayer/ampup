@@ -80,7 +80,7 @@ public sealed class HALightPickerDialog : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var tile = UiKit.IconTile(HaColor, MaterialIconKind.HomeAssistant, 38);
         tile.Margin = new Thickness(0, 0, 12, 0);
-        tile.Effect = new DropShadowEffect { Color = HaColor, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.35 };
+        tile.Effect = GlassStyle.GlowEffect(HaColor, 18, 0.35);
         header.Children.Add(tile);
         var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var t = new TextBlock { Text = "Add Home Assistant lights", FontSize = 15, FontWeight = FontWeights.SemiBold };
@@ -247,7 +247,7 @@ public sealed class HALightPickerDialog : Window
         }
         var tile = UiKit.IconTile(HaColor, MaterialIconKind.HomeAssistant, 48);
         tile.HorizontalAlignment = HorizontalAlignment.Center;
-        tile.Effect = new DropShadowEffect { Color = HaColor, BlurRadius = 24, ShadowDepth = 0, Opacity = 0.5 };
+        tile.Effect = GlassStyle.GlowEffect(HaColor, 24, 0.5);
         tile.BeginAnimation(OpacityProperty, new DoubleAnimation(1.0, 0.55, new Duration(TimeSpan.FromMilliseconds(900)))
         {
             AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever,
@@ -340,8 +340,7 @@ public sealed class HALightPickerDialog : Window
         var tile = UiKit.IconTile(tileColor, icon, 36);
         tile.Margin = new Thickness(0, 0, 10, 0);
         tile.VerticalAlignment = VerticalAlignment.Top;
-        if (light.IsOn)
-            tile.Effect = new DropShadowEffect { Color = tileColor, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.45 };
+        // Repeated list rows: no per-row glow (perf); the tile colour already shows on/off
 
         var name = new TextBlock { Text = light.FriendlyName, FontSize = 12, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
         name.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");

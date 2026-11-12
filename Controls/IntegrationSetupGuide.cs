@@ -139,7 +139,7 @@ public abstract class IntegrationSetupGuide : Window
             BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, accent.R, accent.G, accent.B)),
             Margin = new Thickness(20, 0, 12, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            Effect = new DropShadowEffect { Color = accent, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.35 },
+            Effect = GlassStyle.GlowEffect(accent, 18, 0.35),
             Child = new TextBlock
             {
                 Text = glyph,
@@ -203,13 +203,7 @@ public abstract class IntegrationSetupGuide : Window
             BorderThickness = new Thickness(2),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 20),
-            Effect = new DropShadowEffect
-            {
-                Color = c,
-                BlurRadius = 20,
-                ShadowDepth = 0,
-                Opacity = 0.3,
-            },
+            Effect = GlassStyle.GlowEffect(c, 20, 0.3),
         };
         card.Child = new TextBlock
         {

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using AmpUp.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -83,6 +84,7 @@ public partial class SettingsView
 
         BtnIntegrationSetupGuide.Click += OnIntegrationSetupGuide;
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshIntegrationNavSelection);
+        ThemeManager.OnReduceEffectsChanged += () => Dispatcher.Invoke(RefreshIntegrationNavSelection);
 
         SelectIntegration(_selectedIntegration);
     }
@@ -215,18 +217,11 @@ public partial class SettingsView
         {
             if (entry.Row == null) continue;
             bool active = entry.Id == _selectedIntegration;
-            entry.Row.Background = active
-                ? new SolidColorBrush(Color.FromArgb(0x26, accent.R, accent.G, accent.B))
-                : Brushes.Transparent;
-            entry.Row.BorderBrush = active
-                ? new SolidColorBrush(Color.FromArgb(0x88, accent.R, accent.G, accent.B))
-                : Brushes.Transparent;
-            entry.Row.Effect = active
-                ? new System.Windows.Media.Effects.DropShadowEffect
-                {
-                    Color = accent, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.45,
-                }
-                : null;
+            var (fill, border) = GlassStyle.AccentPillBrushes(accent);
+            entry.Row.Background = active ? fill : Brushes.Transparent;
+            entry.Row.BorderBrush = active ? border : Brushes.Transparent;
+            // Only the selected row glows (GlassStyle: null with Reduce effects).
+            entry.Row.Effect = active ? GlassStyle.GlowEffect(accent, 14, 0.45) : null;
         }
     }
 

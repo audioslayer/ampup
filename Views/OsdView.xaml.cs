@@ -293,7 +293,7 @@ public partial class OsdView : UserControl
     /// <summary>UiKit.Card as a big rounded glass card (same as the Room / Settings cards).</summary>
     private static void StyleGlassCard(System.Windows.Controls.Border card)
     {
-        card.CornerRadius = new CornerRadius(16);
+        GlassStyle.ApplyGlassCard(card, 16);
         card.Margin = new Thickness(0, 0, 0, 14);
     }
 
@@ -2456,8 +2456,8 @@ public partial class OsdView : UserControl
         {
             var a = ThemeManager.Accent;
             _osdMiniCard.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, a.R, a.G, a.B));
-            _osdMiniCard.Effect = new System.Windows.Media.Effects.DropShadowEffect
-                { Color = a, BlurRadius = 10, Opacity = 0.35, ShadowDepth = 0 };
+            // Single preview element: glow via GlassStyle so Reduce effects removes it.
+            _osdMiniCard.Effect = GlassStyle.GlowEffect(a, 10, 0.35);
             catLabel.Foreground = new SolidColorBrush(Color.FromArgb(0x88, a.R, a.G, a.B));
             icon.Foreground = new SolidColorBrush(a);
             value.Foreground = new SolidColorBrush(a);
@@ -2468,6 +2468,7 @@ public partial class OsdView : UserControl
         };
         _paintOsdMini();
         _accentRepaints.Add(_paintOsdMini);
+        ThemeManager.OnReduceEffectsChanged += () => Dispatcher.Invoke(() => _paintOsdMini?.Invoke());
         PlaceOsdMini(_currentPosition);
 
         var stack = new StackPanel { Margin = new Thickness(24, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top,

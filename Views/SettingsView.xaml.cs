@@ -1847,18 +1847,15 @@ public partial class SettingsView : UserControl
     }
 
     /// <summary>
-    /// Hover lifts the tile with a brand-colored glow and sweeps a light sheen
-    /// across it; click opens the link in the default browser.
+    /// Hover lifts the tile and sweeps a light sheen across it; click opens the link in the
+    /// default browser. No shadow effect (never animate effect properties); <paramref name="glow"/>
+    /// is kept for call compatibility.
     /// </summary>
     private static void WireCommunityTile(System.Windows.Controls.Border tile,
         System.Windows.Shapes.Rectangle shine, Color glow, string url)
     {
         var lift = (TranslateTransform)tile.RenderTransform;
-        var shadow = new System.Windows.Media.Effects.DropShadowEffect
-        {
-            Color = glow, BlurRadius = 0, ShadowDepth = 0, Opacity = 0,
-        };
-        tile.Effect = shadow;
+        tile.Effect = null;
         var shineMove = (TranslateTransform)((TransformGroup)shine.RenderTransform).Children[1];
         var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
 
@@ -1868,8 +1865,6 @@ public partial class SettingsView : UserControl
         tile.MouseEnter += (_, _) =>
         {
             lift.BeginAnimation(TranslateTransform.YProperty, Anim(-4, 220));
-            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty, Anim(28, 260));
-            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, Anim(0.55, 260));
 
             shine.Opacity = 1;
             shineMove.BeginAnimation(TranslateTransform.XProperty,
@@ -1879,8 +1874,6 @@ public partial class SettingsView : UserControl
         tile.MouseLeave += (_, _) =>
         {
             lift.BeginAnimation(TranslateTransform.YProperty, Anim(0, 260));
-            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty, Anim(0, 300));
-            shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, Anim(0, 300));
         };
         tile.MouseLeftButtonDown += (_, _) => lift.BeginAnimation(TranslateTransform.YProperty, Anim(-1, 90));
         tile.MouseLeftButtonUp += (_, _) =>

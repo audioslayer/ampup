@@ -38,14 +38,12 @@ public partial class RoomView
 
     private Border BuildRoomHero()
     {
-        var accent = ThemeManager.Accent;
         var hero = new Border
         {
-            CornerRadius = new CornerRadius(16),
-            BorderThickness = new Thickness(1),
             Padding = new Thickness(20, 18, 20, 18),
             Margin = new Thickness(0, 0, 0, 14),
         };
+        GlassStyle.ApplyGlassCard(hero, 16, accentBorder: true);
         var tile = new Border
         {
             Width = 56, Height = 56,
@@ -56,29 +54,24 @@ public partial class RoomView
             Child = new MaterialIcon { Kind = MaterialIconKind.LightbulbGroupOutline, Width = 28, Height = 28 },
         };
         ((MaterialIcon)tile.Child).SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
-        var glow = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 22, ShadowDepth = 0, Opacity = 0.55, Color = accent };
-        tile.Effect = glow;
-
+        // Hero card chrome comes from GlassStyle (resource references, live); only the single hero
+        // icon tile keeps a glow, created via GlassStyle.GlowEffect so Reduce effects removes it.
         void PaintHero()
         {
             var a = ThemeManager.Accent;
-            hero.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x55));
-            hero.Background = new LinearGradientBrush(
-                new GradientStopCollection
-                {
-                    new GradientStop(Color.FromArgb(0x2A, 0xFF, 0xFF, 0xFF), 0),
-                    new GradientStop(ThemeManager.WithAlpha(a, 0x10), 0.55),
-                    new GradientStop(Color.FromArgb(0x06, 0xFF, 0xFF, 0xFF), 1),
-                },
-                new Point(0, 0), new Point(1, 1));
-            tile.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x26));
-            tile.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x77));
-            glow.Color = a;
+            var (fill, border) = GlassStyle.AccentPillBrushes(a);
+            tile.Background = fill;
+            tile.BorderBrush = border;
+            tile.Effect = GlassStyle.GlowEffect(a, 22, 0.55);
         }
         PaintHero();
         Action onAccent = () => hero.Dispatcher.BeginInvoke(PaintHero);
-        hero.Loaded += (_, _) => { ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnAccentChanged += onAccent; };
-        hero.Unloaded += (_, _) => ThemeManager.OnAccentChanged -= onAccent;
+        hero.Loaded += (_, _) =>
+        {
+            ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnAccentChanged += onAccent;
+            ThemeManager.OnReduceEffectsChanged -= onAccent; ThemeManager.OnReduceEffectsChanged += onAccent;
+        };
+        hero.Unloaded += (_, _) => { ThemeManager.OnAccentChanged -= onAccent; ThemeManager.OnReduceEffectsChanged -= onAccent; };
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -219,9 +212,10 @@ public partial class RoomView
 
     private static Border RoomPill(string text, Color color, MaterialIconKind icon, string? tooltip)
     {
+        var fg = RoomFrozenBrush(color);
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
-        sp.Children.Add(new MaterialIcon { Kind = icon, Width = 12, Height = 12, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(color) });
-        sp.Children.Add(new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(color) });
+        sp.Children.Add(new MaterialIcon { Kind = icon, Width = 12, Height = 12, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = fg });
+        sp.Children.Add(new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Foreground = fg });
         return new Border
         {
             CornerRadius = new CornerRadius(11),
@@ -229,8 +223,8 @@ public partial class RoomView
             Padding = new Thickness(9, 3, 10, 3),
             Margin = new Thickness(0, 0, 6, 4),
             VerticalAlignment = VerticalAlignment.Center,
-            Background = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x18)),
-            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x55)),
+            Background = RoomFrozenBrush(ThemeManager.WithAlpha(color, 0x18)),
+            BorderBrush = RoomFrozenBrush(ThemeManager.WithAlpha(color, 0x55)),
             ToolTip = tooltip,
             Child = sp,
         };
@@ -256,17 +250,18 @@ public partial class RoomView
             VerticalAlignment = VerticalAlignment.Center,
             Child = sp,
         };
+        // Cached frozen accent-alpha brushes from ThemeManager (resource references: no per-hover
+        // allocation and they follow accent changes live).
         void Paint(bool hover)
         {
-            var a = ThemeManager.Accent;
-            b.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, hover ? (byte)0x33 : (byte)0x1A));
-            b.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, hover ? (byte)0xAA : (byte)0x55));
+            b.SetResourceReference(Border.BackgroundProperty, hover ? "AccentBg30Brush" : "AccentHover1ABrush");
+            b.SetResourceReference(Border.BorderBrushProperty, hover ? "AccentScrollAABrush" : "AccentLabel66Brush");
         }
         Paint(false);
         b.MouseEnter += (_, _) => Paint(true);
         b.MouseLeave += (_, _) => Paint(false);
         b.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
-        AddRoomHoverLift(b, 1.5);
+        GlassStyle.AttachHoverLift(b);
         return b;
     }
 
@@ -289,7 +284,8 @@ public partial class RoomView
 
     /// <summary>
     /// Pill tab visuals shared by the main Room tab bar and the effect category chips:
-    /// active = accent tint + accent border + soft glow; hover = subtle lift in brightness.
+    /// active = accent tint + accent border + soft glow (only the one active pill, via
+    /// GlassStyle.GlowEffect); hover = subtle lift in brightness. Brushes are cached/frozen.
     /// The tab's child is either a TextBlock or a StackPanel of [icon, label].
     /// </summary>
     private static void PaintRoomPillTab(Border tab, bool active, bool hover)
@@ -306,15 +302,16 @@ public partial class RoomView
 
         if (active)
         {
-            tab.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x2A));
-            tab.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x88));
-            tab.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 14, ShadowDepth = 0, Opacity = 0.35, Color = a };
-            if (label != null) { label.Foreground = new SolidColorBrush(a); label.FontWeight = FontWeights.Bold; }
-            if (icon != null) icon.Foreground = new SolidColorBrush(a);
+            var (fill, border) = GlassStyle.AccentPillBrushes(a);
+            tab.Background = fill;
+            tab.BorderBrush = border;
+            tab.Effect = GlassStyle.GlowEffect(a, 14, 0.35);
+            if (label != null) { label.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush"); label.FontWeight = FontWeights.Bold; }
+            icon?.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
         }
         else
         {
-            tab.Background = hover ? new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)) : Brushes.Transparent;
+            tab.Background = hover ? RoomPillHoverBrush : Brushes.Transparent;
             tab.BorderBrush = Brushes.Transparent;
             tab.Effect = null;
             if (label != null)
@@ -326,9 +323,18 @@ public partial class RoomView
         }
     }
 
+    private static readonly Brush RoomPillHoverBrush = RoomFrozenBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
+
+    private static SolidColorBrush RoomFrozenBrush(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
     // ── Cards ───────────────────────────────────────────────────────────
 
-    /// <summary>UiKit.Card restyled as a big rounded glass card (Settings SetCard look).</summary>
+    /// <summary>UiKit.Card restyled as the shared GlassStyle glass card.</summary>
     private static UiKit.CardParts RoomCard(Color color, MaterialIconKind icon, string title, string? subtitle,
         FrameworkElement? actions = null, UIElement? body = null, string? help = null)
     {
@@ -339,13 +345,14 @@ public partial class RoomView
 
     private static void StyleRoomGlassCard(Border card)
     {
-        card.CornerRadius = new CornerRadius(16);
+        GlassStyle.ApplyGlassCard(card, 16);
         card.Margin = new Thickness(0, 0, 0, 14);
     }
 
     /// <summary>
     /// Large device card: integration logo tile, name + detail + On/Off pill, controls on the
-    /// right, body below. Hover lift; accent glow in the device colour while the light is on.
+    /// right, body below. Glass card + hover lift; brighter border in the device colour while the
+    /// light is on (no per-card shadow effect: these repeat in lists).
     /// <paramref name="power"/> is the logical CheckBox model (null = always "on", e.g. Corsair).
     /// </summary>
     private UiKit.CardParts BuildRoomDeviceCard(Color color, FrameworkElement logo, string title, string? subtitle,
@@ -353,12 +360,11 @@ public partial class RoomView
     {
         var card = new Border
         {
-            CornerRadius = new CornerRadius(16),
-            BorderThickness = new Thickness(1.5),
             Padding = new Thickness(18, 16, 18, 16),
             Margin = new Thickness(0, 0, 0, 12),
         };
-        card.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        GlassStyle.ApplyGlassCard(card, 16);
+        card.BorderThickness = new Thickness(1.5);
 
         var stack = new StackPanel();
         card.Child = stack;
@@ -415,26 +421,16 @@ public partial class RoomView
         }
         stack.Children.Add(bodyHost);
 
+        var onBorder = RoomFrozenBrush(ThemeManager.WithAlpha(color, 0xAA));
         void Paint()
         {
             bool on = power == null || power.IsChecked == true;
-            var green = Color.FromRgb(0x00, 0xE6, 0x76);
-            var dim = Color.FromRgb(0x9E, 0x9E, 0x9E);
-            var pc = on ? green : dim;
             statusText.Text = power == null ? "ACTIVE" : on ? "ON" : "OFF";
-            statusText.Foreground = new SolidColorBrush(pc);
-            statusPill.Background = new SolidColorBrush(ThemeManager.WithAlpha(pc, 0x18));
-            statusPill.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(pc, 0x55));
-            if (on)
-            {
-                card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x88));
-                card.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.28, Color = color };
-            }
-            else
-            {
-                card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-                card.Effect = null;
-            }
+            statusText.Foreground = on ? RoomStatusOnFg : RoomStatusOffFg;
+            statusPill.Background = on ? RoomStatusOnFill : RoomStatusOffFill;
+            statusPill.BorderBrush = on ? RoomStatusOnBorder : RoomStatusOffBorder;
+            if (on) card.BorderBrush = onBorder;
+            else card.SetResourceReference(Border.BorderBrushProperty, "GlassCardBorderBrush");
         }
         Paint();
         if (power != null)
@@ -442,10 +438,17 @@ public partial class RoomView
             power.Checked += (_, _) => Paint();
             power.Unchecked += (_, _) => Paint();
         }
-        AddRoomHoverLift(card, 2);
+        GlassStyle.AttachHoverLift(card);
 
         return new UiKit.CardParts { Root = card, Title = t, Subtitle = s, Body = bodyHost };
     }
+
+    private static readonly Brush RoomStatusOnFg = RoomFrozenBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+    private static readonly Brush RoomStatusOnFill = RoomFrozenBrush(Color.FromArgb(0x18, 0x00, 0xE6, 0x76));
+    private static readonly Brush RoomStatusOnBorder = RoomFrozenBrush(Color.FromArgb(0x55, 0x00, 0xE6, 0x76));
+    private static readonly Brush RoomStatusOffFg = RoomFrozenBrush(Color.FromRgb(0x9E, 0x9E, 0x9E));
+    private static readonly Brush RoomStatusOffFill = RoomFrozenBrush(Color.FromArgb(0x18, 0x9E, 0x9E, 0x9E));
+    private static readonly Brush RoomStatusOffBorder = RoomFrozenBrush(Color.FromArgb(0x55, 0x9E, 0x9E, 0x9E));
 
     /// <summary>Glass logo tile: bundled/installed app icon when available, otherwise a tinted glyph.</summary>
     private static Border IntegrationLogoTile(string? app, MaterialIconKind fallback, Color color, double size = 44)
@@ -457,7 +460,7 @@ public partial class RoomView
         }
         FrameworkElement child = img != null
             ? new Image { Source = img, Width = size * 0.6, Height = size * 0.6, Stretch = Stretch.Uniform }
-            : new MaterialIcon { Kind = fallback, Width = size * 0.52, Height = size * 0.52, Foreground = new SolidColorBrush(color) };
+            : new MaterialIcon { Kind = fallback, Width = size * 0.52, Height = size * 0.52, Foreground = RoomFrozenBrush(color) };
         if (child is Image) RenderOptions.SetBitmapScalingMode(child, BitmapScalingMode.HighQuality);
         return new Border
         {
@@ -465,8 +468,8 @@ public partial class RoomView
             CornerRadius = new CornerRadius(size * 0.28),
             BorderThickness = new Thickness(1),
             VerticalAlignment = VerticalAlignment.Center,
-            Background = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x22)),
-            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x66)),
+            Background = RoomFrozenBrush(ThemeManager.WithAlpha(color, 0x22)),
+            BorderBrush = RoomFrozenBrush(ThemeManager.WithAlpha(color, 0x66)),
             Child = child,
         };
     }
@@ -497,27 +500,33 @@ public partial class RoomView
         var a = ThemeManager.Accent;
         var card = new Border
         {
-            CornerRadius = new CornerRadius(16),
-            BorderThickness = new Thickness(1),
             Padding = new Thickness(28, 26, 28, 26),
             Margin = new Thickness(0, 0, 0, 14),
-            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x44)),
-            Background = new LinearGradientBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF), Color.FromArgb(0x04, 0xFF, 0xFF, 0xFF), 90),
         };
+        GlassStyle.ApplyGlassCard(card, 16, accentBorder: true);
+        var (tileFill, tileBorder) = GlassStyle.AccentPillBrushes(a);
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
         card.Child = stack;
-        var tileIcon = new MaterialIcon { Kind = icon, Width = 26, Height = 26, Foreground = new SolidColorBrush(a) };
-        stack.Children.Add(new Border
+        var tileIcon = new MaterialIcon { Kind = icon, Width = 26, Height = 26 };
+        tileIcon.SetResourceReference(MaterialIcon.ForegroundProperty, "AccentBrush");
+        // Cheap faux glow behind the tile instead of a DropShadowEffect.
+        var tileHost = new Grid { HorizontalAlignment = HorizontalAlignment.Center };
+        tileHost.Children.Add(new Border
+        {
+            Width = 84, Height = 84, Margin = new Thickness(-16),
+            Background = GlassStyle.FauxGlow(a, 42),
+            IsHitTestVisible = false,
+        });
+        tileHost.Children.Add(new Border
         {
             Width = 52, Height = 52,
             CornerRadius = new CornerRadius(14),
             BorderThickness = new Thickness(1),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x22)),
-            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66)),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.3, Color = a },
+            Background = tileFill,
+            BorderBrush = tileBorder,
             Child = tileIcon,
         });
+        stack.Children.Add(tileHost);
         var t1 = new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
         t1.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         stack.Children.Add(t1);
@@ -537,23 +546,4 @@ public partial class RoomView
         return card;
     }
 
-    private static void AddRoomHoverLift(FrameworkElement el, double lift)
-    {
-        var tt = new TranslateTransform();
-        el.RenderTransform = tt;
-        el.MouseEnter += (_, _) => AnimateRoomLift(tt, -lift);
-        el.MouseLeave += (_, _) => AnimateRoomLift(tt, 0);
-    }
-
-    private static void AnimateRoomLift(TranslateTransform tt, double y)
-    {
-        if (!SystemParameters.ClientAreaAnimation)
-        {
-            tt.BeginAnimation(TranslateTransform.YProperty, null);
-            tt.Y = y;
-            return;
-        }
-        tt.BeginAnimation(TranslateTransform.YProperty,
-            new DoubleAnimation(y, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-    }
 }

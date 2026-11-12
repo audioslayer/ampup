@@ -1825,6 +1825,7 @@ public partial class MixerView : UserControl
 
         // Update hover border brush for strip cards
         _hoverBorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x60));
+        _hoverBorderBrush.Freeze();
 
         // Update all custom controls
         for (int i = 0; i < 5; i++)

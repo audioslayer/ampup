@@ -250,7 +250,7 @@ public sealed class MacroSequenceBuilder
             BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x88)),
             BorderThickness = new Thickness(1),
             VerticalAlignment = VerticalAlignment.Center,
-            Effect = new DropShadowEffect { Color = color, BlurRadius = size * 0.6, ShadowDepth = 0, Opacity = 0.45 },
+            Effect = GlassStyle.GlowEffect(color, size * 0.6, 0.45), // single header/empty-state badge; null when Reduce effects
             Child = new MaterialIcon
             {
                 Kind = kind,
@@ -327,7 +327,7 @@ public sealed class MacroSequenceBuilder
                 CornerRadius = new CornerRadius(18),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Cursor = Cursors.Hand,
-                Effect = new DropShadowEffect { Color = a, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.3 },
+                Effect = GlassStyle.GlowEffect(a, 14, 0.3),
             };
             void Paint(bool hover)
             {
@@ -384,7 +384,8 @@ public sealed class MacroSequenceBuilder
             Opacity = pending ? 1 : 0,
         };
         plus.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        plus.Effect = new DropShadowEffect { Color = a, BlurRadius = pending ? 12 : 8, ShadowDepth = 0, Opacity = pending ? 0.75 : 0.45 };
+        // Repeated insert slots: glow only on the single pending slot
+        plus.Effect = pending ? GlassStyle.GlowEffect(a, 12, 0.75) : null;
 
         var slot = new Grid
         {
@@ -440,7 +441,7 @@ public sealed class MacroSequenceBuilder
             BorderThickness = new Thickness(1),
             Padding = new Thickness(6),
             Margin = new Thickness(10), // room for the drop shadow
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 24, ShadowDepth = 4, Opacity = 0.55 },
+            Effect = ThemeManager.ReduceEffects ? null : new DropShadowEffect { Color = Colors.Black, BlurRadius = 24, ShadowDepth = 4, Opacity = 0.55 }, // single popup
         };
         root.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
         root.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
@@ -594,7 +595,6 @@ public sealed class MacroSequenceBuilder
             Background = new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x48)),
             BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
             BorderThickness = new Thickness(1),
-            Effect = new DropShadowEffect { Color = Color.FromRgb(0xE5, 0x48, 0x48), BlurRadius = 8, ShadowDepth = 0, Opacity = 0.6 },
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, -7, -7, 0),
@@ -677,7 +677,7 @@ public sealed class MacroSequenceBuilder
             Cursor = Cursors.Hand,
             ToolTip = selected ? "Selected: Record replaces this step (click to deselect)" : "Click to select, drag to move",
         };
-        if (selected) chip.Effect = new DropShadowEffect { Color = a, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.45 };
+        if (selected) chip.Effect = GlassStyle.GlowEffect(a, 12, 0.45); // single selected chip only
         chip.MouseLeftButtonUp += (_, e) =>
         {
             e.Handled = true;
@@ -700,7 +700,6 @@ public sealed class MacroSequenceBuilder
             Width = 17, Height = 17,
             Margin = new Thickness(0, 0, 5, 0),
             Foreground = new SolidColorBrush(p),
-            Effect = new DropShadowEffect { Color = p, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.5 },
             VerticalAlignment = VerticalAlignment.Center,
         });
 

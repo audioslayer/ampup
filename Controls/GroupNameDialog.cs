@@ -71,7 +71,7 @@ public sealed class GroupNameDialog : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var tile = UiKit.IconTile(a, icon, 38);
         tile.Margin = new Thickness(0, 0, 12, 0);
-        tile.Effect = new DropShadowEffect { Color = a, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.35 };
+        tile.Effect = GlassStyle.GlowEffect(a, 18, 0.35);
         header.Children.Add(tile);
         var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var t = new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeights.SemiBold };

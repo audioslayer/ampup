@@ -166,6 +166,8 @@ public partial class RoomView : UserControl
             {
                 _goveeStateRefreshTimer.Stop();
             }
+            // Screen Sync status/preview UI timers only tick while the page is shown.
+            UpdateScreenSyncTimersForWindowState();
         };
 
         BuildTopBar();
@@ -207,7 +209,8 @@ public partial class RoomView : UserControl
 
     private void UpdateScreenSyncTimersForWindowState()
     {
-        if (IsOwnerWindowQuiesced)
+        // Also quiesce while the Room page itself is hidden (another page selected).
+        if (IsOwnerWindowQuiesced || !IsVisible)
         {
             _screenSyncStatusTimer?.Stop();
             _screenSyncPreviewTimer?.Stop();
@@ -5887,18 +5890,16 @@ public partial class RoomView : UserControl
 
         void UpdateVisuals(bool hover = false)
         {
-            var a = ThemeManager.Accent;
+            // Repeated tile: no shadow effect; cached accent-alpha resource brushes (live, no allocation).
             if (isActive)
             {
-                tile.Background = new SolidColorBrush(Color.FromArgb(0x1C, a.R, a.G, a.B));
-                tile.BorderBrush = new SolidColorBrush(Color.FromArgb(hover ? (byte)0xC0 : (byte)0x80, a.R, a.G, a.B));
-                tile.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 0, Opacity = 0.3, Color = a };
+                tile.SetResourceReference(Border.BackgroundProperty, "AccentHover1ABrush");
+                tile.SetResourceReference(Border.BorderBrushProperty, hover ? "AccentScrollAABrush" : "AccentLabel88Brush");
             }
             else
             {
-                tile.SetResourceReference(Border.BackgroundProperty, hover ? "InputBgBrush" : "BgDarkBrush");
-                tile.SetResourceReference(Border.BorderBrushProperty, hover ? "InputBorderBrush" : "CardBorderBrush");
-                tile.Effect = null;
+                tile.SetResourceReference(Border.BackgroundProperty, hover ? "InputBgBrush" : "GlassCardFillBrush");
+                tile.SetResourceReference(Border.BorderBrushProperty, hover ? "InputBorderBrush" : "GlassCardBorderBrush");
             }
         }
 
@@ -5933,7 +5934,7 @@ public partial class RoomView : UserControl
         };
         tile.MouseEnter += (_, _) => UpdateVisuals(true);
         tile.MouseLeave += (_, _) => UpdateVisuals(false);
-        AddRoomHoverLift(tile, 2);
+        GlassStyle.AttachHoverLift(tile);
 
         return tile;
     }

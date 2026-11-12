@@ -3085,14 +3085,11 @@ public partial class LightsView : UserControl
             content.Children.Add(child);
         var border = new Border
         {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(16),
             Padding = new Thickness(18, 16, 18, 16),
             Margin = new Thickness(0, 0, 0, 12),
             Child = content,
         };
-        border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        GlassStyle.ApplyGlassCard(border, 16);
         return border;
     }
 

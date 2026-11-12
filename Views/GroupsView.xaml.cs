@@ -42,6 +42,7 @@ public partial class GroupsView : UserControl
     {
         InitializeComponent();
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(RefreshAccentColors);
+        ThemeManager.OnReduceEffectsChanged += () => Dispatcher.Invoke(RefreshAccentColors);
         IsVisibleChanged += (_, e) => { if (e.NewValue is true) RebuildGroupPanel(); };
     }
 
@@ -197,32 +198,6 @@ public partial class GroupsView : UserControl
         };
     }
 
-    /// <summary>Card hover: lift 2px and fade in a soft glow in the card's color.</summary>
-    private static void AddHoverLift(Border card, Color glowColor)
-    {
-        var tt = new TranslateTransform();
-        card.RenderTransform = tt;
-        var glow = new System.Windows.Media.Effects.DropShadowEffect
-            { BlurRadius = 22, ShadowDepth = 0, Opacity = 0, Color = glowColor };
-        card.Effect = glow;
-        void Animate(double y, double opacity)
-        {
-            if (!SystemParameters.ClientAreaAnimation)
-            {
-                tt.Y = y;
-                glow.Opacity = opacity;
-                return;
-            }
-            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
-            tt.BeginAnimation(TranslateTransform.YProperty,
-                new System.Windows.Media.Animation.DoubleAnimation(y, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease });
-            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty,
-                new System.Windows.Media.Animation.DoubleAnimation(opacity, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
-        }
-        card.MouseEnter += (_, _) => Animate(-2, 0.10);
-        card.MouseLeave += (_, _) => Animate(0, 0);
-    }
-
     /// <summary>Large centered empty state: glowing icon tile, title, one line, call-to-action button.</summary>
     private Border BuildHeroEmptyState(MaterialIconKind icon, string title, string body, FrameworkElement action)
     {
@@ -233,9 +208,8 @@ public partial class GroupsView : UserControl
             BorderThickness = new Thickness(1),
             Padding = new Thickness(24, 28, 24, 26),
             Margin = new Thickness(0, 0, 0, 14),
-            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x33)),
-            Background = new LinearGradientBrush(ThemeManager.WithAlpha(a, 0x10), Color.FromArgb(0x06, 0xFF, 0xFF, 0xFF), 90),
         };
+        GlassStyle.ApplyGlassCard(card, 16, accentBorder: true);
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
         card.Child = stack;
 
@@ -247,7 +221,7 @@ public partial class GroupsView : UserControl
             HorizontalAlignment = HorizontalAlignment.Center,
             Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x1E)),
             BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66)),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.25, Color = a },
+            Effect = GlassStyle.GlowEffect(a, 18, 0.25),
             Child = new MaterialIcon { Kind = icon, Width = 32, Height = 32, Foreground = new SolidColorBrush(a) },
         };
         stack.Children.Add(tile);
@@ -1406,10 +1380,7 @@ public partial class GroupsView : UserControl
                 (Color)ColorConverter.ConvertFromString("#EE111111"),
                 (Color)ColorConverter.ConvertFromString("#DD0A0A0A"),
                 new System.Windows.Point(0, 0), new System.Windows.Point(1, 1)),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect
-            {
-                Color = accent, BlurRadius = 24, Opacity = 0.15, ShadowDepth = 0
-            },
+            Effect = GlassStyle.GlowEffect(accent, 24, 0.15),
             Opacity = 0,
         };
         outerBorder.RenderTransform = new ScaleTransform(0.95, 0.95);

@@ -170,13 +170,7 @@ public class DiscordSetupGuide : Window
             BorderThickness = new Thickness(2),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 20),
-            Effect = new DropShadowEffect
-            {
-                Color = c,
-                BlurRadius = 20,
-                ShadowDepth = 0,
-                Opacity = 0.3,
-            },
+            Effect = GlassStyle.GlowEffect(c, 20, 0.3),
         };
         card.Child = new TextBlock
         {

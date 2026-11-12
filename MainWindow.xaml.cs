@@ -97,6 +97,7 @@ public partial class MainWindow : FluentWindow
         SetupTrafficLightHovers();
 
         ThemeManager.OnAccentChanged += () => Dispatcher.Invoke(UpdateAccentDependentUI);
+        ThemeManager.OnReduceEffectsChanged += () => Dispatcher.Invoke(UpdateAccentDependentUI);
 
         // Remove Win11 DWM border (the white/gray 1px border around the window)
         SourceInitialized += (_, _) =>
@@ -122,16 +123,10 @@ public partial class MainWindow : FluentWindow
             new Point(0, 0), new Point(1, 1));
 
         // Profile button drop shadow
-        ProfileButton.Effect = new System.Windows.Media.Effects.DropShadowEffect
-        {
-            Color = ThemeManager.Accent,
-            BlurRadius = 10,
-            Opacity = 0.25,
-            ShadowDepth = 0
-        };
+        ProfileButton.Effect = AmpUp.Controls.GlassStyle.GlowEffect(ThemeManager.Accent, 10, 0.25);
 
         // Connection dot glow
-        ConnectionDotGlow.Color = ThemeManager.Accent;
+        UpdateConnectionDotGlow();
 
         // Active sidebar pill tint
         RefreshNavAccent();
@@ -624,16 +619,8 @@ public partial class MainWindow : FluentWindow
         // Soft right-edge shadow only while overlaying the content
         if (expanded)
         {
-            var shadow = new System.Windows.Media.Effects.DropShadowEffect
-            {
-                Color = Colors.Black, BlurRadius = 24, ShadowDepth = 0, Direction = 0, Opacity = 0
-            };
-            SidebarPanel.Effect = shadow;
-            if (animate)
-                shadow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty,
-                    new System.Windows.Media.Animation.DoubleAnimation(0.45, widthDur));
-            else
-                shadow.Opacity = 0.45;
+            // Static (never animate effect properties); null when Reduce effects is on
+            SidebarPanel.Effect = AmpUp.Controls.GlassStyle.GlowEffect(Colors.Black, 24, 0.45);
         }
         else
         {
@@ -1980,6 +1967,14 @@ public partial class MainWindow : FluentWindow
             _settingsView.RefreshActiveSurfaceVisibility();
     }
 
+    private bool _connectionDotLit;
+
+    // Single status dot: glow only while connected, via GlassStyle (null when Reduce effects is on)
+    private void UpdateConnectionDotGlow()
+    {
+        ConnectionDot.Effect = _connectionDotLit ? AmpUp.Controls.GlassStyle.GlowEffect(ThemeManager.Accent, 8, 0.5) : null;
+    }
+
     private void UpdateAggregateConnectionUi()
     {
         bool anyConnected = _turnUpConnected || _streamControllerConnected;
@@ -1989,8 +1984,8 @@ public partial class MainWindow : FluentWindow
             : (SolidColorBrush)FindResource("TextDimBrush");
         ConnectionLabel.Text = anyConnected ? "Connected" : "Disconnected";
 
-        ConnectionDotGlow.BlurRadius = anyConnected ? 8 : 0;
-        ConnectionDotGlow.Opacity = anyConnected ? 0.5 : 0;
+        _connectionDotLit = anyConnected;
+        UpdateConnectionDotGlow();
 
         var pulse = (System.Windows.Media.Animation.Storyboard)FindResource("PulseAnimation");
         if (anyConnected)

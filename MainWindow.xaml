@@ -90,11 +90,8 @@
 
             <!-- Connection Status + Window Controls -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center">
-                <Ellipse x:Name="ConnectionDot" Width="8" Height="8" Fill="{StaticResource TextDimBrush}" Margin="0,0,8,0">
-                    <Ellipse.Effect>
-                        <DropShadowEffect x:Name="ConnectionDotGlow" Color="#00E676" BlurRadius="0" Opacity="0" ShadowDepth="0" />
-                    </Ellipse.Effect>
-                </Ellipse>
+                <!-- Glow set in code (UpdateConnectionDotGlow) via GlassStyle.GlowEffect, only while connected -->
+                <Ellipse x:Name="ConnectionDot" Width="8" Height="8" Fill="{StaticResource TextDimBrush}" Margin="0,0,8,0" />
                 <TextBlock x:Name="ConnectionLabel" Text="Disconnected" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" />
                 <TextBlock x:Name="VersionLabel" Text="v0.3-alpha" Foreground="{StaticResource TextDimBrush}" FontSize="10"
                            VerticalAlignment="Center" Margin="10,0,0,0" Cursor="Hand"

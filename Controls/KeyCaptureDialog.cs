@@ -24,7 +24,6 @@ public sealed class KeyCaptureDialog : Window
 {
     private readonly Border _stage;
     private readonly Border _glow;
-    private readonly DropShadowEffect _glowFx;
     private readonly ContentControl _capsHost;
     private readonly TextBlock _status;
     private readonly System.Windows.Shapes.Ellipse _statusDot;
@@ -113,8 +112,8 @@ public sealed class KeyCaptureDialog : Window
 
         // Stage: glow layer behind (keeps the keycap text crisp) + keycaps + status line
         var a = ThemeManager.Accent;
-        _glowFx = new DropShadowEffect { Color = a, BlurRadius = 26, ShadowDepth = 0, Opacity = 0 };
-        _glow = new Border { CornerRadius = new CornerRadius(14), Effect = _glowFx };
+        // Static glow (null when Reduce effects); the pulse animates the layer's Opacity, never the effect
+        _glow = new Border { CornerRadius = new CornerRadius(14), Effect = GlassStyle.GlowEffect(a, 26, 1.0), Opacity = 0 };
         _glow.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
         _stage = new Border
         {
@@ -287,7 +286,7 @@ public sealed class KeyCaptureDialog : Window
             RepeatBehavior = RepeatBehavior.Forever,
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
         };
-        _glowFx.BeginAnimation(DropShadowEffect.OpacityProperty, glow);
+        _glow.BeginAnimation(OpacityProperty, glow);
         var dot = new DoubleAnimation(1.0, 0.25, TimeSpan.FromMilliseconds(650))
         {
             AutoReverse = true,
@@ -299,8 +298,8 @@ public sealed class KeyCaptureDialog : Window
     private void StopPulse()
     {
         _pulsing = false;
-        _glowFx.BeginAnimation(DropShadowEffect.OpacityProperty, null);
-        _glowFx.Opacity = 0;
+        _glow.BeginAnimation(OpacityProperty, null);
+        _glow.Opacity = 0;
         _statusDot.BeginAnimation(OpacityProperty, null);
         _statusDot.Opacity = 1;
     }
@@ -547,13 +546,6 @@ public sealed class KeyCaptureDialog : Window
                 ? new SolidColorBrush(ThemeManager.WithAlpha(a, 0x88))
                 : new SolidColorBrush(Color.FromRgb(0x0C, 0x0C, 0x0C)),
             Background = face,
-            Effect = new DropShadowEffect
-            {
-                Color = modifier ? a : Colors.Black,
-                BlurRadius = modifier ? 14 : 8,
-                ShadowDepth = modifier ? 0 : 2,
-                Opacity = modifier ? 0.35 : 0.5,
-            },
             Child = text,
         };
     }
@@ -678,7 +670,7 @@ public sealed class KeyCaptureDialog : Window
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
             Child = recContent,
-            Effect = new DropShadowEffect { Color = a, BlurRadius = 16, ShadowDepth = 0, Opacity = 0.3 },
+            Effect = GlassStyle.GlowEffect(a, 16, 0.3), // single primary button
         };
         void PaintRec(bool hover)
         {
