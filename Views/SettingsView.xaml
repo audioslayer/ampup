@@ -713,35 +713,21 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
-                        <Border Style="{StaticResource SetCard}">
-                            <Border Style="{StaticResource SetCardGlass}">
-                                <StackPanel>
-                                <Grid Margin="0,0,0,18">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Style="{StaticResource STile}">
-                                        <mi:MaterialIcon Kind="RocketLaunchOutline" Style="{StaticResource STileIcon}" />
-                                    </Border>
-                                    <StackPanel Style="{StaticResource SHeaderNames}">
-                                        <TextBlock Text="Startup" Style="{StaticResource SetCardTitle}" />
-                                        <TextBlock Text="How Amp Up starts and helps you set up." Style="{StaticResource SSub}" />
-                                    </StackPanel>
-                                </Grid>
-                                <Border Style="{StaticResource SetRow}">
-                                    <local:SettingsSwitch x:Name="ChkStartWithWindows" Text="Start with Windows"
-                                                          Description="Launch Amp Up automatically when you sign in."
-                                                          ToolTip="Launch Amp Up automatically when you log in" />
-                                </Border>
-                                <Border Style="{StaticResource SetRow}" Margin="0">
-                                    <local:SettingsSwitch x:Name="ChkAutoSuggestLayout" Text="Auto-suggest knob layout"
-                                                          Description="Show a banner in Mixer when known apps are detected and knobs are unassigned."
-                                                          ToolTip="Show a banner in Mixer when known apps are detected and knobs are unassigned" />
-                                </Border>
-                                </StackPanel>
+                        <!-- Open canvas reference (Controls/OPEN_CANVAS.md): section title + hairline, plain rows. -->
+                        <StackPanel Style="{StaticResource OpenSection}" Margin="0,8,0,14">
+                            <TextBlock Text="STARTUP" Style="{StaticResource OpenSectionTitle}" />
+                            <Border Style="{StaticResource OpenSectionRule}" />
+                            <Border Style="{StaticResource OpenRow}">
+                                <local:SettingsSwitch x:Name="ChkStartWithWindows" Text="Start with Windows"
+                                                      Description="Launch Amp Up automatically when you sign in."
+                                                      ToolTip="Launch Amp Up automatically when you log in" />
                             </Border>
-                        </Border>
+                            <Border Style="{StaticResource OpenRowLast}">
+                                <local:SettingsSwitch x:Name="ChkAutoSuggestLayout" Text="Auto-suggest knob layout"
+                                                      Description="Show a banner in Mixer when known apps are detected and knobs are unassigned."
+                                                      ToolTip="Show a banner in Mixer when known apps are detected and knobs are unassigned" />
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

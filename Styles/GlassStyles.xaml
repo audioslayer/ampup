@@ -106,4 +106,42 @@
         <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
+    <!-- ── Open canvas (see Controls/OPEN_CANVAS.md): no boxes, hairlines only ── -->
+    <Style x:Key="OpenSection" TargetType="StackPanel">
+        <Setter Property="Background" Value="{x:Null}" />
+        <Setter Property="Margin" Value="0,22,0,0" />
+    </Style>
+
+    <Style x:Key="OpenSectionTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextDimBrush}" />
+        <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+
+    <!-- 1px hairline under a section title. -->
+    <Style x:Key="OpenSectionRule" TargetType="Border">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource CardBorderBrush}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="OpenRow" TargetType="Border">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="MinHeight" Value="52" />
+        <Setter Property="Padding" Value="4,10" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#08FFFFFF" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="OpenRowLast" TargetType="Border" BasedOn="{StaticResource OpenRow}">
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
 </ResourceDictionary>
