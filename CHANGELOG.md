@@ -16,6 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Reduce effects option (Settings > General > Appearance) turns off glows and shadows for a lighter, faster interface.
 
 ### Changed
+- Room > Devices cards are now flat single-surface cards with a color strip on the left (dimmed when the light is off), and name, brightness, Power and Sync on one row (brightness wraps to a second row on narrow windows).
 - New look across the whole app: every page and dialog now shares one glass card style with rounded corners, a matching page header (icon, title and "?" help tip) and consistent section titles.
 - Every page card now shares one flat, single-layer look: a solid theme card colour with a thin theme-colour border and rounded 16px corners, with no gradient or translucent layers, so Mixer, Buttons, Lights, OSD, Room, Settings and the Dashboard all match.
 - Page tabs on Room, Lights, On-Screen Display and Settings are now clean icon + label tabs in the page header with a glowing accent underline on the active one; Left/Right arrow keys move between tabs.

@@ -199,47 +199,62 @@ public partial class RoomView
     }
 
     /// <summary>
-    /// Large device card: integration logo tile, name + detail + On/Off pill, controls on the
-    /// right, body below. Glass card + hover lift; brighter border in the device colour while the
-    /// light is on (no per-card shadow effect: these repeat in lists).
+    /// Device card ("colour strip" design): one flat CardBg surface with a 1px hairline border,
+    /// a rounded strip on the left in the light's colour (dimmed while off), then a single row of
+    /// [logo] [name + On/Off pill + detail] [brightness] [controls]; body (Advanced etc.) below.
+    /// Below <see cref="RoomDeviceCardWrapWidth"/> the brightness row wraps under the header.
     /// <paramref name="power"/> is the logical CheckBox model (null = always "on", e.g. Corsair).
     /// </summary>
     private UiKit.CardParts BuildRoomDeviceCard(Color color, FrameworkElement logo, string title, string? subtitle,
-        FrameworkElement? controls, UIElement? body, CheckBox? power)
+        FrameworkElement? controls, UIElement? body, CheckBox? power, FrameworkElement? brightness = null)
     {
         var card = new Border
         {
-            Padding = new Thickness(18, 16, 18, 16),
-            Margin = new Thickness(0, 0, 0, 12),
+            Padding = new Thickness(12, 14, 16, 14),
+            Margin = new Thickness(0, 0, 0, 10),
+            CornerRadius = new CornerRadius(14),
+            BorderThickness = new Thickness(1),
         };
-        GlassStyle.ApplyGlassCard(card, 16);
-        card.BorderThickness = new Thickness(1.5);
+        card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+
+        var outer = new Grid();
+        outer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        card.Child = outer;
+
+        var strip = new Border { Width = 6, CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 14, 0) };
+        outer.Children.Add(strip);
 
         var stack = new StackPanel();
-        card.Child = stack;
+        Grid.SetColumn(stack, 1);
+        outer.Children.Add(stack);
 
         var header = new Grid();
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        // Name column is Auto when a brightness row fills the star column, otherwise it takes the space.
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = brightness != null ? GridLength.Auto : new GridLength(1, GridUnitType.Star), MinWidth = 140 });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = brightness != null ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         stack.Children.Add(header);
 
         logo.Margin = new Thickness(0, 0, 14, 0);
         logo.VerticalAlignment = VerticalAlignment.Center;
         header.Children.Add(logo);
 
-        var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0), MaxWidth = 280 };
         var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-        var t = new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        var t = new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         t.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         titleRow.Children.Add(t);
-        var statusText = new TextBlock { FontSize = 10, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
+        var statusText = new TextBlock { FontSize = 9, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
         var statusPill = new Border
         {
-            CornerRadius = new CornerRadius(9),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(7, 1, 7, 1),
-            Margin = new Thickness(10, 1, 0, 0),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(6, 1, 6, 1),
+            Margin = new Thickness(8, 1, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
             Child = statusText,
         };
@@ -247,7 +262,7 @@ public partial class RoomView
         names.Children.Add(titleRow);
         var s = new TextBlock
         {
-            Text = subtitle ?? "", FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0),
+            Text = subtitle ?? "", FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 3, 0, 0),
             Visibility = string.IsNullOrEmpty(subtitle) ? Visibility.Collapsed : Visibility.Visible,
         };
         s.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
@@ -255,31 +270,52 @@ public partial class RoomView
         Grid.SetColumn(names, 1);
         header.Children.Add(names);
 
+        if (brightness != null)
+        {
+            brightness.VerticalAlignment = VerticalAlignment.Center;
+            brightness.MinWidth = 180;
+            header.Children.Add(brightness);
+        }
+
         if (controls != null)
         {
             controls.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(controls, 2);
+            controls.Margin = new Thickness(16, 0, 0, 0);
+            Grid.SetColumn(controls, 3);
             header.Children.Add(controls);
         }
+
+        // Wide: brightness sits in the row between the name and the switches. Narrow: it
+        // drops to a second row under the name so the switches keep their space.
+        void Layout(double width)
+        {
+            if (brightness == null) return;
+            bool narrow = width < RoomDeviceCardWrapWidth;
+            Grid.SetRow(brightness, narrow ? 1 : 0);
+            Grid.SetColumn(brightness, narrow ? 1 : 2);
+            Grid.SetColumnSpan(brightness, narrow ? 3 : 1);
+            brightness.Margin = narrow ? new Thickness(0, 10, 0, 0) : new Thickness(0);
+        }
+        Layout(double.PositiveInfinity);
+        card.SizeChanged += (_, e) => { if (e.WidthChanged) Layout(e.NewSize.Width); };
 
         var bodyHost = new StackPanel();
         if (body != null)
         {
-            bodyHost.Margin = new Thickness(0, 14, 0, 0);
+            bodyHost.Margin = new Thickness(0, 6, 0, 0);
             bodyHost.Children.Add(body);
         }
         stack.Children.Add(bodyHost);
 
-        var onBorder = RoomFrozenBrush(ThemeManager.WithAlpha(color, 0xAA));
+        var stripOn = RoomFrozenBrush(color);
+        var stripOff = RoomFrozenBrush(ThemeManager.WithAlpha(color, 0x55));
         void Paint()
         {
             bool on = power == null || power.IsChecked == true;
             statusText.Text = power == null ? "ACTIVE" : on ? "ON" : "OFF";
             statusText.Foreground = on ? RoomStatusOnFg : RoomStatusOffFg;
             statusPill.Background = on ? RoomStatusOnFill : RoomStatusOffFill;
-            statusPill.BorderBrush = on ? RoomStatusOnBorder : RoomStatusOffBorder;
-            if (on) card.BorderBrush = onBorder;
-            else card.SetResourceReference(Border.BorderBrushProperty, "GlassCardBorderBrush");
+            strip.Background = on ? stripOn : stripOff;
         }
         Paint();
         if (power != null)
@@ -287,9 +323,31 @@ public partial class RoomView
             power.Checked += (_, _) => Paint();
             power.Unchecked += (_, _) => Paint();
         }
-        GlassStyle.AttachHoverLift(card);
+        card.MouseEnter += (_, _) => card.BorderBrush = RoomDeviceCardHoverBorder;
+        card.MouseLeave += (_, _) => card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         return new UiKit.CardParts { Root = card, Title = t, Subtitle = s, Body = bodyHost };
+    }
+
+    private const double RoomDeviceCardWrapWidth = 860;
+    private static readonly Brush RoomDeviceCardHoverBorder = RoomFrozenBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
+
+    /// <summary>Inline "Brightness [slider] 42%" for a device card's header row.</summary>
+    private DockPanel RoomDeviceBrightnessRow(StyledSlider slider, TextBlock valueLabel)
+    {
+        var row = new DockPanel();
+        var name = new TextBlock
+        {
+            Text = "Brightness", FontSize = 11, Margin = new Thickness(0, 0, 10, 0),
+            Foreground = FindBrush("TextSecBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        DockPanel.SetDock(name, Dock.Left);
+        DockPanel.SetDock(valueLabel, Dock.Right);
+        row.Children.Add(name);
+        row.Children.Add(valueLabel);
+        row.Children.Add(slider);
+        return row;
     }
 
     private static readonly Brush RoomStatusOnFg = RoomFrozenBrush(Color.FromRgb(0x00, 0xE6, 0x76));

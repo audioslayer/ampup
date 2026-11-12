@@ -2078,9 +2078,11 @@ public partial class RoomView : UserControl
                 }));
 
                 var devColor = hasCloud ? Color.FromRgb(0x42, 0xA5, 0xF5) : Color.FromRgb(0x26, 0xC6, 0xDA);
+                // Filled by the LAN brightness row below; empty (collapsed) for cloud-only devices.
+                var brightHost = new ContentControl { Focusable = false, IsTabStop = false, Visibility = hasLan ? Visibility.Visible : Visibility.Collapsed };
                 var devCard = BuildRoomDeviceCard(devColor,
                     IntegrationLogoTile("govee", segs > 1 ? MaterialIconKind.LedStripVariant : MaterialIconKind.LightbulbOutline, devColor),
-                    displayName, string.Join("  ·  ", subParts), controls, body, onOff);
+                    displayName, string.Join("  ·  ", subParts), controls, body, onOff, brightHost);
                 if (hasCloud) devCard.Subtitle.ToolTip = "Cloud-only device — controlled through the Govee API";
 
                 // Cloud-only rows stop here — brightness/segment streaming isn't
@@ -2093,7 +2095,7 @@ public partial class RoomView : UserControl
                         Minimum = 0, Maximum = 100,
                         Value = Math.Clamp(devConfig.BrightnessScale, 0, 100),
                         Height = 30,
-                        AccentColor = ThemeManager.Accent,
+                        AccentColor = devColor,
                         ShowLabel = false,
                         HorizontalAlignment = HorizontalAlignment.Stretch,
                     };
@@ -2131,19 +2133,7 @@ public partial class RoomView : UserControl
                     _goveeBrightnessControls[devConfig] = (brightSlider, brightLabel);
                     _deviceControls[devConfig.Ip] = (onOff, brightSlider);
 
-                    var brightRow = new DockPanel();
-                    var brightName = new TextBlock
-                    {
-                        Text = "Brightness", FontSize = 11, Width = 70,
-                        Foreground = FindBrush("TextSecBrush"),
-                        VerticalAlignment = VerticalAlignment.Center,
-                    };
-                    DockPanel.SetDock(brightName, Dock.Left);
-                    DockPanel.SetDock(brightLabel, Dock.Right);
-                    brightRow.Children.Add(brightName);
-                    brightRow.Children.Add(brightLabel);
-                    brightRow.Children.Add(brightSlider);
-                    body.Children.Add(brightRow);
+                    brightHost.Content = RoomDeviceBrightnessRow(brightSlider, brightLabel);
 
                     // Online/offline status — read-only probe, doesn't touch config.
                     var probeIp = devConfig.Ip;
@@ -2198,7 +2188,7 @@ public partial class RoomView : UserControl
             if (_corsairSync?.Devices.Count > 0)
             {
                 var corBody = new StackPanel();
-                var list = UiKit.ListContainer(out var rows);
+                var rows = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
                 foreach (var dev in _corsairSync.Devices)
                 {
                     var cdot = new System.Windows.Shapes.Ellipse
@@ -2213,7 +2203,7 @@ public partial class RoomView : UserControl
                     right.Children.Add(cdot);
                     rows.Children.Add(UiKit.ListRow(UiKit.Icon(MaterialIconKind.LedStripVariant, 16), dev.Name, null, right));
                 }
-                corBody.Children.Add(list);
+                corBody.Children.Add(rows);
 
                 // Brightness slider for all Corsair
                 var corBrightSlider = new StyledSlider
@@ -2221,7 +2211,7 @@ public partial class RoomView : UserControl
                     Minimum = 1, Maximum = 100,
                     Value = Math.Min(_config.Corsair.LightBrightness, 100),
                     Height = 30,
-                    AccentColor = ThemeManager.Accent,
+                    AccentColor = Color.FromRgb(0xFF, 0xCA, 0x28),
                     ShowLabel = false,
                     HorizontalAlignment = HorizontalAlignment.Stretch,
                 };
@@ -2242,23 +2232,11 @@ public partial class RoomView : UserControl
                     corBrightLabel.Text = $"{pct}%";
                     QueueSave();
                 };
-                var corBrightRow = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
-                var corBrightName = new TextBlock
-                {
-                    Text = "Brightness", FontSize = 11, Width = 70,
-                    Foreground = FindBrush("TextSecBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-                DockPanel.SetDock(corBrightName, Dock.Left);
-                DockPanel.SetDock(corBrightLabel, Dock.Right);
-                corBrightRow.Children.Add(corBrightName);
-                corBrightRow.Children.Add(corBrightLabel);
-                corBrightRow.Children.Add(corBrightSlider);
-                corBody.Children.Add(corBrightRow);
+                var corBrightRow = RoomDeviceBrightnessRow(corBrightSlider, corBrightLabel);
 
                 var corColor = Color.FromRgb(0xFF, 0xCA, 0x28);
                 stack.Children.Add(BuildRoomDeviceCard(corColor, IntegrationLogoTile("corsair", MaterialIconKind.Keyboard, corColor),
-                    "Corsair iCUE", "Brightness applies to all Corsair devices", null, corBody, null).Root);
+                    "Corsair iCUE", "Brightness applies to all Corsair devices", null, corBody, null, corBrightRow).Root);
             }
             else
             {
@@ -2462,7 +2440,7 @@ public partial class RoomView : UserControl
             Minimum = 1, Maximum = 100,
             Value = Math.Clamp(light.BrightnessScale, 1, 100),
             Height = 30,
-            AccentColor = ThemeManager.Accent,
+            AccentColor = HaLightCardColor,
             ShowLabel = false,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
@@ -2496,26 +2474,14 @@ public partial class RoomView : UserControl
             brightDebounce.Start();
         };
 
-        var brightRow = new DockPanel();
-        var brightName = new TextBlock
-        {
-            Text = "Brightness", FontSize = 11, Width = 70,
-            Foreground = FindBrush("TextSecBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        DockPanel.SetDock(brightName, Dock.Left);
-        DockPanel.SetDock(brightLabel, Dock.Right);
-        brightRow.Children.Add(brightName);
-        brightRow.Children.Add(brightLabel);
-        brightRow.Children.Add(brightSlider);
-        body.Children.Add(brightRow);
+        var brightRow = RoomDeviceBrightnessRow(brightSlider, brightLabel);
 
         body.Children.Add(BuildWhiteBalanceAdvancedSection(
             light.WhiteBalanceR, light.WhiteBalanceG, light.WhiteBalanceB,
             v => capturedLight.WhiteBalanceR = v, v => capturedLight.WhiteBalanceG = v, v => capturedLight.WhiteBalanceB = v));
 
         var card = BuildRoomDeviceCard(HaLightCardColor, IntegrationLogoTile(null, MaterialIconKind.HomeAssistant, HaLightCardColor),
-            displayName, $"HA  ·  {light.EntityId}  ·  slower than Govee", controls, body, onOff);
+            displayName, $"HA  ·  {light.EntityId}  ·  slower than Govee", controls, body, onOff, brightRow);
         card.Subtitle.ToolTip = "Home Assistant light — static colors and slow effects work best. "
             + "Updates are limited to a few per second, so it won't mirror fast effects or the screen in real time.";
         return card.Root;
