@@ -16,8 +16,6 @@ public static class GlassStyle
 {
     // ── Cache ────────────────────────────────────────────────────────
     private static Brush? _cardFill;
-    private static Brush? _cardBorder;
-    private static Brush? _cardBorderAccent;
     private static Brush? _flatBorder;
     private static Brush? _flatBorderAccent;
     private static Brush? _pillFill;
@@ -30,14 +28,14 @@ public static class GlassStyle
         ThemeManager.OnCardThemeChanged += () => { _cardFill = null; _flatBorder = null; PublishResources(); };
         ThemeManager.OnAccentChanged += () =>
         {
-            _cardBorderAccent = null; _flatBorderAccent = null;
+            _flatBorderAccent = null;
             _pillFill = null; _pillBorder = null;
             _glowCache.Clear();
             PublishResources();
         };
         ThemeManager.OnReduceEffectsChanged += () =>
         {
-            _cardFill = null; _cardBorder = null; _cardBorderAccent = null;
+            _cardFill = null;
             _flatBorder = null; _flatBorderAccent = null;
             _glowCache.Clear();
             PublishResources();
@@ -86,27 +84,20 @@ public static class GlassStyle
 
     // ── Brushes ──────────────────────────────────────────────────────
 
-    /// <summary>Card fill: white 0x12 → 0x05 sheen baked over the theme card colour (one opaque brush, no layering cost).</summary>
+    /// <summary>Card fill: one flat, opaque theme card colour (no gradient or sheen layers).</summary>
     public static Brush CardFill => _cardFill ??= Frozen(BuildCardFill());
 
     private static Brush BuildCardFill()
     {
         var card = ResColor("CardBg", Color.FromRgb(0x1C, 0x1C, 0x1C));
-        if (ThemeManager.ReduceEffects) return new SolidColorBrush(Over(card, White(0x08)));
-        return Vertical(Over(card, White(0x12)), Over(card, White(0x05)));
+        return new SolidColorBrush(card);
     }
 
-    /// <summary>1px card border: bright at the top (white 0x34) fading to 0x0C at the bottom; accent-tinted when <paramref name="accent"/>.</summary>
+    /// <summary>1px flat card border in the theme border colour; accent-tinted when <paramref name="accent"/>.</summary>
     public static Brush CardBorder(bool accent = false)
     {
-        if (ThemeManager.ReduceEffects)
-        {
-            if (accent) return _flatBorderAccent ??= Frozen(new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x55)));
-            return _flatBorder ??= Frozen(new SolidColorBrush(ResColor("CardBorder", Color.FromRgb(0x2A, 0x2A, 0x2A))));
-        }
-        if (accent)
-            return _cardBorderAccent ??= Frozen(Vertical(ThemeManager.WithAlpha(ThemeManager.Accent, 0x66), ThemeManager.WithAlpha(ThemeManager.Accent, 0x18)));
-        return _cardBorder ??= Frozen(Vertical(White(0x34), White(0x0C)));
+        if (accent) return _flatBorderAccent ??= Frozen(new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x55)));
+        return _flatBorder ??= Frozen(new SolidColorBrush(ResColor("CardBorder", Color.FromRgb(0x2A, 0x2A, 0x2A))));
     }
 
     /// <summary>Cached frozen (fill, border) brushes for an accent pill; rebuilt only when the colour changes.</summary>

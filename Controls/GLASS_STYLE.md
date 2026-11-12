@@ -7,7 +7,7 @@ The app's card/pill/glow look is defined once in `Controls/GlassStyle.cs` (code-
 
 | Member | What it does |
 |-|-|
-| `ApplyGlassCard(Border b, double radius = 16, bool accentBorder = false)` | Translucent glass card: vertical sheen fill baked over the theme card colour + 1px top-bright gradient border (accent-tinted when `accentBorder`). Clears `Effect`. |
+| `ApplyGlassCard(Border b, double radius = 16, bool accentBorder = false)` | Flat card: one opaque theme card colour + 1px solid theme border (no gradient or sheen layers) (accent-tinted when `accentBorder`). Clears `Effect`. |
 | `AttachHoverLift(Border b)` | 2px `TranslateTransform` lift on hover (140 ms). No effects. Off when Reduce effects is on. |
 | `CardFill` / `CardBorder(bool accent)` | The cached frozen brushes behind `ApplyGlassCard`. |
 | `AccentPillBrushes(Color)` / `AccentPillBrushes()` | Cached frozen `(Fill, Border)` for accent pills (0x28 fill, 0x96 border). |
