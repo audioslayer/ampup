@@ -216,11 +216,8 @@ public partial class LightsView : UserControl
             "Lights");
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal };
         headerActions.Children.Add(BuildModeDock());
-        lightsHelp.Margin = new Thickness(12, 0, 0, 0);
-        lightsHelp.VerticalAlignment = VerticalAlignment.Center;
-        headerActions.Children.Add(lightsHelp);
         PageHeaderHost.Content = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED", headerActions,
-            icon: Material.Icons.MaterialIconKind.LightbulbOnOutline);
+            icon: Material.Icons.MaterialIconKind.LightbulbOnOutline, titleHelp: lightsHelp);
 
         BuildPresetsSection();
         BuildGlobalCard();

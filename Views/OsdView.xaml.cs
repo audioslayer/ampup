@@ -168,13 +168,10 @@ public partial class OsdView : UserControl
         var wheelsTab = new StackPanel { Visibility = Visibility.Collapsed };
         var osdHelp = UiKit.HelpTip("Overlays are small cards that show volume, profile and audio device changes over any app.\n\n" +
                           "Quick Wheels are radial menus: hold a button, turn a knob, let go to pick.", "On-Screen Display");
-        osdHelp.Margin = new Thickness(12, 0, 0, 0);
-        osdHelp.VerticalAlignment = VerticalAlignment.Center;
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal };
         headerActions.Children.Add(BuildOsdTabDock(overlaysTab, wheelsTab));
-        headerActions.Children.Add(osdHelp);
         RootPanel.Children.Add(UiKit.PageHeader("On-Screen Display", "Pop-up overlays and Quick Wheels",
-            headerActions, MaterialIconKind.MonitorDashboard));
+            headerActions, MaterialIconKind.MonitorDashboard, titleHelp: osdHelp));
         RootPanel.Children.Add(overlaysTab);
         RootPanel.Children.Add(wheelsTab);
 

@@ -92,7 +92,7 @@ public static class UiKit
     /// slim divider, optional action on the right, and an accent hairline that fades out below.
     /// </summary>
     public static FrameworkElement PageHeader(string title, string subtitle, FrameworkElement? action = null,
-        MaterialIconKind icon = MaterialIconKind.Tune)
+        MaterialIconKind icon = MaterialIconKind.Tune, FrameworkElement? titleHelp = null)
     {
         var root = new StackPanel { Margin = new Thickness(2, 0, 2, 16) };
 
@@ -134,6 +134,14 @@ public static class UiKit
         t.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         DockPanel.SetDock(t, Dock.Left);
         line.Children.Add(t);
+        if (titleHelp != null)
+        {
+            // "?" sits right next to the title, not off at the far edge of the header.
+            titleHelp.Margin = new Thickness(8, 2, 0, 0);
+            titleHelp.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(titleHelp, Dock.Left);
+            line.Children.Add(titleHelp);
+        }
         if (!string.IsNullOrWhiteSpace(subtitle))
         {
             var sep = new System.Windows.Controls.Border

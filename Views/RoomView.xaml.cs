@@ -534,11 +534,8 @@ public partial class RoomView : UserControl
         var help = UiKit.HelpTip("Room effects, Music Reactive, VU Fill and Screen Sync all drive the same lights, "
             + "so turning one on hands the lights over from the others. Govee, Corsair iCUE and Home Assistant "
             + "lights are managed on the Devices tab.", "Room lighting");
-        help.Margin = new Thickness(12, 0, 0, 0);
-        help.VerticalAlignment = VerticalAlignment.Center;
-        actions.Children.Add(help);
         return UiKit.PageHeader("Room", "Effects, devices and screen sync for your room lights", actions,
-            icon: MaterialIconKind.LightbulbGroupOutline);
+            icon: MaterialIconKind.LightbulbGroupOutline, titleHelp: help);
     }
 
     private static Border RoomHeaderButton(MaterialIconKind kind, string label, string tooltip, Action onClick)
