@@ -13,8 +13,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Home Assistant lights in Room > Devices: a discovery window scans Home Assistant and shows your lights as a searchable grid grouped by room, with on/off state and color support, so you can tick the ones to add. Control power, brightness and white balance from cards like the Govee ones.
 - Room effects (static colors, animated effects, Music Reactive, VU Fill) now drive Home Assistant lights. Updates are capped at a few per second, so this works best for static colors and slow effects, not real-time mirroring.
 - Home Assistant lights can optionally follow Screen Sync (off by default; slower than Govee).
+- Reduce effects option (Settings > General > Appearance) turns off glows and shadows for a lighter, faster interface.
 
 ### Changed
+- Shared glass style foundation: card chrome, pills, glows and hover lifts are now defined once (cheap frozen brushes, no per-card shadows), starting with the Groups cards and page tab dock.
 - Page tab bars on Room, Lights, On-Screen Display and Settings are now a compact icon dock in the page header: round icon buttons with tooltips, the active one expands into an accent pill with its name, and Left/Right arrow keys switch tabs.
 - Mixer page: consistency pass to match the redesigned pages: "?" help tip in the header, rounder knob/curve/Stream Controller cards, unified MIXER SURFACE section title, softer suggested-layout banner.
 - Buttons page: matches the new design language: header help tip, slimmer surface selector, rounded glass button cards with a hover lift and accent border, and a more rounded action picker popup.

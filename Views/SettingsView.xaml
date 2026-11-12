@@ -778,13 +778,18 @@
                                         <WrapPanel x:Name="AccentSwatches" Orientation="Horizontal" />
                                     </StackPanel>
                                 </Border>
-                                <Border Style="{StaticResource SetRow}" Margin="0">
+                                <Border Style="{StaticResource SetRow}">
                                     <StackPanel>
                                         <TextBlock Text="Card theme" Style="{StaticResource SetRowTitle}"
                                                    ToolTip="Background and card color tint: changes the overall mood of the app" />
                                         <TextBlock Text="Background and card tint; sets the overall mood." Style="{StaticResource SSub}" Margin="0,2,0,12" />
                                         <WrapPanel x:Name="CardThemeSwatches" Orientation="Horizontal" />
                                     </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource SetRow}" Margin="0">
+                                    <local:SettingsSwitch x:Name="ChkReduceEffects" Text="Reduce effects"
+                                                          Description="Turns off glows and shadows for a lighter, faster interface."
+                                                          ToolTip="Turns off glows and shadows for a lighter, faster interface" />
                                 </Border>
                                 </StackPanel>
                             </Border>

@@ -306,12 +306,11 @@ public partial class GroupsView : UserControl
     {
         var card = new Border
         {
-            Style = FindResource("CardPanel") as Style,
             Margin = new Thickness(0, 0, 0, 14),
             Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(16),
         };
-        AddHoverLift(card, color);
+        GlassStyle.ApplyGlassCard(card);
+        GlassStyle.AttachHoverLift(card);
 
         var outer = new Grid();
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });

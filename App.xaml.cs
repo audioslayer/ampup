@@ -264,6 +264,8 @@ public partial class App : Application
         // Apply user's accent color and card theme
         ThemeManager.SetAccentColor(_config.AccentColor);
         ThemeManager.SetCardTheme(_config.CardTheme);
+        ThemeManager.SetReduceEffects(_config.ReduceEffects);
+        AmpUp.Controls.GlassStyle.Init();
 
         _mixer = new AudioMixer();
         _audioDeviceRefreshTimer = new System.Threading.Timer(

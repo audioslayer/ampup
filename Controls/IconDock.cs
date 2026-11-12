@@ -74,8 +74,12 @@ namespace AmpUp.Controls
             Child = _row;
 
             _onAccent = () => Dispatcher.BeginInvoke(() => UpdateAllVisuals(animate: false));
-            Loaded += (_, _) => { ThemeManager.OnAccentChanged -= _onAccent; ThemeManager.OnAccentChanged += _onAccent; };
-            Unloaded += (_, _) => ThemeManager.OnAccentChanged -= _onAccent;
+            Loaded += (_, _) =>
+            {
+                ThemeManager.OnAccentChanged -= _onAccent; ThemeManager.OnAccentChanged += _onAccent;
+                ThemeManager.OnReduceEffectsChanged -= _onAccent; ThemeManager.OnReduceEffectsChanged += _onAccent;
+            };
+            Unloaded += (_, _) => { ThemeManager.OnAccentChanged -= _onAccent; ThemeManager.OnReduceEffectsChanged -= _onAccent; };
             KeyDown += OnDockKeyDown;
         }
 
@@ -200,7 +204,7 @@ namespace AmpUp.Controls
             {
                 b.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x28));
                 b.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x96));
-                b.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 9, ShadowDepth = 0, Opacity = 0.3, Color = a };
+                b.Effect = GlassStyle.GlowEffect(a, 9); // single active pill only; null when Reduce effects is on
                 item.Icon.Foreground = new SolidColorBrush(a);
                 item.Text.Foreground = new SolidColorBrush(a);
                 b.ToolTip = item.Tooltip != item.Label ? item.Tooltip : null;

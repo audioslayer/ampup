@@ -22,6 +22,8 @@ public class AppConfig
     public double GammaB { get; set; } = 1.0;
     public string AccentColor { get; set; } = "#00E676";
     public string CardTheme { get; set; } = "Midnight";
+    /// <summary>Appearance: turn off glows and shadows for a lighter, faster interface.</summary>
+    public bool ReduceEffects { get; set; } = false;
     public string ActiveProfile { get; set; } = "Default";
     public List<string> Profiles { get; set; } = new() { "Default" };
     public Dictionary<string, string> ProfileEmojis { get; set; } = new();

@@ -85,6 +85,8 @@ public partial class SettingsView : UserControl
         ChkStartWithWindows.Unchecked += OnValueChanged;
         ChkAutoSuggestLayout.Checked += OnValueChanged;
         ChkAutoSuggestLayout.Unchecked += OnValueChanged;
+        ChkReduceEffects.Checked += OnReduceEffectsToggled;
+        ChkReduceEffects.Unchecked += OnReduceEffectsToggled;
         CmbProfiles.SelectionChanged += OnProfileSelectionChanged;
 
         // Port selector
@@ -307,6 +309,7 @@ public partial class SettingsView : UserControl
         RefreshPortList(selectPort: config.Serial.Port);
         ChkStartWithWindows.IsChecked = config.StartWithWindows;
         ChkAutoSuggestLayout.IsChecked = config.AutoSuggestLayout;
+        ChkReduceEffects.IsChecked = config.ReduceEffects;
 
         // Profiles
         CmbProfiles.ClearItems();
@@ -611,6 +614,14 @@ public partial class SettingsView : UserControl
         if (_loading) return;
         _debounceTimer.Stop();
         _debounceTimer.Start();
+    }
+
+    /// <summary>Reduce effects applies live (GlassStyle reads it), then saves with the rest.</summary>
+    private void OnReduceEffectsToggled(object? sender, EventArgs e)
+    {
+        if (_loading) return;
+        ThemeManager.SetReduceEffects(ChkReduceEffects.IsChecked == true);
+        OnValueChanged(sender, e);
     }
 
     private void OnPasswordChanged(object sender, RoutedEventArgs e)
@@ -940,6 +951,7 @@ public partial class SettingsView : UserControl
 
         _config.StartWithWindows = ChkStartWithWindows.IsChecked == true;
         _config.AutoSuggestLayout = ChkAutoSuggestLayout.IsChecked == true;
+        _config.ReduceEffects = ChkReduceEffects.IsChecked == true;
 
         // Integrations
         _config.HomeAssistant.Enabled = ChkHaEnabled.IsChecked == true;
