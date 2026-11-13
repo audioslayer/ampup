@@ -51,7 +51,9 @@ public static class ThemeManager
         var bgBase = (Color)ColorConverter.ConvertFromString(theme.BgBase);
         var bgDark = (Color)ColorConverter.ConvertFromString(theme.BgDark);
         var cardBg = (Color)ColorConverter.ConvertFromString(theme.CardBg);
-        var cardBorder = (Color)ColorConverter.ConvertFromString(theme.CardBorder);
+        // Borders sit only ~30% of the way from the card fill to the theme's border colour, so
+        // cards read as soft tonal panels rather than outlined boxes (UI "fewer boxes" pass).
+        var cardBorder = Mix(cardBg, (Color)ColorConverter.ConvertFromString(theme.CardBorder), 0.3);
         var inputBg = (Color)ColorConverter.ConvertFromString(theme.InputBg);
         var inputBorder = (Color)ColorConverter.ConvertFromString(theme.InputBorder);
 
@@ -139,6 +141,12 @@ public static class ThemeManager
 
     /// <summary>Returns accent hex string like "#00E676".</summary>
     public static string AccentHex => $"#{Accent.R:X2}{Accent.G:X2}{Accent.B:X2}";
+
+    /// <summary>Linear blend: t=0 → a, t=1 → b.</summary>
+    public static Color Mix(Color a, Color b, double t) => Color.FromRgb(
+        (byte)Math.Round(a.R + (b.R - a.R) * t),
+        (byte)Math.Round(a.G + (b.G - a.G) * t),
+        (byte)Math.Round(a.B + (b.B - a.B) * t));
 
     private static Color Lighten(Color c, float amount)
     {

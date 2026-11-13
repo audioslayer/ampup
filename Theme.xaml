@@ -116,9 +116,10 @@
         <Setter Property="BorderBrush">
             <Setter.Value>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#30FFFFFF" Offset="0" />
-                    <GradientStop Color="#10FFFFFF" Offset="0.5" />
-                    <GradientStop Color="#08FFFFFF" Offset="1" />
+                    <!-- Barely-there edge: cards read as tonal panels, not outlined boxes -->
+                    <GradientStop Color="#10FFFFFF" Offset="0" />
+                    <GradientStop Color="#06FFFFFF" Offset="0.5" />
+                    <GradientStop Color="#03FFFFFF" Offset="1" />
                 </LinearGradientBrush>
             </Setter.Value>
         </Setter>
@@ -298,10 +299,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource CardBorderBrush}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource InputBorderBrush}" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource CardBorderBrush}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource InputBorderBrush}" />
                             <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">

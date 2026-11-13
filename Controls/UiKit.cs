@@ -172,35 +172,20 @@ public static class UiKit
             grid.Children.Add(action);
         }
 
-        // Accent hairline fading to nothing â€” ties the header to the theme without a heavy bar.
-        var hair = new System.Windows.Controls.Border
-        {
-            Height = 1, Margin = new Thickness(0, 12, 0, 0),
-            OpacityMask = new LinearGradientBrush(Color.FromArgb(0x99, 0, 0, 0), Colors.Transparent, 0),
-        };
-        hair.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "AccentBrush");
-        root.Children.Add(hair);
+        // No hairline under the title: spacing alone separates the header from the page.
+        root.Margin = new Thickness(2, 0, 2, 22);
         return root;
     }
 
-    /// <summary>Accent bar + bold accent label + optional muted count.</summary>
+    /// <summary>Quiet grey section label + optional muted count (accent is kept for interactive / active things).</summary>
     public static FrameworkElement SectionHeader(string text, string? count = null) =>
         SectionHeader(text, count, out _);
 
     public static FrameworkElement SectionHeader(string text, string? count, out TextBlock countText)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 10) };
-        var bar = new System.Windows.Controls.Border
-        {
-            Width = 3, Height = 14,
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 0, 10, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        bar.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "AccentBrush");
-        var label = new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
-        label.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
-        row.Children.Add(bar);
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 10) };
+        var label = new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         row.Children.Add(label);
         countText = new TextBlock { Text = count ?? "", FontSize = 11, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         countText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
@@ -245,22 +230,9 @@ public static class UiKit
         card.SetResourceReference(FrameworkElement.StyleProperty, "CardPanel");
         card.Padding = new Thickness(0);
 
-        var outer = new Grid();
-        outer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        card.Child = outer;
-
-        outer.Children.Add(new System.Windows.Controls.Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 14, 0, 14),
-            Background = new SolidColorBrush(color),
-        });
-
-        var stack = new StackPanel { Margin = new Thickness(14, 14, 16, 14) };
-        Grid.SetColumn(stack, 1);
-        outer.Children.Add(stack);
+        // No coloured stripe on the left: the tinted icon tile already carries the colour.
+        var stack = new StackPanel { Margin = new Thickness(16, 14, 16, 14) };
+        card.Child = stack;
 
         var header = new Grid();
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -289,7 +261,7 @@ public static class UiKit
         }
         var s = new TextBlock
         {
-            Text = subtitle ?? "", FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0),
+            Text = subtitle ?? "", FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0),
             Visibility = string.IsNullOrEmpty(subtitle) ? Visibility.Collapsed : Visibility.Visible,
         };
         s.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
