@@ -121,7 +121,7 @@ public class QuickActionPicker : Border
         var selectedLabel = new TextBlock
         {
             Text = "SELECTED",
-            FontSize = 9,
+            FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 10, 0),
@@ -153,7 +153,7 @@ public class QuickActionPicker : Border
         };
         _selectedDisplay.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
         _selectedDisplay.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-        _selectedDisplay.BorderThickness = new Thickness(1);
+        _selectedDisplay.BorderThickness = new Thickness(0);
 
         // Build order below adds: [search box (collapsed)] → SELECTED →
         // options host → (categories / search results). The tab-bar search

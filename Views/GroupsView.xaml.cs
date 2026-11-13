@@ -264,34 +264,11 @@ public partial class GroupsView : UserControl
         return card;
     }
 
+    // Quiet grey section label (shared UiKit look; no accent bar).
     private FrameworkElement BuildSectionHeader(string text, string count)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-        var bar = new Border
-        {
-            Width = 3, Height = 14,
-            CornerRadius = new CornerRadius(2),
-            Background = new SolidColorBrush(ThemeManager.Accent),
-            Margin = new Thickness(0, 0, 10, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var label = new TextBlock
-        {
-            Text = text,
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(ThemeManager.Accent),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        _sectionHeaders.Add((bar, label));
-        row.Children.Add(bar);
-        row.Children.Add(label);
-        if (!string.IsNullOrEmpty(count))
-        {
-            var c = new TextBlock { Text = count, FontSize = 11, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            c.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-            row.Children.Add(c);
-        }
+        var row = UiKit.SectionHeader(text, string.IsNullOrEmpty(count) ? null : count);
+        row.Margin = new Thickness(0, 0, 0, 10);
         return row;
     }
 
@@ -330,16 +307,8 @@ public partial class GroupsView : UserControl
         Grid.SetColumnSpan(wash, 2);
         outer.Children.Add(wash);
 
-        var bar = new Border
-        {
-            Width = 4,
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 16, 0, 16),
-            Background = new SolidColorBrush(color),
-        };
-        outer.Children.Add(bar);
-
-        var body = new StackPanel { Margin = new Thickness(16, 16, 18, 16) };
+        // No coloured stripe on the left: the tinted icon tile already carries the group colour.
+        var body = new StackPanel { Margin = new Thickness(20, 16, 18, 16) };
         Grid.SetColumn(body, 1);
         outer.Children.Add(body);
 
@@ -355,8 +324,7 @@ public partial class GroupsView : UserControl
             Width = 40, Height = 40,
             CornerRadius = new CornerRadius(11),
             Background = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x22)),
-            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(color, 0x55)),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Margin = new Thickness(0, 0, 12, 0),
             VerticalAlignment = VerticalAlignment.Center,
             ToolTip = tileTooltip,
@@ -376,7 +344,7 @@ public partial class GroupsView : UserControl
         var subText = new TextBlock
         {
             Text = subtitle,
-            FontSize = 11,
+            FontSize = 12,
             TextTrimming = TextTrimming.CharacterEllipsis,
             Margin = new Thickness(0, 2, 0, 0),
         };
@@ -477,7 +445,7 @@ public partial class GroupsView : UserControl
         var stack = new StackPanel();
         if (rows.Count == 0)
         {
-            var none = new TextBlock { Text = emptyText, FontSize = 11, Margin = new Thickness(2, 0, 0, 8) };
+            var none = new TextBlock { Text = emptyText, FontSize = 12, Margin = new Thickness(2, 0, 0, 8) };
             none.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
             stack.Children.Add(none);
         }
@@ -516,12 +484,11 @@ public partial class GroupsView : UserControl
         var chip = new Border
         {
             CornerRadius = new CornerRadius(12),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(10, 6, 4, 6),
             Margin = new Thickness(0, 0, 8, 8),
         };
         chip.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        chip.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
         chip.Child = sp;
 
@@ -533,7 +500,7 @@ public partial class GroupsView : UserControl
         var name = new TextBlock { Text = r.Name, FontSize = 12, FontWeight = FontWeights.SemiBold, MaxWidth = 200, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = r.Detail };
         name.SetResourceReference(TextBlock.ForegroundProperty, r.Dim ? "TextSecBrush" : "TextPrimaryBrush");
         text.Children.Add(name);
-        var type = new TextBlock { Text = r.TypeText, FontSize = 10.5, MaxWidth = 200, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = r.TypeTooltip };
+        var type = new TextBlock { Text = r.TypeText, FontSize = 11, MaxWidth = 200, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = r.TypeTooltip };
         type.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         if (r.OnTypeClick != null)
         {
@@ -551,8 +518,8 @@ public partial class GroupsView : UserControl
         remove.MouseLeftButtonUp += (_, e) => { e.Handled = true; r.OnRemove(); };
         sp.Children.Add(remove);
 
-        chip.MouseEnter += (_, _) => { chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x88)); remove.Opacity = 1; };
-        chip.MouseLeave += (_, _) => { chip.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush"); remove.Opacity = 0; };
+        chip.MouseEnter += (_, _) => { chip.Background = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x22)); remove.Opacity = 1; };
+        chip.MouseLeave += (_, _) => { chip.SetResourceReference(Border.BackgroundProperty, "InputBgBrush"); remove.Opacity = 0; };
         return chip;
     }
 
@@ -561,7 +528,7 @@ public partial class GroupsView : UserControl
         var row = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6, 8, 6), Background = Brushes.Transparent, Cursor = Cursors.Hand };
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
         var ic = new MaterialIcon { Kind = icon, Width = 14, Height = 14, Margin = new Thickness(1, 0, 11, 0), VerticalAlignment = VerticalAlignment.Center };
-        var tb = new TextBlock { Text = text, FontSize = 11.5, FontWeight = accent ? FontWeights.SemiBold : FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center };
+        var tb = new TextBlock { Text = text, FontSize = 12, FontWeight = accent ? FontWeights.SemiBold : FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center };
         if (accent)
         {
             ic.Foreground = new SolidColorBrush(ThemeManager.Accent);
@@ -915,12 +882,12 @@ public partial class GroupsView : UserControl
 
         // Which knobs / encoders use this group, as small pills (click opens it in the Mixer).
         var usedRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-        var usedLabel = new TextBlock { Text = "USED BY", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(2, 0, 8, 4), VerticalAlignment = VerticalAlignment.Center };
+        var usedLabel = new TextBlock { Text = "USED BY", FontSize = 11, FontWeight = FontWeights.Bold, Margin = new Thickness(2, 0, 8, 4), VerticalAlignment = VerticalAlignment.Center };
         usedLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         usedRow.Children.Add(usedLabel);
         if (users.Count == 0)
         {
-            var none = new TextBlock { Text = "Not on a knob yet. Pick it as a knob's target in the Mixer.", FontSize = 11, Margin = new Thickness(0, 0, 0, 4), VerticalAlignment = VerticalAlignment.Center };
+            var none = new TextBlock { Text = "Not on a knob yet. Pick it as a knob's target in the Mixer.", FontSize = 12, Margin = new Thickness(0, 0, 0, 4), VerticalAlignment = VerticalAlignment.Center };
             none.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
             usedRow.Children.Add(none);
         }
@@ -1019,13 +986,12 @@ public partial class GroupsView : UserControl
         var chip = new Border
         {
             CornerRadius = new CornerRadius(18),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(6, 5, 4, 5),
             Margin = new Thickness(0, 0, 8, 8),
             ToolTip = $"{app}.exe \u00b7 {(running ? "Playing audio now" : "Not running")}",
         };
         chip.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        chip.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
 
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
         chip.Child = sp;
@@ -1042,7 +1008,7 @@ public partial class GroupsView : UserControl
 
         if (running)
         {
-            // Playing now: tiny accent equalizer bars + thin accent ring on the chip.
+            // Playing now: tiny accent equalizer bars + faint accent tint on the chip.
             var eq = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Playing audio now" };
             foreach (var h in new[] { 6.0, 10.0, 7.0 })
             {
@@ -1061,12 +1027,12 @@ public partial class GroupsView : UserControl
 
         void SetRest()
         {
-            if (running) chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x55));
-            else chip.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
+            if (running) chip.Background = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x14));
+            else chip.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
         }
         chip.MouseEnter += (_, _) =>
         {
-            chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x88));
+            chip.Background = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x26));
             remove.Opacity = 1;
         };
         chip.MouseLeave += (_, _) =>
@@ -1090,7 +1056,7 @@ public partial class GroupsView : UserControl
         var chip = new Border
         {
             CornerRadius = new CornerRadius(18),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(12, 8, 14, 8),
             Margin = new Thickness(0, 0, 8, 8),
             Cursor = Cursors.Hand,
@@ -1099,8 +1065,7 @@ public partial class GroupsView : UserControl
         };
         void Paint(bool hover)
         {
-            chip.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, (byte)(hover ? 0x2A : 0x10)));
-            chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, (byte)(hover ? 0xCC : 0x55)));
+            chip.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, (byte)(hover ? 0x2A : 0x14)));
         }
         Paint(false);
         chip.MouseEnter += (_, _) => Paint(true);
@@ -1123,7 +1088,7 @@ public partial class GroupsView : UserControl
         var pill = new Border
         {
             CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(8, 2, 9, 3),
             Margin = new Thickness(0, 0, 6, 4),
             Cursor = Cursors.Hand,
@@ -1131,15 +1096,14 @@ public partial class GroupsView : UserControl
             Child = sp,
         };
         pill.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-        pill.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         pill.MouseEnter += (_, _) =>
         {
-            pill.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x88));
+            pill.Background = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x22));
             tb.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         };
         pill.MouseLeave += (_, _) =>
         {
-            pill.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+            pill.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
             tb.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         };
         pill.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOpenInMixer?.Invoke(isStreamController, idx); };

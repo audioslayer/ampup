@@ -301,7 +301,7 @@ public partial class MixerView
 
         var volLabel = new TextBlock
         {
-            Text = $"{volPct}%", Width = 38, FontSize = 11.5, FontWeight = FontWeights.SemiBold,
+            Text = $"{volPct}%", Width = 38, FontSize = 12, FontWeight = FontWeights.SemiBold,
             TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 6, 0),
         };

@@ -358,7 +358,7 @@ public partial class RoomView : UserControl
         };
         _topStatusLabel = new TextBlock
         {
-            FontSize = 11,
+            FontSize = 12,
             Style = FindStyle("SecondaryText"),
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -818,7 +818,7 @@ public partial class RoomView : UserControl
             UIElement MakeSliderCell(string label, StyledSlider slider, TextBlock valLabel)
             {
                 var cell = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
-                cell.Children.Add(new TextBlock { Text = label, FontSize = 9, FontWeight = FontWeights.SemiBold,
+                cell.Children.Add(new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold,
                     Foreground = dimBrush, Margin = new Thickness(0, 0, 0, 4) });
                 var row = new DockPanel();
                 DockPanel.SetDock(valLabel, Dock.Right);
@@ -969,11 +969,9 @@ public partial class RoomView : UserControl
                 var tile = new Border
                 {
                     Width = 82,
-                    Background = active ? new SolidColorBrush(Color.FromArgb(0x25, accent.R, accent.G, accent.B))
-                        : FindBrush("CardBgBrush"),
-                    BorderBrush = active ? new SolidColorBrush(Color.FromArgb(0x77, accent.R, accent.G, accent.B))
-                        : FindBrush("CardBorderBrush"),
-                    BorderThickness = new Thickness(1),
+                    Background = active ? new SolidColorBrush(Color.FromArgb(0x2C, accent.R, accent.G, accent.B))
+                        : FindBrush("InputBgBrush"),
+                    BorderThickness = new Thickness(0),
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(4, 5, 4, 5),
                     Margin = new Thickness(2),
@@ -998,14 +996,12 @@ public partial class RoomView : UserControl
                 tile.MouseEnter += (_, _) =>
                 {
                     vuTransform.Y = -1;
-                    if (!active) { tile.Background = new SolidColorBrush(Color.FromArgb(0x10, accent.R, accent.G, accent.B));
-                        tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, accent.R, accent.G, accent.B)); }
+                    if (!active) tile.Background = new SolidColorBrush(Color.FromArgb(0x16, accent.R, accent.G, accent.B));
                 };
                 tile.MouseLeave += (_, _) =>
                 {
                     vuTransform.Y = 0;
-                    if (!active) { tile.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-                        tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush"); }
+                    if (!active) tile.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                 };
                 tileWrap.Children.Add(tile);
             }
@@ -1021,7 +1017,7 @@ public partial class RoomView : UserControl
         var root = new StackPanel();
         var rangeLabel = new TextBlock
         {
-            FontSize = 10,
+            FontSize = 12,
             Foreground = FindBrush("TextSecBrush"),
             Margin = new Thickness(2, 0, 0, 7),
         };
@@ -1080,14 +1076,14 @@ public partial class RoomView : UserControl
 
             var cell = new StackPanel
             {
-                Width = 88,
+                Width = 96,
                 Margin = new Thickness(2, 0, 4, 7),
                 ToolTip = tip,
             };
             cell.Children.Add(new TextBlock
             {
                 Text = label,
-                FontSize = 9,
+                FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextSecBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -1463,7 +1459,7 @@ public partial class RoomView : UserControl
         {
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(12, 5, 12, 5),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Cursor = Cursors.Hand,
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 2, 0, 8),
@@ -1475,15 +1471,13 @@ public partial class RoomView : UserControl
             var ac = ThemeManager.Accent;
             if (_roomColorsAuto)
             {
-                autoPill.Background = new SolidColorBrush(Color.FromArgb(0x22, ac.R, ac.G, ac.B));
-                autoPill.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, ac.R, ac.G, ac.B));
+                autoPill.Background = new SolidColorBrush(Color.FromArgb(0x2C, ac.R, ac.G, ac.B));
                 autoPillText.Foreground = new SolidColorBrush(ac);
                 paletteEditor.Opacity = 0.45;
             }
             else
             {
                 autoPill.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-                autoPill.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
                 autoPillText.Foreground = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
                 paletteEditor.Opacity = 1.0;
             }
@@ -1648,12 +1642,9 @@ public partial class RoomView : UserControl
             Margin = new Thickness(0, 0, 8, 6),
             Cursor = Cursors.Hand,
             Background = active
-                ? new SolidColorBrush(Color.FromArgb(0x2F, color.R, color.G, color.B))
-                : FindBrush("CardBgBrush"),
-            BorderBrush = active
-                ? new SolidColorBrush(Color.FromArgb(0xAA, color.R, color.G, color.B))
-                : FindBrush("InputBorderBrush"),
-            BorderThickness = new Thickness(1),
+                ? new SolidColorBrush(Color.FromArgb(0x38, color.R, color.G, color.B))
+                : FindBrush("InputBgBrush"),
+            BorderThickness = new Thickness(0),
             ToolTip = $"{kelvin:N0}K",
             Tag = kelvin,
         };
@@ -1690,11 +1681,8 @@ public partial class RoomView : UserControl
             var color = KelvinToRgb(kelvin);
             bool active = Math.Abs(_roomTemperatureKelvin - kelvin) <= 100;
             child.Background = active
-                ? new SolidColorBrush(Color.FromArgb(0x2F, color.R, color.G, color.B))
-                : FindBrush("CardBgBrush");
-            child.BorderBrush = active
-                ? new SolidColorBrush(Color.FromArgb(0xAA, color.R, color.G, color.B))
-                : FindBrush("InputBorderBrush");
+                ? new SolidColorBrush(Color.FromArgb(0x38, color.R, color.G, color.B))
+                : FindBrush("InputBgBrush");
 
             if (child.Child is StackPanel rowPanel
                 && rowPanel.Children.Count > 1
@@ -2190,7 +2178,7 @@ public partial class RoomView : UserControl
                     };
                     var brightLabel = new TextBlock
                     {
-                        Text = $"{(int)brightSlider.Value}%", FontSize = 11,
+                        Text = $"{(int)brightSlider.Value}%", FontSize = 12,
                         FontWeight = FontWeights.SemiBold,
                         Foreground = FindBrush("TextSecBrush"),
                         VerticalAlignment = VerticalAlignment.Center,
@@ -2225,7 +2213,7 @@ public partial class RoomView : UserControl
                     var brightRow = new DockPanel();
                     var brightName = new TextBlock
                     {
-                        Text = "Brightness", FontSize = 11, Width = 70,
+                        Text = "Brightness", FontSize = 12, Width = 70,
                         Foreground = FindBrush("TextSecBrush"),
                         VerticalAlignment = VerticalAlignment.Center,
                     };
@@ -2283,6 +2271,7 @@ public partial class RoomView : UserControl
             {
                 var corBody = new StackPanel();
                 var list = UiKit.ListContainer(out var rows);
+                list.BorderThickness = new Thickness(0); // inside a card: fill only
                 foreach (var dev in _corsairSync.Devices)
                 {
                     var cdot = new System.Windows.Shapes.Ellipse
@@ -2293,7 +2282,7 @@ public partial class RoomView : UserControl
                         ToolTip = "Detected via iCUE",
                     };
                     var right = new StackPanel { Orientation = Orientation.Horizontal };
-                    right.Children.Add(UiKit.MutedText($"{dev.LedCount} LEDs"));
+                    right.Children.Add(UiKit.MutedText($"{dev.LedCount} LEDs", 12));
                     right.Children.Add(cdot);
                     rows.Children.Add(UiKit.ListRow(UiKit.Icon(MaterialIconKind.LedStripVariant, 16), dev.Name, null, right));
                 }
@@ -2312,7 +2301,7 @@ public partial class RoomView : UserControl
                 var corBrightLabel = new TextBlock
                 {
                     Text = $"{Math.Min(_config.Corsair.LightBrightness, 100)}%",
-                    FontSize = 11, FontWeight = FontWeights.SemiBold,
+                    FontSize = 12, FontWeight = FontWeights.SemiBold,
                     Foreground = FindBrush("TextSecBrush"),
                     VerticalAlignment = VerticalAlignment.Center,
                     MinWidth = 34, TextAlignment = TextAlignment.Right,
@@ -2329,7 +2318,7 @@ public partial class RoomView : UserControl
                 var corBrightRow = new DockPanel { Margin = new Thickness(0, 12, 0, 0) };
                 var corBrightName = new TextBlock
                 {
-                    Text = "Brightness", FontSize = 11, Width = 70,
+                    Text = "Brightness", FontSize = 12, Width = 70,
                     Foreground = FindBrush("TextSecBrush"),
                     VerticalAlignment = VerticalAlignment.Center,
                 };
@@ -2548,7 +2537,7 @@ public partial class RoomView : UserControl
         };
         var brightLabel = new TextBlock
         {
-            Text = $"{(int)brightSlider.Value}%", FontSize = 11,
+            Text = $"{(int)brightSlider.Value}%", FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
@@ -2579,7 +2568,7 @@ public partial class RoomView : UserControl
         var brightRow = new DockPanel();
         var brightName = new TextBlock
         {
-            Text = "Brightness", FontSize = 11, Width = 70,
+            Text = "Brightness", FontSize = 12, Width = 70,
             Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -2691,10 +2680,10 @@ public partial class RoomView : UserControl
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-        left.Children.Add(new TextBlock { Text = label, FontSize = 11, FontWeight = FontWeights.SemiBold,
+        left.Children.Add(new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextPrimaryBrush"), TextWrapping = TextWrapping.Wrap });
         if (hint != null)
-            left.Children.Add(new TextBlock { Text = hint, FontSize = 10, TextWrapping = TextWrapping.Wrap,
+            left.Children.Add(new TextBlock { Text = hint, FontSize = 12, TextWrapping = TextWrapping.Wrap,
                 Foreground = FindBrush("TextDimBrush"), Margin = new Thickness(0, 2, 0, 0) });
         Grid.SetColumn(left, 0);
         g.Children.Add(left);
@@ -2717,7 +2706,7 @@ public partial class RoomView : UserControl
         var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), ToolTip = tooltip };
         sp.Children.Add(new TextBlock
         {
-            Text = caption, FontSize = 10,
+            Text = caption, FontSize = 12,
             Foreground = FindBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 6, 0),
@@ -2750,14 +2739,14 @@ public partial class RoomView : UserControl
         toggleRow.Children.Add(chevron);
         toggleRow.Children.Add(new TextBlock
         {
-            Text = "ADVANCED", FontSize = 10, FontWeight = FontWeights.SemiBold,
+            Text = "ADVANCED", FontSize = 12, FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextSecBrush"), VerticalAlignment = VerticalAlignment.Center,
         });
         int wbTrimmed = (wbR < 100 ? 1 : 0) + (wbG < 100 ? 1 : 0) + (wbB < 100 ? 1 : 0);
         if (wbTrimmed > 0)
             toggleRow.Children.Add(new TextBlock
             {
-                Text = "  ·  white balance adjusted", FontSize = 10,
+                Text = "  ·  white balance adjusted", FontSize = 12,
                 Foreground = FindBrush("TextDimBrush"), VerticalAlignment = VerticalAlignment.Center,
             });
         outer.Children.Add(toggleRow);
@@ -2766,7 +2755,7 @@ public partial class RoomView : UserControl
         panel.Children.Add(new TextBlock
         {
             Text = "White Balance (Screen Sync) — lower a channel if whites look tinted on this light.",
-            FontSize = 10, TextWrapping = TextWrapping.Wrap,
+            FontSize = 12, TextWrapping = TextWrapping.Wrap,
             Foreground = FindBrush("TextDimBrush"), Margin = new Thickness(0, 0, 0, 6),
         });
 
@@ -2780,7 +2769,7 @@ public partial class RoomView : UserControl
             };
             var val = new TextBlock
             {
-                Text = $"{(int)sl.Value}%", FontSize = 11, FontWeight = FontWeights.SemiBold,
+                Text = $"{(int)sl.Value}%", FontSize = 12, FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextSecBrush"), VerticalAlignment = VerticalAlignment.Center,
                 MinWidth = 34, TextAlignment = TextAlignment.Right, Margin = new Thickness(8, 0, 0, 0),
             };
@@ -2795,7 +2784,7 @@ public partial class RoomView : UserControl
             var row = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
             var lbl = new TextBlock
             {
-                Text = name, FontSize = 11, Width = 52,
+                Text = name, FontSize = 12, Width = 52,
                 Foreground = new SolidColorBrush(col), FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
             };
@@ -4527,9 +4516,6 @@ public partial class RoomView : UserControl
                 pills[i].Background = active
                     ? new SolidColorBrush(Color.FromArgb(0x38, accent.R, accent.G, accent.B))
                     : FindBrush("InputBgBrush");
-                pills[i].BorderBrush = active
-                    ? new SolidColorBrush(Color.FromArgb(0x80, accent.R, accent.G, accent.B))
-                    : FindBrush("InputBorderBrush");
                 if (pills[i].Child is TextBlock tb)
                     tb.Foreground = active ? new SolidColorBrush(accent) : FindBrush("TextSecBrush");
             }
@@ -4544,10 +4530,10 @@ public partial class RoomView : UserControl
                 Margin = new Thickness(0, 0, 6, 0),
                 MinWidth = 48,
                 Cursor = Cursors.Hand,
-                BorderThickness = new Thickness(1),
+                BorderThickness = new Thickness(0),
                 Child = new TextBlock
                 {
-                    Text = labels[i], FontSize = 10, FontWeight = FontWeights.SemiBold,
+                    Text = labels[i], FontSize = 12, FontWeight = FontWeights.SemiBold,
                     HorizontalAlignment = HorizontalAlignment.Center,
                 },
             };
@@ -4619,10 +4605,10 @@ public partial class RoomView : UserControl
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-            left.Children.Add(new TextBlock { Text = label, FontSize = 11, FontWeight = FontWeights.SemiBold,
+            left.Children.Add(new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush") });
             if (hint != null)
-                left.Children.Add(new TextBlock { Text = hint, FontSize = 10, TextWrapping = TextWrapping.Wrap,
+                left.Children.Add(new TextBlock { Text = hint, FontSize = 12, TextWrapping = TextWrapping.Wrap,
                     Foreground = FindBrush("TextDimBrush"), Margin = new Thickness(0, 2, 0, 0) });
             Grid.SetColumn(left, 0);
             g.Children.Add(left);
@@ -4641,7 +4627,7 @@ public partial class RoomView : UserControl
             valLabel.Margin = new Thickness(8, 0, 0, 0);
             DockPanel.SetDock(valLabel, Dock.Right);
             head.Children.Add(valLabel);
-            head.Children.Add(new TextBlock { Text = label, FontSize = 11, FontWeight = FontWeights.SemiBold,
+            head.Children.Add(new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush"), VerticalAlignment = VerticalAlignment.Center });
             outer.Children.Add(head);
             slider.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -4717,7 +4703,7 @@ public partial class RoomView : UserControl
             Minimum = 50, Maximum = 300, Value = (int)(cfg.Saturation * 100),
             Height = 28, AccentColor = accent, ShowLabel = false,
         };
-        var satLabel = new TextBlock { Text = $"{cfg.Saturation:F1}×", FontSize = 11,
+        var satLabel = new TextBlock { Text = $"{cfg.Saturation:F1}×", FontSize = 12,
             Foreground = new SolidColorBrush(accent), VerticalAlignment = VerticalAlignment.Center };
         satSlider.ValueChanged += (_, _) =>
         {
@@ -4734,7 +4720,7 @@ public partial class RoomView : UserControl
             Minimum = 1, Maximum = 20, Value = cfg.Sensitivity,
             Height = 28, AccentColor = accent, ShowLabel = false,
         };
-        var sensLabel = new TextBlock { Text = $"{cfg.Sensitivity}", FontSize = 11,
+        var sensLabel = new TextBlock { Text = $"{cfg.Sensitivity}", FontSize = 12,
             Foreground = new SolidColorBrush(accent), VerticalAlignment = VerticalAlignment.Center };
         sensSlider.ValueChanged += (_, _) =>
         {
@@ -4754,7 +4740,7 @@ public partial class RoomView : UserControl
                 Minimum = 1, Maximum = 100, Value = Math.Min(_config.Corsair.LightBrightness, 100),
                 Height = 28, AccentColor = accent, ShowLabel = false,
             };
-            var cbl = new TextBlock { Text = $"{_config.Corsair.LightBrightness}%", FontSize = 11,
+            var cbl = new TextBlock { Text = $"{_config.Corsair.LightBrightness}%", FontSize = 12,
                 Foreground = new SolidColorBrush(accent), VerticalAlignment = VerticalAlignment.Center };
             cbs.ValueChanged += (_, _) =>
             {
@@ -4809,7 +4795,7 @@ public partial class RoomView : UserControl
         _dreamStatusLabel = new TextBlock
         {
             Text = _dreamSync?.Status ?? "Stopped",
-            FontSize = 11,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextSecBrush"),
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -4870,6 +4856,7 @@ public partial class RoomView : UserControl
 
         // ══════════════════ DEVICES ══════════════════
         var devList = UiKit.ListContainer(out var devBody);
+        devList.BorderThickness = new Thickness(0); // inside a card: fill only
         bool hasMonitor = _config.RoomLayout.Monitor != null;
         int devRows = 0;
         foreach (var goveeDevice in _config.Ambience.GoveeDevices)
@@ -4896,7 +4883,7 @@ public partial class RoomView : UserControl
             UpdateSub();
 
 
-            var autoCaption = new TextBlock { Text = "Auto", FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            var autoCaption = new TextBlock { Text = "Auto", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             autoCaption.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
             controls.Children.Add(autoCaption);
 
@@ -5922,7 +5909,7 @@ public partial class RoomView : UserControl
         var tile = new Border
         {
             CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(10, 8, 12, 8),
             Margin = new Thickness(0, 0, 8, 8),
             Cursor = Cursors.Hand,
@@ -5935,7 +5922,7 @@ public partial class RoomView : UserControl
 
         var titleText = new TextBlock { Text = title, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         titleText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        var subtitleText = new TextBlock { Text = subtitle, FontSize = 10.5, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 230 };
+        var subtitleText = new TextBlock { Text = subtitle, FontSize = 12, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 270 };
         subtitleText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
 
         var leftStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -5946,7 +5933,7 @@ public partial class RoomView : UserControl
         {
             var extraRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 0) };
             var eDot = new Border { Width = 6, Height = 6, CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center };
-            var eLbl = new TextBlock { FontSize = 9.5, FontWeight = FontWeights.SemiBold };
+            var eLbl = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold };
             extraRow.Children.Add(eDot);
             extraRow.Children.Add(eLbl);
             leftStack.Children.Add(extraRow);
@@ -5971,16 +5958,11 @@ public partial class RoomView : UserControl
         void UpdateVisuals(bool hover = false)
         {
             var a = ThemeManager.Accent;
+            // Fill only — active = accent-tinted fill, no outline.
             if (isActive)
-            {
-                tile.Background = new SolidColorBrush(Color.FromArgb(0x1C, a.R, a.G, a.B));
-                tile.BorderBrush = new SolidColorBrush(Color.FromArgb(hover ? (byte)0xC0 : (byte)0x80, a.R, a.G, a.B));
-            }
+                tile.Background = new SolidColorBrush(Color.FromArgb(hover ? (byte)0x2C : (byte)0x1F, a.R, a.G, a.B));
             else
-            {
                 tile.SetResourceReference(Border.BackgroundProperty, hover ? "InputBgBrush" : "CardBgBrush");
-                tile.SetResourceReference(Border.BorderBrushProperty, hover ? "InputBorderBrush" : "CardBorderBrush");
-            }
         }
 
         Action<bool> setSwitch = _ => { };
@@ -6023,16 +6005,15 @@ public partial class RoomView : UserControl
         var tile = new Border
         {
             CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(12, 8, 12, 8),
             Margin = new Thickness(0, 0, 8, 8),
             MinWidth = 110,
         };
         tile.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         var titleText = new TextBlock
         {
-            Text = "STATUS", FontSize = 9, FontWeight = FontWeights.Bold,
+            Text = "STATUS", FontSize = 12, FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)),
             Margin = new Thickness(0, 0, 0, 3),
         };
@@ -6041,7 +6022,7 @@ public partial class RoomView : UserControl
             Width = 7, Height = 7, CornerRadius = new CornerRadius(4),
             Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center,
         };
-        var statusText = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var statusText = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         var statusRow = new StackPanel { Orientation = Orientation.Horizontal };
         statusRow.Children.Add(dot);
         statusRow.Children.Add(statusText);
@@ -6235,7 +6216,7 @@ public partial class RoomView : UserControl
             CornerRadius = new CornerRadius(14),
             Background = new SolidColorBrush(darkBg),
             BorderBrush = new SolidColorBrush(borderColor),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0), // fill only
             Padding = new Thickness(6, 4, 12, 4),
             Margin = new Thickness(0, 0, 8, 4),
             Cursor = Cursors.Hand,
@@ -6257,7 +6238,7 @@ public partial class RoomView : UserControl
         row.Children.Add(new TextBlock
         {
             Text = label,
-            FontSize = 9,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
             VerticalAlignment = VerticalAlignment.Center,
@@ -8012,23 +7993,19 @@ public partial class RoomView : UserControl
 
     // ── UI Helpers ────────────────────────────────────────────────────
 
+    /// <summary>Quiet grey section label (matches UiKit.SectionHeader). The accent bar is kept
+    /// as a collapsed element so existing (bar, label) call sites stay unchanged.</summary>
     private (Border bar, TextBlock label) MakeSectionHeader(string text)
     {
-        var bar = new Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Background = FindBrush("AccentBrush"),
-            Margin = new Thickness(0, 0, 10, 0),
-        };
+        var bar = new Border { Visibility = Visibility.Collapsed };
         var label = new TextBlock
         {
             Text = text,
             FontSize = 12,
             FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("AccentBrush"),
             VerticalAlignment = VerticalAlignment.Center,
         };
+        label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         _sectionHeaders.Add((bar, label));
         return (bar, label);
     }
@@ -8048,7 +8025,7 @@ public partial class RoomView : UserControl
     private TextBlock MakeSubLabel(string text) => new()
     {
         Text = text,
-        FontSize = 9,
+        FontSize = 12,
         FontWeight = FontWeights.SemiBold,
         Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
         VerticalAlignment = VerticalAlignment.Center,
@@ -8069,16 +8046,16 @@ public partial class RoomView : UserControl
         content.Children.Add(WrapHeader(bar, label));
         foreach (var child in children)
             content.Children.Add(child);
+        // One box per section: fill only, no outline.
         var border = new Border
         {
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 10),
             Child = content,
         };
         border.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        border.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         return border;
     }
 
@@ -8095,12 +8072,7 @@ public partial class RoomView : UserControl
 
     private void RefreshAccentColors()
     {
-        var accent = ThemeManager.Accent;
-        foreach (var (bar, label) in _sectionHeaders)
-        {
-            if (bar != null) bar.Background = new SolidColorBrush(accent);
-            if (label != null) label.Foreground = new SolidColorBrush(accent);
-        }
+        // Section headers are quiet grey labels (DynamicResource) — nothing to recolor.
     }
 
     // ── Resource helpers ──────────────────────────────────────────────

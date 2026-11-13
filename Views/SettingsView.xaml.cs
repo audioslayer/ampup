@@ -259,6 +259,7 @@ public partial class SettingsView : UserControl
         SettingsSectionTitle.Text = SettingsTabTitles[_settingsTabIndex];
 
         ConnectionCard.Visibility = _settingsTabIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+        DevicesStatusPill.Visibility = _settingsTabIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
         GeneralCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
         AppearanceCard.Visibility = _settingsTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
         ProfilesCard.Visibility = _settingsTabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
@@ -584,7 +585,7 @@ public partial class SettingsView : UserControl
             var label = new TextBlock
             {
                 Text = theme.Name,
-                FontSize = 9,
+                FontSize = 11,
                 Foreground = isSelected
                     ? new SolidColorBrush(ThemeManager.Accent)
                     : new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)),
@@ -2063,7 +2064,7 @@ public partial class SettingsView : UserControl
             {
                 Text = _corsairSyncRef.IsAvailable ? "Discovering devices..." : "Connecting to iCUE...",
                 Style = FindResource("SecondaryText") as Style,
-                FontSize = 11, Margin = new Thickness(0, 4, 0, 4),
+                FontSize = 12, Margin = new Thickness(0, 4, 0, 4),
             });
             _ = RefreshSettingsCorsairDevicesAsync();
         }
@@ -2090,7 +2091,7 @@ public partial class SettingsView : UserControl
                         ? "No devices found — check iCUE"
                         : "iCUE not detected — make sure it's running with SDK enabled",
                     Style = FindResource("SecondaryText") as Style,
-                    FontSize = 11, Margin = new Thickness(0, 4, 0, 4),
+                    FontSize = 12, Margin = new Thickness(0, 4, 0, 4),
                 });
             }
         });
@@ -2118,7 +2119,7 @@ public partial class SettingsView : UserControl
         content.Children.Add(new TextBlock
         {
             Text = dev.Type.Replace("_", " "),
-            FontSize = 10,
+            FontSize = 12,
             Foreground = (Brush)FindResource("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 12, 0),
@@ -2126,7 +2127,7 @@ public partial class SettingsView : UserControl
         content.Children.Add(new TextBlock
         {
             Text = $"{dev.LedCount} LEDs",
-            FontSize = 10,
+            FontSize = 12,
             Foreground = (Brush)FindResource("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
         });
@@ -2558,7 +2559,7 @@ public class SettingsSwitch : System.Windows.Controls.Border
     private bool _on;
     private Action<bool>? _setState;
     private readonly TextBlock _label = new() { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _desc = new() { FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly TextBlock _desc = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0), Visibility = Visibility.Collapsed };
     private bool _compact;
 
     public event RoutedEventHandler? Checked;

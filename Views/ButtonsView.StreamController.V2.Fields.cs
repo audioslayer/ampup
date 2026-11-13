@@ -301,7 +301,7 @@ public partial class ButtonsView
 
     /// <summary>
     /// Inline wrapper around a legacy action-specific panel. Renders a
-    /// FOLDERS-style sub-header (accent bar + bold label) at the top, then
+    /// quiet grey sub-header label at the top, then
     /// re-hosts the legacy content. The legacy panels bake their own small
     /// "DEVICE" / "PATH" / etc. label as their first child, so we suppress
     /// that first label when it matches our outer header to avoid a doubled
@@ -311,31 +311,17 @@ public partial class ButtonsView
     {
         var stack = new StackPanel { Margin = new Thickness(0, 10, 0, 4) };
 
-        // FOLDERS-style header — 3px accent bar + bold label.
-        var headerRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 8),
-        };
-        var bar = new Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 2, 10, 2),
-            Background = new SolidColorBrush(ThemeManager.Accent),
-        };
+        // Quiet grey sub-header (matches UiKit.SectionHeader) — no accent bar.
         headerLabel = new TextBlock
         {
             Text = label.ToUpperInvariant(),
             FontSize = 12,
-            FontWeight = FontWeights.Bold,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 8),
             VerticalAlignment = VerticalAlignment.Center,
         };
-        headerLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        headerRow.Children.Add(bar);
-        headerRow.Children.Add(headerLabel);
-        stack.Children.Add(headerRow);
-        _v2SectionHeaders.Add((bar, headerLabel));
+        headerLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        stack.Children.Add(headerLabel);
 
         if (content != null)
         {

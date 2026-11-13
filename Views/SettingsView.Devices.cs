@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using AmpUp.Core.Models;
 
@@ -83,9 +82,8 @@ public partial class SettingsView
         {
             bool on = i == sel;
             var (card, check) = cards[i];
-            card.SetResourceReference(Border.BorderBrushProperty, on ? "AccentBrush" : "CardBorderBrush");
-            card.SetResourceReference(Border.BackgroundProperty, on ? "AccentBg30Brush" : "BgDarkBrush");
-            card.Effect = on ? MakeGlow(22, 0.45) : null;
+            // Fill only: selected = accent-tinted fill + check mark, no outline or glow.
+            card.SetResourceReference(Border.BackgroundProperty, on ? "AccentBg30Brush" : "CardBgBrush");
             check.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -110,12 +108,23 @@ public partial class SettingsView
         };
         int expected = (turnUpAllowed ? 1 : 0) + (scAllowed ? 1 : 0);
         int connected = (turnUpAllowed && _turnUpConnected ? 1 : 0) + (scAllowed && _streamControllerConnected ? 1 : 0);
-        TxtHwSummary.Text = $"Mode: {modeName}";
-        TxtHeroStatus.Text = connected == 0 ? "No devices connected"
-            : connected == expected ? (connected == 1 ? "Connected" : "All connected")
-            : $"{connected} of {expected} connected";
-        HeroStatusDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty,
-            connected == 0 ? "DangerRedBrush" : connected == expected ? "SuccessGrnBrush" : "WarnYellowBrush");
+        // Status pill next to the "Devices" title, e.g. "Stream Controller only · connected".
+        TxtHwSummary.Text = modeName;
+        TxtHeroStatus.Text = " · " + (connected == 0 ? "no devices connected"
+            : connected == expected ? (connected == 1 ? "connected" : "all connected")
+            : $"{connected} of {expected} connected");
+        string statusKey = connected == 0 ? "DangerRedBrush" : connected == expected ? "SuccessGrnBrush" : "WarnYellowBrush";
+        HeroStatusDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, statusKey);
+        if (connected == expected && connected > 0 && TryFindResource("SuccessGrnBrush") is SolidColorBrush ok)
+        {
+            DevicesStatusPill.Background = new SolidColorBrush(ThemeManager.WithAlpha(ok.Color, 0x26));
+            TxtHeroStatus.Foreground = ok;
+        }
+        else
+        {
+            DevicesStatusPill.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
+            TxtHeroStatus.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        }
     }
 
     private void DrivesPill_Click(object sender, MouseButtonEventArgs e)
@@ -134,7 +143,6 @@ public partial class SettingsView
     {
         pill.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         pill.SetResourceReference(Border.BackgroundProperty, on ? "AccentBg30Brush" : "InputBgBrush");
-        pill.SetResourceReference(Border.BorderBrushProperty, on ? "AccentBorder55Brush" : "CardBorderBrush");
         icon.Kind = on ? Material.Icons.MaterialIconKind.CheckCircle : Material.Icons.MaterialIconKind.CircleOutline;
         icon.SetResourceReference(Material.Icons.WPF.MaterialIcon.ForegroundProperty, on ? "AccentBrush" : "TextDimBrush");
         text.SetResourceReference(TextBlock.ForegroundProperty, on ? "TextPrimaryBrush" : "TextSecBrush");
@@ -142,18 +150,8 @@ public partial class SettingsView
 
     private static void StyleDeviceCard(Border card, bool connected, bool allowed)
     {
-        bool lit = connected && allowed;
-        card.SetResourceReference(Border.BorderBrushProperty, lit ? "AccentBorder55Brush" : "CardBorderBrush");
-        card.Effect = lit ? MakeGlow(30, 0.4) : null;
+        // Fill only (no outline / glow); the card's own status pill shows the connection.
         card.Opacity = allowed ? 1.0 : 0.5;
         card.ToolTip = allowed ? null : "Not used in the current hardware mode";
     }
-
-    private static DropShadowEffect MakeGlow(double blur, double opacity) => new()
-    {
-        Color = ThemeManager.Accent,
-        BlurRadius = blur,
-        ShadowDepth = 0,
-        Opacity = opacity,
-    };
 }

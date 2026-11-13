@@ -243,7 +243,7 @@ namespace AmpUp.Controls
             var label = new TextBlock
             {
                 Text = $"Knob {idx + 1}",
-                FontSize = 10,
+                FontSize = 12,
                 FontWeight = FontWeights.Medium,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
                 TextAlignment = TextAlignment.Center,

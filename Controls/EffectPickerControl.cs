@@ -686,7 +686,7 @@ namespace AmpUp.Controls
             info.Container.Background = new SolidColorBrush(
                 Color.FromArgb(0x10, c.R, c.G, c.B));
             info.Container.BorderBrush = new SolidColorBrush(
-                Color.FromArgb(0x33, c.R, c.G, c.B));
+                Color.FromArgb(0x1C, c.R, c.G, c.B));
             info.Preview.Opacity = 0.9;
             info.Label.Foreground = ThemeBrush("TextSecBrush");
         }
@@ -694,10 +694,11 @@ namespace AmpUp.Controls
         private void ApplySelectedVisual(EffectTile info)
         {
             var c = info.TileColor;
+            // Selected = stronger tinted fill with only a soft edge (no bright outline).
             info.Container.Background = new SolidColorBrush(
-                Color.FromArgb(0x25, c.R, c.G, c.B));
+                Color.FromArgb(0x38, c.R, c.G, c.B));
             info.Container.BorderBrush = new SolidColorBrush(
-                Color.FromArgb(0x77, c.R, c.G, c.B));
+                Color.FromArgb(0x30, c.R, c.G, c.B));
             info.Preview.Opacity = 1.0;
             info.Label.Foreground = new SolidColorBrush(c);
         }

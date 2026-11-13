@@ -110,9 +110,6 @@ public partial class MixerView : UserControl
     // Clipboard for knob copy/paste
     private static KnobConfig? _clipboard;
 
-    // Section header elements (refreshed on accent change)
-    private readonly List<(Border bar, TextBlock label)> _sectionHeaders = new();
-
     // Hover border brush (updated on accent change)
     private SolidColorBrush _hoverBorderBrush = new(ThemeManager.WithAlpha(ThemeManager.Accent, 0x60));
 
@@ -677,6 +674,9 @@ public partial class MixerView : UserControl
                 MaxLength = 20,
                 Cursor = System.Windows.Input.Cursors.IBeam,
                 ToolTip = "Click to rename this channel",
+                // Kept visible: it's the user's own channel name (can differ from the target,
+                // e.g. "Music" for an app group) and the only place to rename the channel.
+                // The duplicate small label under the % is what's hidden.
             };
             label.GotFocus += (_, _) =>
             {
@@ -697,7 +697,7 @@ public partial class MixerView : UserControl
             var muteLabel = new TextBlock
             {
                 Text = "MUTE",
-                FontSize = 9,
+                FontSize = 11,
                 FontWeight = FontWeights.Bold,
                 Foreground = FindBrush("DangerRedBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -765,14 +765,16 @@ public partial class MixerView : UserControl
             volRow.Children.Add(rangeBtn);
             panel.Children.Add(volRow);
 
-            // Target display (shows current target as small text)
+            // Target display — still updated, but collapsed: the target picker below already
+            // shows the name, so it isn't repeated under the percentage.
             var targetDisplay = new TextBlock
             {
-                FontSize = 10,
+                FontSize = 12,
                 Foreground = FindBrush("TextSecBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 8)
+                Margin = new Thickness(0, 0, 0, 8),
+                Visibility = Visibility.Collapsed,
             };
             panel.Children.Add(targetDisplay);
 
@@ -792,6 +794,7 @@ public partial class MixerView : UserControl
             {
                 Margin = new Thickness(0, 0, 0, 6),
                 ToolTip = "What this knob controls",
+                BorderThickness = new Thickness(0), // fill only inside the channel card
             };
 
             targetPicker.SelectionChanged += (_, _) =>
@@ -857,9 +860,9 @@ public partial class MixerView : UserControl
             };
             _rangeSliders[i] = rangeSlider;
 
-            var minLabel = new TextBlock { Text = "0%", FontSize = 10 };
+            var minLabel = new TextBlock { Text = "0%", FontSize = 12 };
             minLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-            var maxLabel = new TextBlock { Text = "100%", FontSize = 10, HorizontalAlignment = HorizontalAlignment.Right };
+            var maxLabel = new TextBlock { Text = "100%", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Right };
             maxLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
             rangeSlider.LowerValueChanged += (_, _) => minLabel.Text = $"{(int)rangeSlider.LowerValue}%";
             rangeSlider.UpperValueChanged += (_, _) => maxLabel.Text = $"{(int)rangeSlider.UpperValue}%";
@@ -871,7 +874,7 @@ public partial class MixerView : UserControl
             // VOLUME RANGE — same section card as TARGET / CURVE so all rows line up.
             // Volume range lives inside the knob card, collapsed until the range icon is clicked.
             var rangeStack = new StackPanel();
-            rangeStack.Children.Add(MakeLabel("VOLUME RANGE"));
+            rangeStack.Children.Add(MakeLabel("Volume range"));
             rangeStack.Children.Add(rangeSlider);
             rangeStack.Children.Add(labelsRow);
             rangeCells[i].Child = rangeStack;
@@ -1505,7 +1508,7 @@ public partial class MixerView : UserControl
         var shared = new TextBlock
         {
             Text = users > 1 ? $"  ·  shared by {users}" : "",
-            FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
         };
         shared.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         var chev = new Material.Icons.WPF.MaterialIcon { Kind = Material.Icons.MaterialIconKind.ChevronDown, Width = 15, Height = 15, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -1519,7 +1522,7 @@ public partial class MixerView : UserControl
 
         var pill = new Border
         {
-            CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(0), // fill only (inside a card)
             Padding = new Thickness(9, 5, 8, 5), Margin = new Thickness(0, 0, 0, 8),
             HorizontalAlignment = HorizontalAlignment.Left, Cursor = System.Windows.Input.Cursors.Hand,
             ToolTip = "Pick which app group this knob controls, or make a new one",
@@ -1724,44 +1727,17 @@ public partial class MixerView : UserControl
 
     // --- Helpers ---
 
-    private Grid MakeSectionHeader(string title)
+    private FrameworkElement MakeSectionHeader(string title)
     {
-        var accent = ThemeManager.Accent;
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var bar = new Border
-        {
-            Background = new SolidColorBrush(accent),
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 1, 8, 1),
-        };
-        Grid.SetColumn(bar, 0);
-        grid.Children.Add(bar);
-
-        var label = new TextBlock
-        {
-            Text = title,
-            FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(accent),
-        };
-        Grid.SetColumn(label, 1);
-        grid.Children.Add(label);
-
-        _sectionHeaders.Add((bar, label));
-        return grid;
+        // Quiet grey label (shared look) — no accent bar.
+        var header = UiKit.SectionHeader(title);
+        header.Margin = new Thickness(0, 0, 0, 6);
+        return header;
     }
 
     private void RefreshAccentColors()
     {
         var accent = ThemeManager.Accent;
-        foreach (var (bar, label) in _sectionHeaders)
-        {
-            bar.Background = new SolidColorBrush(accent);
-            label.Foreground = new SolidColorBrush(accent);
-        }
 
         // Update hover border brush for strip cards
         _hoverBorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x60));
@@ -1836,13 +1812,13 @@ public partial class MixerView : UserControl
         var g = new Grid { Margin = new Thickness(0, 4, 0, 3) };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var cap = MakeLabel("APP GROUP");
+        var cap = MakeLabel("App group");
         cap.Margin = new Thickness(0);
         cap.VerticalAlignment = VerticalAlignment.Center;
         g.Children.Add(cap);
 
         var icon = new Material.Icons.WPF.MaterialIcon { Kind = Material.Icons.MaterialIconKind.OpenInNew, Width = 11, Height = 11, Margin = new Thickness(4, 0, 0, 0) };
-        var text = new TextBlock { Text = "Manage", FontSize = 10.5, FontWeight = FontWeights.SemiBold };
+        var text = new TextBlock { Text = "Manage", FontSize = 12, FontWeight = FontWeights.SemiBold };
         var link = new StackPanel
         {
             Orientation = Orientation.Horizontal, Cursor = System.Windows.Input.Cursors.Hand,
@@ -1870,7 +1846,7 @@ public partial class MixerView : UserControl
         return new TextBlock
         {
             Text = text,
-            FontSize = 9,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 4, 0, 3)

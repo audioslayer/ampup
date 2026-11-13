@@ -125,6 +125,7 @@ public partial class ButtonsView
 
         _v2SpaceHint = UiKit.MutedText("No extra Spaces yet. Create one, add a template below, or right-click any key and choose Open as Space.");
         _v2SpaceHint.TextWrapping = TextWrapping.Wrap;
+        _v2SpaceHint.FontSize = 12;
         _v2SpaceHint.Margin = new Thickness(2, 8, 2, 0);
         stack.Children.Add(_v2SpaceHint);
 
@@ -176,6 +177,7 @@ public partial class ButtonsView
 
         _v2SpaceListHost.Children.Clear();
         var list = UiKit.ListContainer(out var rows);
+        list.BorderThickness = new Thickness(0); // fill only inside the SPACES card
         _v2SpaceListHost.Children.Add(list);
 
         rows.Children.Add(BuildV2SpaceListRow(null, MaterialIconKind.Home, ThemeManager.Accent,

@@ -44,8 +44,40 @@ public partial class MixerView
         intro.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         SmartMixContent.Children.Add(intro);
 
-        SmartMixContent.Children.Add(BuildDuckingCard());
-        SmartMixContent.Children.Add(BuildAutoSwitchCard());
+        // One card for both features, a thin divider between the two rows.
+        var rows = new StackPanel();
+        rows.Children.Add(BuildDuckingCard());
+        var divider = new Border { Height = 1 };
+        divider.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
+        rows.Children.Add(divider);
+        rows.Children.Add(BuildAutoSwitchCard());
+
+        var card = new Border { Padding = new Thickness(0), Margin = new Thickness(0, 0, 0, 12), Child = rows };
+        card.SetResourceReference(FrameworkElement.StyleProperty, "CardPanel");
+        card.Padding = new Thickness(0);
+        SmartMixContent.Children.Add(card);
+    }
+
+    /// <summary>
+    /// Turns a UiKit.Card root into a plain row of the shared Smart Mix card:
+    /// no own background / outline / margin (the outer card provides them).
+    /// </summary>
+    private static FrameworkElement AsSmartRow(Border cardRoot)
+    {
+        cardRoot.Style = null;
+        cardRoot.Background = Brushes.Transparent;
+        cardRoot.BorderThickness = new Thickness(0);
+        cardRoot.Margin = new Thickness(0);
+        cardRoot.Padding = new Thickness(0);
+        return cardRoot;
+    }
+
+    /// <summary>UiKit.ListContainer with fill only (no outline) — it sits inside a card.</summary>
+    private static Border SmartList(out StackPanel rows)
+    {
+        var list = UiKit.ListContainer(out rows);
+        list.BorderThickness = new Thickness(0);
+        return list;
     }
 
     private FrameworkElement BuildDuckingCard()
@@ -61,13 +93,13 @@ public partial class MixerView
 
         // Trigger
         _duckBody.Children.Add(SubLabel("WHEN THIS APP IS PLAYING", null, out _));
-        _duckBody.Children.Add(UiKit.ListContainer(out _duckTriggerRows));
+        _duckBody.Children.Add(SmartList(out _duckTriggerRows));
 
         // Targets
         var targetsLabel = SubLabel("LOWER THESE APPS", "", out _duckTargetCount);
         targetsLabel.Margin = new Thickness(0, 14, 0, 6);
         _duckBody.Children.Add(targetsLabel);
-        _duckBody.Children.Add(UiKit.ListContainer(out _duckTargetRows));
+        _duckBody.Children.Add(SmartList(out _duckTargetRows));
 
         // Amount + fades
         var sliders = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
@@ -82,7 +114,7 @@ public partial class MixerView
         var card = UiKit.Card(SmartDuckColor, MaterialIconKind.AccountVoice, "Voice ducking",
             "Lower other apps while a voice or call app is playing audio.", sw, _duckBody);
         RebuildDuckLists();
-        return card.Root;
+        return AsSmartRow(card.Root);
     }
 
     private FrameworkElement BuildAutoSwitchCard()
@@ -97,7 +129,7 @@ public partial class MixerView
         _autoBody = new StackPanel { Visibility = Visibility.Collapsed };
 
         _autoBody.Children.Add(SubLabel("RULES", "", out _autoRuleCount));
-        _autoBody.Children.Add(UiKit.ListContainer(out _autoRuleRows));
+        _autoBody.Children.Add(SmartList(out _autoRuleRows));
 
         // Revert option
         var revertSw = MakeSmartSwitch(on => { _autoSwitchRevert = on; OnSmartMixChanged(null, EventArgs.Empty); },
@@ -108,7 +140,7 @@ public partial class MixerView
         var revertText = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var rt1 = new TextBlock { Text = "Return to Default", FontSize = 12 };
         rt1.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        var rt2 = new TextBlock { Text = "When the focused app has no rule, switch back to the Default profile.", FontSize = 10.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 12, 0) };
+        var rt2 = new TextBlock { Text = "When the focused app has no rule, switch back to the Default profile.", FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 12, 0) };
         rt2.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         revertText.Children.Add(rt1);
         revertText.Children.Add(rt2);
@@ -120,7 +152,7 @@ public partial class MixerView
         var card = UiKit.Card(SmartProfileColor, MaterialIconKind.SwapHorizontal, "Auto profile switching",
             "Switch to a profile automatically when a specific app is in focus.", sw, _autoBody);
         RebuildAutoSwitchRules();
-        return card.Root;
+        return AsSmartRow(card.Root);
     }
 
     // ── Load / collect ─────────────────────────────────────────────────
@@ -277,7 +309,7 @@ public partial class MixerView
             var hint = new TextBlock
             {
                 Text = "No rules yet — add one to switch profiles when an app is focused.",
-                FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 8, 10, 6),
+                FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 8, 10, 6),
             };
             hint.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
             _autoRuleRows.Children.Add(hint);
@@ -301,7 +333,7 @@ public partial class MixerView
             chipSp.Children.Add(caret);
             var chip = new Border
             {
-                CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(0),
                 Padding = new Thickness(8, 3, 4, 3), Cursor = Cursors.Hand, Child = chipSp,
                 ToolTip = "Profile to activate when the app is focused",
             };
@@ -392,10 +424,10 @@ public partial class MixerView
     private static FrameworkElement SubLabel(string text, string? count, out TextBlock countText)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 0, 0, 6) };
-        var tb = new TextBlock { Text = text, FontSize = 10, FontWeight = FontWeights.Bold };
+        var tb = new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.SemiBold };
         tb.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         sp.Children.Add(tb);
-        countText = new TextBlock { Text = count ?? "", FontSize = 10, Margin = new Thickness(8, 0, 0, 0) };
+        countText = new TextBlock { Text = count ?? "", FontSize = 11, Margin = new Thickness(8, 0, 0, 0) };
         countText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         sp.Children.Add(countText);
         return sp;

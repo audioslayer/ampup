@@ -34,7 +34,7 @@ public partial class ButtonsView
         section.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var stack = new StackPanel();
-        // Header matches SPACES — accent bar + label + count + chevron.
+        // Header matches SPACES — grey label + count + chevron.
         stack.Children.Add(BuildV2CollapsibleHeader("TEMPLATES", ToggleV2TemplatesExpanded,
             out var arrow, out var count));
         _v2TemplatesSectionArrow = arrow;
@@ -70,10 +70,12 @@ public partial class ButtonsView
 
         var intro = AmpUp.Controls.UiKit.MutedText("Pre-built Space layouts. Add one to copy it into your Spaces, then edit it like any other.");
         intro.TextWrapping = TextWrapping.Wrap;
+        intro.FontSize = 12;
         intro.Margin = new Thickness(2, 0, 2, 10);
         _v2TemplatesSectionContent.Children.Add(intro);
 
         var list = AmpUp.Controls.UiKit.ListContainer(out var rows);
+        list.BorderThickness = new Thickness(0); // fill only inside the TEMPLATES card
         foreach (var tmpl in SpaceTemplates.All)
             rows.Children.Add(BuildTemplateRow(tmpl));
         _v2TemplatesSectionContent.Children.Add(list);

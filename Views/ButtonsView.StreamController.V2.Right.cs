@@ -137,8 +137,7 @@ public partial class ButtonsView
         _v2PreviewCard = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x0A, 0x0A)),
-            BorderBrush = FindBrush("CardBorderBrush"),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(14),
             Padding = new Thickness(10),
             Width = 196,
@@ -170,7 +169,7 @@ public partial class ButtonsView
         side.Children.Add(BuildV2MiniMap());
         _v2MiniCaption = new TextBlock
         {
-            FontSize = 10.5,
+            FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 6, 0, 12),
             Foreground = FindBrush("TextDimBrush"),
@@ -370,7 +369,7 @@ public partial class ButtonsView
                 _scTextSizeLabel = new TextBlock
                 {
                     Text = "Font Size: 14",
-                    FontSize = 10,
+                    FontSize = 12,
                     FontWeight = FontWeights.SemiBold,
                     Foreground = FindBrush("TextDimBrush"),
                     Margin = new Thickness(0, 0, 0, 4),
@@ -495,7 +494,7 @@ public partial class ButtonsView
             {
                 _v2SpotifyArtHelpText = new TextBlock
                 {
-                    FontSize = 11,
+                    FontSize = 12,
                     Foreground = FindBrush("TextDimBrush"),
                     TextWrapping = TextWrapping.Wrap,
                 };
@@ -545,12 +544,11 @@ public partial class ButtonsView
         var frame = new Border
         {
             CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(4),
             Background = new SolidColorBrush(Color.FromRgb(0x07, 0x0B, 0x10)),
             Child = grid,
         };
-        frame.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         return frame;
     }
 
@@ -607,8 +605,8 @@ public partial class ButtonsView
         head.Children.Add(chev);
 
         var headHost = new Border { Padding = new Thickness(14, 11, 12, 11), Child = head, Background = Brushes.Transparent };
-        var divider = new Border { Height = 1, Visibility = body.Visibility };
-        divider.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
+        // Spacer only (no hairline) — header and body read as one quiet section.
+        var divider = new Border { Height = 1, Visibility = body.Visibility, Background = Brushes.Transparent };
 
         var stack = new StackPanel();
         stack.Children.Add(headHost);
@@ -645,7 +643,7 @@ public partial class ButtonsView
             var dt = type;
             var icon = new Material.Icons.WPF.MaterialIcon { Kind = iconKind, Width = 20, Height = 20, HorizontalAlignment = HorizontalAlignment.Left };
             var title = new TextBlock { Text = name, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 0) };
-            var sub = new TextBlock { Text = desc, FontSize = 10.5, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+            var sub = new TextBlock { Text = desc, FontSize = 12, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
             sub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
             var stack = new StackPanel();
             stack.Children.Add(icon);
@@ -656,7 +654,7 @@ public partial class ButtonsView
                 Margin = new Thickness(3),
                 Padding = new Thickness(10, 9, 8, 9),
                 CornerRadius = new CornerRadius(10),
-                BorderThickness = new Thickness(1),
+                BorderThickness = new Thickness(0),
                 Cursor = Cursors.Hand,
                 ToolTip = $"{name}: {desc}",
                 Child = stack,
@@ -693,13 +691,12 @@ public partial class ButtonsView
         var a = ThemeManager.Accent;
         if (on)
         {
-            tile.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x22));
-            tile.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0xCC));
+            // Selected = accent-tinted fill (no outline).
+            tile.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x2E));
         }
         else
         {
             tile.Background = hover ? FindBrush("InputBgBrush") : new SolidColorBrush(ThemeManager.WithAlpha(Colors.Black, 0x1A));
-            tile.BorderBrush = hover ? new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66)) : FindBrush("InputBorderBrush");
         }
         if (tile.Child is StackPanel sp && sp.Children.Count >= 2)
         {
@@ -766,29 +763,10 @@ public partial class ButtonsView
     {
         var stack = new StackPanel();
 
-        var barLabelRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 10),
-        };
-        var bar = new Border
-        {
-            Width = 3,
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 0, 8, 0),
-            Background = new SolidColorBrush(ThemeManager.Accent),
-        };
-        var text = new TextBlock
-        {
-            Text = label,
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = FindBrush("TextPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        barLabelRow.Children.Add(bar);
-        barLabelRow.Children.Add(text);
-        stack.Children.Add(barLabelRow);
+        // Quiet grey section label (no accent bar).
+        var header = UiKit.SectionHeader(label);
+        header.Margin = new Thickness(0, 0, 0, 10);
+        stack.Children.Add(header);
         stack.Children.Add(content);
 
         var card = new Border
@@ -1579,11 +1557,10 @@ public partial class ButtonsView
             Margin = new Thickness(0, 0, 0, 10),
             Padding = new Thickness(4),
             CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Visibility = Visibility.Collapsed,
         };
         container.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        container.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });

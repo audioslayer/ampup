@@ -306,23 +306,12 @@ public class BindingsView : UserControl
     {
         var activeName = _config!.ActiveProfile;
         var (profileColor, profileKind) = GetProfileVisuals(activeName);
-        var accent = ThemeManager.Accent;
-
+        // Plain heading row (no card chrome) — the page title for the Overview.
         var hero = new Border
         {
-            CornerRadius = new CornerRadius(16),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(20, 18, 20, 18),
+            Padding = new Thickness(2, 4, 2, 4),
             Margin = new Thickness(0, 0, 0, 18),
-            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x55)),
-            Background = new LinearGradientBrush(
-                new GradientStopCollection
-                {
-                    new GradientStop(Color.FromArgb(0x2A, 0xFF, 0xFF, 0xFF), 0),
-                    new GradientStop(ThemeManager.WithAlpha(accent, 0x10), 0.55),
-                    new GradientStop(Color.FromArgb(0x06, 0xFF, 0xFF, 0xFF), 1),
-                },
-                new Point(0, 0), new Point(1, 1)),
+            Background = Brushes.Transparent,
         };
 
         var grid = new Grid();
@@ -348,7 +337,7 @@ public class BindingsView : UserControl
         grid.Children.Add(tile);
 
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var caption = new TextBlock { Text = "OVERVIEW · ACTIVE PROFILE", FontSize = 10, FontWeight = FontWeights.SemiBold };
+        var caption = new TextBlock { Text = "OVERVIEW · ACTIVE PROFILE", FontSize = 12, FontWeight = FontWeights.SemiBold };
         caption.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         text.Children.Add(caption);
         var title = new TextBlock
@@ -501,12 +490,12 @@ public class BindingsView : UserControl
     private Border BuildDeviceCard(string deviceId, string deviceName, Func<bool> isConnected, FrameworkElement content)
     {
         var accent = ThemeManager.Accent;
+        // One box for the section: fill only, no outline.
         var card = new Border
         {
             CornerRadius = new CornerRadius(16),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Margin = new Thickness(0, 0, 0, 18),
-            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x40)),
         };
         card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
 
@@ -558,7 +547,7 @@ public class BindingsView : UserControl
         var nameTb = new TextBlock { Text = deviceName, FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
         nameTb.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         label.Children.Add(nameTb);
-        var statusTb = new TextBlock { FontSize = 10, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0) };
+        var statusTb = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0) };
         void PaintStatus()
         {
             bool on = isConnected();
@@ -640,23 +629,23 @@ public class BindingsView : UserControl
         var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var v = new TextBlock { Text = value, FontSize = 16, FontWeight = FontWeights.SemiBold };
         v.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        var l = new TextBlock { Text = label, FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis };
+        var l = new TextBlock { Text = label, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis };
         l.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         sp.Children.Add(v);
         sp.Children.Add(l);
         Grid.SetColumn(sp, 1);
         grid.Children.Add(sp);
 
+        // Fill-only tile inside the device card (no outline).
         var b = new Border
         {
             CornerRadius = new CornerRadius(12),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(4),
             Child = grid,
         };
         b.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-        b.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         return b;
     }
 
@@ -751,53 +740,41 @@ public class BindingsView : UserControl
         var (accentColor, profileKind) = GetProfileVisuals(profileName);
         var capturedName = profileName;
 
+        // One card per profile, fill only (no outline, no side stripe). The active
+        // profile reads via an accent-tinted fill + soft glow instead of a bright border.
         var card = new Border
         {
             CornerRadius = new CornerRadius(16),
-            BorderThickness = new Thickness(isActive ? 1.5 : 1),
+            BorderThickness = new Thickness(0),
             Margin = new Thickness(0, 0, 0, 14),
         };
         card.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
-        if (isActive)
-        {
-            card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accentColor, 0xAA));
-            card.Effect = new System.Windows.Media.Effects.DropShadowEffect
-                { BlurRadius = 24, ShadowDepth = 0, Opacity = 0.35, Color = accentColor };
-        }
-        else
-        {
-            card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-            card.MouseEnter += (_, _) => card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(accentColor, 0x77));
-            card.MouseLeave += (_, _) => card.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-            AddHoverLift(card, 2);
-        }
+
+        Brush GlassFill(byte topAlpha, Color tint) => new LinearGradientBrush(
+            ThemeManager.WithAlpha(tint, topAlpha),
+            ThemeManager.WithAlpha(tint, (byte)(topAlpha / 3)), 90);
 
         var glass = new Border
         {
-            CornerRadius = new CornerRadius(15),
-            Background = new LinearGradientBrush(
-                isActive ? ThemeManager.WithAlpha(accentColor, 0x16) : Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF),
-                Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 90),
+            CornerRadius = new CornerRadius(16),
+            Background = isActive ? GlassFill(0x1C, accentColor) : GlassFill(0x0C, Colors.White),
         };
         card.Child = glass;
 
-        var outer = new Grid();
-        outer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        glass.Child = outer;
-
-        // Accent strip in the profile's colour, fading towards the bottom.
-        outer.Children.Add(new Border
+        if (isActive)
         {
-            Width = 4,
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 16, 0, 16),
-            Background = new LinearGradientBrush(accentColor, ThemeManager.WithAlpha(accentColor, 0x22), 90),
-        });
+            card.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                { BlurRadius = 28, ShadowDepth = 0, Opacity = 0.18, Color = accentColor };
+        }
+        else
+        {
+            card.MouseEnter += (_, _) => glass.Background = GlassFill(0x12, accentColor);
+            card.MouseLeave += (_, _) => glass.Background = GlassFill(0x0C, Colors.White);
+            AddHoverLift(card, 2);
+        }
 
-        var stack = new StackPanel { Margin = new Thickness(16, 16, 18, 16) };
-        Grid.SetColumn(stack, 1);
-        outer.Children.Add(stack);
+        var stack = new StackPanel { Margin = new Thickness(18, 16, 18, 16) };
+        glass.Child = stack;
 
         // Header: icon tile | name + Active pill / summary | actions
         var header = new Grid();
@@ -845,7 +822,7 @@ public class BindingsView : UserControl
         var sub = new TextBlock
         {
             Text = $"{assigned} of {total} controls assigned" + (isActive ? "" : " · Click to switch"),
-            FontSize = 11, Margin = new Thickness(0, 3, 0, 0),
+            FontSize = 12, Margin = new Thickness(0, 3, 0, 0),
         };
         sub.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         names.Children.Add(sub);
@@ -989,7 +966,7 @@ public class BindingsView : UserControl
         }
         if (empty > 0)
         {
-            var more = UiKit.MutedText($"+{empty} empty", 10);
+            var more = UiKit.MutedText($"+{empty} empty", 12);
             more.VerticalAlignment = VerticalAlignment.Center;
             more.Margin = new Thickness(4, 0, 0, 6);
             wrap.Children.Add(more);
@@ -1030,7 +1007,7 @@ public class BindingsView : UserControl
             ic.Margin = new Thickness(0, 0, 6, 0);
             sp.Children.Add(ic);
         }
-        var slotTb = new TextBlock { Text = slot, FontSize = 9, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 5, 0) };
+        var slotTb = new TextBlock { Text = slot, FontSize = 11, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 5, 0) };
         slotTb.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         sp.Children.Add(slotTb);
         var tb = new TextBlock { Text = text, FontSize = 11, MaxWidth = 140, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
@@ -1047,10 +1024,11 @@ public class BindingsView : UserControl
             });
         }
 
+        // Fill-only chip; hover tints the fill instead of drawing an outline.
         var chip = new Border
         {
             CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(8, 4, 10, 4),
             Margin = new Thickness(0, 0, 6, 6),
             Cursor = Cursors.Hand,
@@ -1058,10 +1036,9 @@ public class BindingsView : UserControl
             Child = sp,
         };
         chip.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-        chip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         var tint = dotColor ?? ThemeManager.Accent;
-        chip.MouseEnter += (_, _) => chip.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(tint, 0x99));
-        chip.MouseLeave += (_, _) => chip.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
+        chip.MouseEnter += (_, _) => chip.Background = new SolidColorBrush(ThemeManager.WithAlpha(tint, 0x26));
+        chip.MouseLeave += (_, _) => chip.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
         chip.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
         AddHoverLift(chip, 1);
         return chip;
@@ -1193,21 +1170,21 @@ public class BindingsView : UserControl
                           || !string.IsNullOrWhiteSpace(key.PresetIconKind)
                           || key.DisplayType != DisplayKeyType.Normal;
 
+        // Fill-only tile inside the profile card; hover tints the fill.
         var card = new Border
         {
-            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
-            BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(8),
             Margin = new Thickness(4),
             Cursor = Cursors.Hand,
             Opacity = hasContent ? 1.0 : 0.5,
         };
+        card.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
         card.MouseEnter += (_, _) =>
-            card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x80));
+            card.Background = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x1E));
         card.MouseLeave += (_, _) =>
-            card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
+            card.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
         card.MouseLeftButtonDown += (_, _) => _onNavigateToButtons?.Invoke(profileName);
 
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -1247,7 +1224,7 @@ public class BindingsView : UserControl
         stack.Children.Add(new TextBlock
         {
             Text = $"K{slot + 1}",
-            FontSize = 9,
+            FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             HorizontalAlignment = HorizontalAlignment.Center,
             Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
@@ -1259,11 +1236,11 @@ public class BindingsView : UserControl
         stack.Children.Add(new TextBlock
         {
             Text = hasContent ? actionLabel : "Empty",
-            FontSize = 10,
+            FontSize = 12,
             Margin = new Thickness(0, 2, 0, 0),
             HorizontalAlignment = HorizontalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxWidth = 90,
+            MaxWidth = 110,
             Foreground = (SolidColorBrush)FindResource(hasContent ? "TextSecBrush" : "TextDimBrush"),
         });
 
@@ -1322,16 +1299,18 @@ public class BindingsView : UserControl
             cardBg = (SolidColorBrush)FindResource("BgDarkBrush");
         }
 
+        // Fill-only tile (no outline). The fill is the live LED tint, rewritten by
+        // UpdateCardColors, so hover feedback is lift + slight opacity bump only.
+        double restOpacity = isEmpty ? 0.45 : 1.0;
         var card = new Border
         {
             Background = cardBg,
-            BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 8, 10, 8),
             Margin = new Thickness(0, 0, 6, 0),
             Cursor = Cursors.Hand,
-            Opacity = isEmpty ? 0.45 : 1.0
+            Opacity = restOpacity
         };
 
         var knobCardTransform = new TranslateTransform(0, 0);
@@ -1339,15 +1318,12 @@ public class BindingsView : UserControl
         card.MouseEnter += (_, _) =>
         {
             knobCardTransform.Y = -1;
-            if (!isEmpty)
-                card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x80));
-            else
-                card.BorderBrush = (SolidColorBrush)FindResource("InputBorderBrush");
+            if (isEmpty) card.Opacity = 0.65;
         };
         card.MouseLeave += (_, _) =>
         {
             knobCardTransform.Y = 0;
-            card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
+            card.Opacity = restOpacity;
         };
         card.MouseLeftButtonDown += (_, _) => _onNavigateToMixer?.Invoke(profileName);
 
@@ -1362,7 +1338,7 @@ public class BindingsView : UserControl
         titleRow.Children.Add(new TextBlock
         {
             Text = $"K{idx + 1}",
-            FontSize = 9,
+            FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
             VerticalAlignment = VerticalAlignment.Center,
@@ -1374,7 +1350,7 @@ public class BindingsView : UserControl
             titleRow.Children.Add(new TextBlock
             {
                 Text = knob.Label,
-                FontSize = 11,
+                FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -1395,16 +1371,15 @@ public class BindingsView : UserControl
                 var accent = ThemeManager.Accent;
                 chipWrap.Children.Add(new Border
                 {
-                    Background = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B)),
-                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, accent.R, accent.G, accent.B)),
-                    BorderThickness = new Thickness(1),
+                    Background = new SolidColorBrush(Color.FromArgb(0x26, accent.R, accent.G, accent.B)),
+                    BorderThickness = new Thickness(0),
                     CornerRadius = new CornerRadius(8),
                     Padding = new Thickness(6, 1, 6, 1),
                     Margin = new Thickness(0, 0, 3, 3),
                     Child = new TextBlock
                     {
                         Text = app,
-                        FontSize = 9,
+                        FontSize = 11,
                     }.WithResourceForeground("TextSecBrush")
                 });
             }
@@ -1413,7 +1388,7 @@ public class BindingsView : UserControl
                 chipWrap.Children.Add(new TextBlock
                 {
                     Text = $"+{knob.Apps.Count - 4}",
-                    FontSize = 9,
+                    FontSize = 11,
                     Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(2, 0, 0, 3),
@@ -1426,7 +1401,7 @@ public class BindingsView : UserControl
             content.Children.Add(new TextBlock
             {
                 Text = targetDisplay,
-                FontSize = 11,
+                FontSize = 12,
                 Foreground = isEmpty
                     ? (SolidColorBrush)FindResource("TextDimBrush")
                     : (SolidColorBrush)FindResource("AccentBrush"),
@@ -1446,17 +1421,17 @@ public class BindingsView : UserControl
         bool hasHold = btn.HoldAction != "none" && !string.IsNullOrEmpty(btn.HoldAction);
         bool isEmpty = !hasTap && !hasDouble && !hasHold;
 
+        // Fill-only tile (no outline); hover tints the fill.
         var card = new Border
         {
-            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
-            BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush"),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 8, 10, 8),
             Margin = new Thickness(0, 0, 6, 0),
             Cursor = Cursors.Hand,
             Opacity = isEmpty ? 0.45 : 1.0
         };
+        card.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
 
         var btnCardTransform = new TranslateTransform(0, 0);
         card.RenderTransform = btnCardTransform;
@@ -1464,14 +1439,14 @@ public class BindingsView : UserControl
         {
             btnCardTransform.Y = -1;
             if (!isEmpty)
-                card.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x80));
+                card.Background = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x1E));
             else
-                card.BorderBrush = (SolidColorBrush)FindResource("InputBorderBrush");
+                card.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
         };
         card.MouseLeave += (_, _) =>
         {
             btnCardTransform.Y = 0;
-            card.BorderBrush = (SolidColorBrush)FindResource("CardBorderBrush");
+            card.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
         };
         card.MouseLeftButtonDown += (_, _) => _onNavigateToButtons?.Invoke(profileName);
 
@@ -1482,7 +1457,7 @@ public class BindingsView : UserControl
         titleRow.Children.Add(new TextBlock
         {
             Text = $"B{idx + 1}",
-            FontSize = 9,
+            FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             Foreground = (SolidColorBrush)FindResource("TextDimBrush"),
             VerticalAlignment = VerticalAlignment.Center,
@@ -1494,7 +1469,7 @@ public class BindingsView : UserControl
             titleRow.Children.Add(new TextBlock
             {
                 Text = btn.Label,
-                FontSize = 11,
+                FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -1509,7 +1484,7 @@ public class BindingsView : UserControl
             content.Children.Add(new TextBlock
             {
                 Text = "No actions",
-                FontSize = 10,
+                FontSize = 12,
                 Foreground = (SolidColorBrush)FindResource("TextDimBrush")
             });
         }
@@ -1556,7 +1531,7 @@ public class BindingsView : UserControl
 
         // Grid: [badge 36px] [icon+action fills]
         var grid = new Grid { Margin = new Thickness(0, 1, 0, 1) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         // Gesture badge — fixed width so TAP/DBL/HOLD all align
@@ -1570,7 +1545,7 @@ public class BindingsView : UserControl
             Child = new TextBlock
             {
                 Text = gestureLabel,
-                FontSize = 8,
+                FontSize = 10,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(gestureColor)
             }
@@ -1582,7 +1557,7 @@ public class BindingsView : UserControl
         var actionText = new TextBlock
         {
             Text = displayName,
-            FontSize = 10,
+            FontSize = 12,
             FontWeight = FontWeights.Medium,
             Foreground = new SolidColorBrush(actionColor),
             VerticalAlignment = VerticalAlignment.Center,

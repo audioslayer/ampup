@@ -793,7 +793,7 @@ public partial class ButtonsView : UserControl
             var headerBox = new TextBox
             {
                 Text = $"Button {i + 1}",
-                FontSize = 10,
+                FontSize = 12,
                 FontWeight = FontWeights.Bold,
                 Foreground = FindBrush("TextDimBrush"),
                 Background = Brushes.Transparent,
@@ -851,7 +851,7 @@ public partial class ButtonsView : UserControl
             var headerAction = new TextBlock
             {
                 Text = "None",
-                FontSize = 11,
+                FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = FindBrush("TextDimBrush"),
@@ -1408,32 +1408,20 @@ public partial class ButtonsView : UserControl
 
     private Grid MakeGestureHeader(string title)
     {
-        var accent = ThemeManager.Accent;
+        // Quiet grey sub-header (matches UiKit.SectionHeader) — no accent bar,
+        // so it is not registered in _sectionHeaders for accent repaints.
         var grid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var bar = new Border
-        {
-            Background = new SolidColorBrush(accent),
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(0, 1, 8, 1),
-        };
-        Grid.SetColumn(bar, 0);
-        grid.Children.Add(bar);
 
         var label = new TextBlock
         {
             Text = title,
-            FontSize = 11,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(accent),
             ToolTip = GestureTooltips.GetValueOrDefault(title, title),
         };
-        Grid.SetColumn(label, 1);
+        label.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         grid.Children.Add(label);
 
-        _sectionHeaders.Add((bar, label));
         return grid;
     }
 
@@ -1927,11 +1915,10 @@ public partial class ButtonsView : UserControl
         var inputBorder = new System.Windows.Controls.Border
         {
             CornerRadius = new CornerRadius(6),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(0),
         };
         inputBorder.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-        inputBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         var box = new TextBox
         {
             Background = Brushes.Transparent,
@@ -2300,7 +2287,7 @@ public partial class ButtonsView : UserControl
         return new TextBlock
         {
             Text = text,
-            FontSize = 9,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 4, 0, 3),

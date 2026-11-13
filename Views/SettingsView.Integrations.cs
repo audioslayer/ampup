@@ -98,8 +98,8 @@ public partial class SettingsView
                 var header = new TextBlock
                 {
                     Text = entry.Lighting ? "LIGHTING" : "APPS & SERVICES",
-                    FontSize = 10,
-                    FontWeight = FontWeights.Bold,
+                    FontSize = 12,
+                    FontWeight = FontWeights.SemiBold,
                     Margin = new Thickness(10, lastGroup == null ? 0 : 14, 0, 6),
                 };
                 header.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
@@ -142,7 +142,7 @@ public partial class SettingsView
 
         var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
         var dot = new Ellipse { Width = 6, Height = 6, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center };
-        var status = new TextBlock { FontSize = 10, VerticalAlignment = VerticalAlignment.Center };
+        var status = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
         status.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         statusRow.Children.Add(dot);
         statusRow.Children.Add(status);
@@ -154,8 +154,7 @@ public partial class SettingsView
             Padding = new Thickness(10, 8, 10, 8),
             Margin = new Thickness(0, 0, 0, 4),
             CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1),
-            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
             Background = Brushes.Transparent,
             Cursor = Cursors.Hand,
             Child = grid,
@@ -215,18 +214,10 @@ public partial class SettingsView
         {
             if (entry.Row == null) continue;
             bool active = entry.Id == _selectedIntegration;
+            // Fill only: selected = accent-tinted fill, no outline or glow.
             entry.Row.Background = active
-                ? new SolidColorBrush(Color.FromArgb(0x26, accent.R, accent.G, accent.B))
+                ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x30))
                 : Brushes.Transparent;
-            entry.Row.BorderBrush = active
-                ? new SolidColorBrush(Color.FromArgb(0x88, accent.R, accent.G, accent.B))
-                : Brushes.Transparent;
-            entry.Row.Effect = active
-                ? new System.Windows.Media.Effects.DropShadowEffect
-                {
-                    Color = accent, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.45,
-                }
-                : null;
         }
     }
 

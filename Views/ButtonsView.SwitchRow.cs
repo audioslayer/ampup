@@ -26,7 +26,7 @@ internal sealed class SwitchRow : Grid
         var text = new TextBlock
         {
             Text = label,
-            FontSize = 11.5,
+            FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 12, 0),

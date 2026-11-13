@@ -146,15 +146,15 @@ public partial class ButtonsView
                 if (col == 1) Grid.SetColumn(child, 2);
             }
 
-            // Subtle vertical separator — 1px, theme-aware, soft opacity.
+            // Column gap only — no hairline: the outer card is gone, so the
+            // chassis card and the right-hand section cards separate themselves.
             var separator = new Border
             {
                 Width = 1,
                 Margin = new Thickness(V2Style.ColumnGap / 2, 8, V2Style.ColumnGap / 2, 8),
-                Opacity = 0.6,
+                Background = System.Windows.Media.Brushes.Transparent,
                 SnapsToDevicePixels = true,
             };
-            separator.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
             Grid.SetColumn(separator, 1);
             _v2Root.Children.Add(separator);
         }

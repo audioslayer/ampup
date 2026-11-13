@@ -158,7 +158,7 @@ public partial class OsdView : UserControl
         };
         TextBlock NewValLabel(string text) => new()
         {
-            Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, MinWidth = 34,
+            Text = text, FontSize = 12, FontWeight = FontWeights.SemiBold, MinWidth = 34,
             TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center,
             Foreground = new SolidColorBrush(ThemeManager.Accent),
         };
@@ -373,7 +373,7 @@ public partial class OsdView : UserControl
         };
         TextBlock NewVal() => new()
         {
-            Text = "100%", FontSize = 11, FontWeight = FontWeights.SemiBold, MinWidth = 38,
+            Text = "100%", FontSize = 12, FontWeight = FontWeights.SemiBold, MinWidth = 38,
             TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center,
             Foreground = new SolidColorBrush(ThemeManager.Accent),
         };
@@ -476,7 +476,7 @@ public partial class OsdView : UserControl
         var g = new Grid { Margin = new Thickness(0, 0, 0, 10) };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(96) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var cap = new TextBlock { Text = label, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, ToolTip = help };
+        var cap = new TextBlock { Text = label, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, ToolTip = help };
         cap.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         g.Children.Add(cap);
         control.VerticalAlignment = VerticalAlignment.Center;
@@ -493,7 +493,7 @@ public partial class OsdView : UserControl
         var stack = new StackPanel();
         stack.Children.Add(new Viewbox { Width = 64, Height = 64, Child = halo, Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Center });
-        var name = new TextBlock { Text = p.Name, FontSize = 11, FontWeight = FontWeights.SemiBold,
+        var name = new TextBlock { Text = p.Name, FontSize = 12, FontWeight = FontWeights.SemiBold,
             HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
         name.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         stack.Children.Add(name);
@@ -502,7 +502,7 @@ public partial class OsdView : UserControl
         {
             Width = 92,
             CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1.5),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(8, 10, 8, 8),
             Margin = new Thickness(0, 0, 8, 8),
             Cursor = Cursors.Hand,
@@ -528,17 +528,13 @@ public partial class OsdView : UserControl
     {
         var a = ThemeManager.Accent;
         bool on = _config != null && p.Matches(_config.Osd);
+        // Fill only: selected = accent tint, hover = faint accent tint.
         if (on)
-        {
-            tile.BorderBrush = new SolidColorBrush(a);
-            tile.Background = new SolidColorBrush(Color.FromArgb(0x1F, a.R, a.G, a.B));
-        }
+            tile.Background = new SolidColorBrush(Color.FromArgb(0x2E, a.R, a.G, a.B));
+        else if (hover)
+            tile.Background = new SolidColorBrush(Color.FromArgb(0x14, a.R, a.G, a.B));
         else
-        {
-            if (hover) tile.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, a.R, a.G, a.B));
-            else tile.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
             tile.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "InputBgBrush");
-        }
     }
 
     private void LoadLook(OsdConfig osd)
@@ -684,7 +680,7 @@ public partial class OsdView : UserControl
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         // Fixed-width captions (Look section) use the option rows' style so the column reads as one
-        var cap = new TextBlock { Text = caption, FontSize = captionWidth.HasValue ? 11 : 10,
+        var cap = new TextBlock { Text = caption, FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
         cap.SetResourceReference(TextBlock.ForegroundProperty, captionWidth.HasValue ? "TextSecBrush" : "TextDimBrush");
         g.Children.Add(cap);
@@ -713,7 +709,7 @@ public partial class OsdView : UserControl
 
     private TextBlock MakeLabel(string text, Thickness? margin = null)
     {
-        var tb = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold,
+        var tb = new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.SemiBold,
             Margin = margin ?? new Thickness(0, 0, 0, 6) };
         tb.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         return tb;
@@ -735,7 +731,7 @@ public partial class OsdView : UserControl
 
     private TextBlock MakeHint(string text, Thickness? margin = null)
     {
-        var tb = new TextBlock { Text = text, FontSize = 10, TextWrapping = TextWrapping.Wrap,
+        var tb = new TextBlock { Text = text, FontSize = 12, TextWrapping = TextWrapping.Wrap,
             Margin = margin ?? new Thickness(0, 0, 0, 14) };
         tb.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         return tb;
@@ -1235,7 +1231,7 @@ public partial class OsdView : UserControl
         for (int i = 1; i < heads.Length; i++)
         {
             var tb = MakeHint(heads[i], new Thickness(i == 1 ? 0 : 0, 0, 0, 0));
-            tb.FontSize = 9.5;
+            tb.FontSize = 11;
             Grid.SetColumn(tb, i);
             g.Children.Add(tb);
         }
@@ -1794,7 +1790,7 @@ public partial class OsdView : UserControl
         }
         row.Children.Add(new TextBlock
         {
-            Text = text, FontSize = 11, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
+            Text = text, FontSize = 12, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
             Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xCF, 0x66)),
         });
         return new System.Windows.Controls.Border
@@ -1803,9 +1799,8 @@ public partial class OsdView : UserControl
             Padding = new Thickness(8, 4, 6, 4),
             MinHeight = 30,
             CornerRadius = new CornerRadius(6),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, WarnColor.R, WarnColor.G, WarnColor.B)),
-            Background = new SolidColorBrush(Color.FromArgb(0x12, WarnColor.R, WarnColor.G, WarnColor.B)),
+            BorderThickness = new Thickness(0),
+            Background = new SolidColorBrush(Color.FromArgb(0x1A, WarnColor.R, WarnColor.G, WarnColor.B)),
         };
     }
 
@@ -1865,7 +1860,7 @@ public partial class OsdView : UserControl
             var cb = new CheckBox { IsChecked = picked.Contains(id), VerticalAlignment = VerticalAlignment.Center };
             var order = new TextBlock
             {
-                FontSize = 10.5, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center,
+                FontSize = 11, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(ThemeManager.Accent),
             };
             var label = new TextBlock
@@ -1889,10 +1884,10 @@ public partial class OsdView : UserControl
                 var a = ThemeManager.Accent;
                 var chip = new System.Windows.Controls.Border
                 {
-                    CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), Padding = new Thickness(6, 0, 6, 1),
-                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, a.R, a.G, a.B)),
+                    CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(0), Padding = new Thickness(6, 0, 6, 1),
+                    Background = new SolidColorBrush(Color.FromArgb(0x24, a.R, a.G, a.B)),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Child = new TextBlock { Text = "In use", FontSize = 10, Foreground = new SolidColorBrush(a) },
+                    Child = new TextBlock { Text = "In use", FontSize = 11, Foreground = new SolidColorBrush(a) },
                 };
                 Grid.SetColumn(chip, 4);
                 g.Children.Add(chip);

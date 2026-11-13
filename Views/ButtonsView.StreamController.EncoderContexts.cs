@@ -63,7 +63,7 @@ public partial class ButtonsView
 
         _v2EncoderContextHint = new TextBlock
         {
-            FontSize = 10,
+            FontSize = 12,
             Foreground = FindBrush("TextDimBrush"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 10),
@@ -131,7 +131,7 @@ public partial class ButtonsView
 
         _v2EncoderEffectiveLabel = new TextBlock
         {
-            FontSize = 10,
+            FontSize = 12,
             Foreground = new SolidColorBrush(ThemeManager.Accent),
             TextWrapping = TextWrapping.Wrap,
         };
@@ -207,7 +207,7 @@ public partial class ButtonsView
             Width = 34,
             Height = 34,
             CornerRadius = new CornerRadius(9),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, accent.R, accent.G, accent.B)),
             Background = new SolidColorBrush(Color.FromArgb(0x16, accent.R, accent.G, accent.B)),
             Child = new TextBlock
@@ -231,14 +231,14 @@ public partial class ButtonsView
         titleStack.Children.Add(new TextBlock
         {
             Text = "ROTATION",
-            FontSize = 11,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextPrimaryBrush"),
         });
         _v2EncoderRotationSummary = new TextBlock
         {
             Text = "Choose what this encoder controls",
-            FontSize = 9.5,
+            FontSize = 12,
             Foreground = FindBrush("TextDimBrush"),
             TextTrimming = TextTrimming.CharacterEllipsis,
             Margin = new Thickness(0, 2, 0, 0),
@@ -280,7 +280,7 @@ public partial class ButtonsView
 
         _v2EncoderRotationBody = new Border
         {
-            BorderThickness = new Thickness(0, 1, 0, 0),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(13, 14, 13, 13),
             Visibility = Visibility.Collapsed,
             Opacity = 0,
@@ -335,7 +335,7 @@ public partial class ButtonsView
     private TextBlock MakeEncoderEditorLabel(string text) => new()
     {
         Text = text,
-        FontSize = 9,
+        FontSize = 12,
         FontWeight = FontWeights.SemiBold,
         Foreground = FindBrush("TextDimBrush"),
         Margin = new Thickness(0, 0, 0, 4),

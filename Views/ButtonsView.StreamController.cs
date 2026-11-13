@@ -733,7 +733,7 @@ public partial class ButtonsView
 
         _scDynamicDimLabel = new TextBlock
         {
-            FontSize = 11,
+            FontSize = 12,
             Margin = new Thickness(0, 0, 0, 4),
             Text = "Dim level: 50%",
         };
@@ -798,7 +798,7 @@ public partial class ButtonsView
         // comes from — and why it's empty (LHM needs admin; HWiNFO needs to run).
         _scHardwareSourceHint = new TextBlock
         {
-            FontSize = 10,
+            FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(2, 5, 0, 10),
             Foreground = FindBrush("TextDimBrush"),
@@ -881,7 +881,7 @@ public partial class ButtonsView
         _scHardwareLabelSizeLabel = new TextBlock
         {
             Text = "Label Size: 10",
-            FontSize = 10,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 0, 0, 4),
@@ -945,7 +945,7 @@ public partial class ButtonsView
         _scTextSizeLabel = new TextBlock
         {
             Text = "Font Size: 14",
-            FontSize = 10,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 0, 0, 4)
@@ -1349,7 +1349,7 @@ public partial class ButtonsView
             Background = (Brush)Application.Current.FindResource("InputBgBrush"),
             Foreground = (Brush)Application.Current.FindResource("TextPrimaryBrush"),
             BorderBrush = (Brush)Application.Current.FindResource("InputBorderBrush"),
-            BorderThickness = new Thickness(1.5),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(10, 7, 10, 7),
             FontSize = 12,
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -1411,7 +1411,7 @@ public partial class ButtonsView
         return new TextBlock
         {
             Text = text,
-            FontSize = 10,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 0, 0, 4)
@@ -1496,8 +1496,7 @@ public partial class ButtonsView
             Padding = new Thickness(12, 10, 12, 10),
             CornerRadius = new CornerRadius(8),
             Background = new SolidColorBrush(Color.FromArgb(0x1F, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Child = new TextBlock
             {
                 Text = "Captures the primary screen to clipboard on press.",
@@ -1817,7 +1816,7 @@ public partial class ButtonsView
 
         _scSignalRgbCycleStatus = new TextBlock
         {
-            FontSize = 11,
+            FontSize = 12,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 0, 0, 8),
             TextWrapping = TextWrapping.Wrap,
@@ -2302,8 +2301,7 @@ public partial class ButtonsView
         var headerA = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 4, 8, 4),
             Margin = new Thickness(0, 0, 0, 6),
@@ -2340,8 +2338,7 @@ public partial class ButtonsView
         var headerB = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B)),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 4, 8, 4),
             Margin = new Thickness(0, 12, 0, 6),
@@ -4118,8 +4115,7 @@ public partial class ButtonsView
         var chip = new Border
         {
             Background = FindBrush("InputBgBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(10, 4, 10, 4),
             Margin = new Thickness(0, 0, 6, 6),
@@ -4281,7 +4277,7 @@ public partial class ButtonsView
         _scMultiActionEmptyHint = new TextBlock
         {
             Text = "No steps yet. Add one below.",
-            FontSize = 11,
+            FontSize = 12,
             FontStyle = FontStyles.Italic,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 2, 0, 8)
@@ -4298,8 +4294,7 @@ public partial class ButtonsView
             Padding = new Thickness(12, 6, 12, 6),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Background = FindBrush("InputBgBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
-            BorderThickness = new Thickness(1.5),
+            BorderThickness = new Thickness(0),
             Foreground = new SolidColorBrush(ThemeManager.Accent),
             FontWeight = FontWeights.SemiBold,
             Cursor = Cursors.Hand,
@@ -4373,8 +4368,7 @@ public partial class ButtonsView
         var row = new Border
         {
             Background = FindBrush("BgDarkBrush"),
-            BorderBrush = FindBrush("CardBorderBrush"),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(8, 8, 8, 8),
             Margin = new Thickness(0, 0, 0, 6)
@@ -4391,7 +4385,7 @@ public partial class ButtonsView
         var stepLabel = new TextBlock
         {
             Text = $"STEP {idx + 1}",
-            FontSize = 10,
+            FontSize = 12,
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(ThemeManager.Accent),
             VerticalAlignment = VerticalAlignment.Center
@@ -4434,7 +4428,7 @@ public partial class ButtonsView
         delayStack.Children.Add(new TextBlock
         {
             Text = "DELAY (ms)",
-            FontSize = 9,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 0, 0, 4)
@@ -4447,7 +4441,7 @@ public partial class ButtonsView
             Background = FindBrush("InputBgBrush"),
             Foreground = FindBrush("TextPrimaryBrush"),
             BorderBrush = FindBrush("InputBorderBrush"),
-            BorderThickness = new Thickness(1.5),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(8, 6, 8, 6),
             FontSize = 12,
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -4481,7 +4475,7 @@ public partial class ButtonsView
         actionStack.Children.Add(new TextBlock
         {
             Text = "ACTION",
-            FontSize = 9,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 0, 0, 4)
@@ -4495,7 +4489,7 @@ public partial class ButtonsView
         var pathLabel = new TextBlock
         {
             Text = "PATH",
-            FontSize = 9,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 0, 0, 4)
@@ -4508,7 +4502,7 @@ public partial class ButtonsView
             Background = FindBrush("InputBgBrush"),
             Foreground = FindBrush("TextPrimaryBrush"),
             BorderBrush = FindBrush("InputBorderBrush"),
-            BorderThickness = new Thickness(1.5),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(8, 6, 8, 6),
             FontSize = 12,
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -4528,7 +4522,7 @@ public partial class ButtonsView
         macroPanel.Children.Add(new TextBlock
         {
             Text = "MACRO",
-            FontSize = 9,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 0, 0, 4)
@@ -4540,7 +4534,7 @@ public partial class ButtonsView
             Background = FindBrush("InputBgBrush"),
             Foreground = FindBrush("TextPrimaryBrush"),
             BorderBrush = FindBrush("InputBorderBrush"),
-            BorderThickness = new Thickness(1.5),
+            BorderThickness = new Thickness(0),
             Padding = new Thickness(8, 6, 8, 6),
             FontSize = 12,
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -4620,8 +4614,7 @@ public partial class ButtonsView
             Padding = new Thickness(0),
             FontSize = 11,
             Background = FindBrush("InputBgBrush"),
-            BorderBrush = FindBrush("InputBorderBrush"),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0),
             Foreground = FindBrush("TextSecBrush"),
             Cursor = Cursors.Hand
         };

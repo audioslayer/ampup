@@ -411,7 +411,7 @@ public partial class LightsView : UserControl
                 Margin = new Thickness(0, 0, 6, 0), Cursor = Cursors.Hand,
                 Tag = cat,
             };
-            var txt = new TextBlock { Text = cat, FontSize = 11 };
+            var txt = new TextBlock { Text = cat, FontSize = 12 };
             pill.Child = txt;
             pill.MouseLeftButtonUp += (s, _) =>
             {
@@ -449,17 +449,11 @@ public partial class LightsView : UserControl
         {
             var isActive = (string)pill.Tag == _presetFilter;
             var ac = ThemeManager.Accent;
-            pill.BorderThickness = new Thickness(1);
+            pill.BorderThickness = new Thickness(0);
             if (isActive)
-            {
-                pill.Background = new SolidColorBrush(ThemeManager.WithAlpha(ac, 0x22));
-                pill.BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(ac, 0x88));
-            }
+                pill.Background = new SolidColorBrush(ThemeManager.WithAlpha(ac, 0x2E));
             else
-            {
                 pill.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
-                pill.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
-            }
             if (pill.Child is TextBlock txt)
             {
                 if (isActive) txt.Foreground = new SolidColorBrush(ac);
@@ -542,7 +536,7 @@ public partial class LightsView : UserControl
         // Name
         var name = new TextBlock
         {
-            Text = preset.Name, FontSize = 11, FontWeight = FontWeights.SemiBold,
+            Text = preset.Name, FontSize = 12, FontWeight = FontWeights.SemiBold,
             Foreground = LightsView.ThemeBrush("TextPrimaryBrush"),
         };
         stack.Children.Add(name);
@@ -557,7 +551,7 @@ public partial class LightsView : UserControl
         };
         badge.Child = new TextBlock
         {
-            Text = preset.Category, FontSize = 9,
+            Text = preset.Category, FontSize = 11,
             Foreground = new SolidColorBrush(catColor),
         };
         stack.Children.Add(badge);
@@ -729,7 +723,7 @@ public partial class LightsView : UserControl
             var nameText = new TextBlock
             {
                 Text = label,
-                FontSize = 11,
+                FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -753,7 +747,7 @@ public partial class LightsView : UserControl
             var effectNameText = new TextBlock
             {
                 Text = globalEffectDisplay,
-                FontSize = 9,
+                FontSize = 12,
                 Foreground = FindBrush("TextSecBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 2, 0, 0),
@@ -1169,13 +1163,10 @@ public partial class LightsView : UserControl
         foreach (var (name, tile) in _paletteTiles)
         {
             bool active = name == _activePresetName;
+            // Fill only: selected = accent tint
+            tile.BorderThickness = new Thickness(0);
             if (active)
-                tile.BorderBrush = new SolidColorBrush(accent);
-            else
-                tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-            tile.BorderThickness = new Thickness(active ? 1.5 : 1);
-            if (active)
-                tile.Background = new SolidColorBrush(Color.FromArgb(0x20, accent.R, accent.G, accent.B));
+                tile.Background = new SolidColorBrush(Color.FromArgb(0x2E, accent.R, accent.G, accent.B));
             else
                 tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
         }
@@ -1192,8 +1183,8 @@ public partial class LightsView : UserControl
 
         if (on)
         {
-            border.Background = new SolidColorBrush(Color.FromArgb(0x22, accent.R, accent.G, accent.B));
-            border.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, accent.R, accent.G, accent.B));
+            border.Background = new SolidColorBrush(Color.FromArgb(0x2E, accent.R, accent.G, accent.B));
+            border.BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, accent.R, accent.G, accent.B));
             border.Opacity = 1.0;
         }
         else
@@ -1326,12 +1317,12 @@ public partial class LightsView : UserControl
             var label = new TextBlock
             {
                 Text = name,
-                FontSize = 8,
+                FontSize = 11,
                 Foreground = LightsView.ThemeBrush("TextDimBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 2, 0, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 48,
+                MaxWidth = 56,
             };
 
             var tileContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
@@ -1346,11 +1337,10 @@ public partial class LightsView : UserControl
                 Padding = new Thickness(4, 4, 4, 3),
                 Cursor = Cursors.Hand,
                 ToolTip = name,
-                BorderThickness = new Thickness(1),
+                BorderThickness = new Thickness(0),
                 Child = tileContent,
             };
             swatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
-            swatch.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
             var presetC1 = c1;
             var presetC2 = c2;
@@ -1372,21 +1362,18 @@ public partial class LightsView : UserControl
                 if (!_loading) QueueSave();
             };
 
-            // Hover glow — accent border + slightly lighter bg + lift
+            // Hover — slightly lighter bg + lift (fill only, no outline)
             var swatchTransform = new TranslateTransform(0, 0);
             swatch.RenderTransform = swatchTransform;
             swatch.MouseEnter += (_, _) =>
             {
                 swatchTransform.Y = -1;
-                var accent = ThemeManager.Accent;
-                swatch.BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B));
                 swatch.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
                 label.Foreground = LightsView.ThemeBrush("TextSecBrush");
             };
             swatch.MouseLeave += (_, _) =>
             {
                 swatchTransform.Y = 0;
-                swatch.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                 swatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
                 label.Foreground = LightsView.ThemeBrush("TextDimBrush");
             };
@@ -1497,7 +1484,7 @@ public partial class LightsView : UserControl
             var label = new TextBlock
             {
                 Text = $"LED {i + 1}",
-                FontSize = 11,
+                FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -1523,7 +1510,7 @@ public partial class LightsView : UserControl
             var effectName = new TextBlock
             {
                 Text = "Single Color",
-                FontSize = 9,
+                FontSize = 12,
                 Foreground = FindBrush("TextSecBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 2, 0, 0),
@@ -1590,9 +1577,10 @@ public partial class LightsView : UserControl
         bool active = idx == _selectedKnob;
         if (active)
         {
-            card.Background = new SolidColorBrush(Color.FromArgb(0x22, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
-            card.BorderBrush = new SolidColorBrush(ThemeManager.Accent);
-            card.BorderThickness = new Thickness(2);
+            // Selected: accent-tinted fill (no thick bright outline)
+            card.Background = new SolidColorBrush(Color.FromArgb(0x2E, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+            card.BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B));
+            card.BorderThickness = new Thickness(1);
         }
         else
         {
@@ -1847,7 +1835,7 @@ public partial class LightsView : UserControl
             deviceSelectContainer.Children.Add(new TextBlock
             {
                 Text = "LED color shown while each output device is the default.",
-                FontSize = 11,
+                FontSize = 12,
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = FindBrush("TextSecBrush"),
                 Margin = new Thickness(0, 0, 0, 8),
@@ -2204,7 +2192,7 @@ public partial class LightsView : UserControl
     private FrameworkElement MakeStatusEffectRow(string label, FrameworkElement picker)
     {
         var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(94) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(104) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var text = MakeLabel(label);
@@ -2240,7 +2228,7 @@ public partial class LightsView : UserControl
             CornerRadius = new CornerRadius(14),
             Background = new SolidColorBrush(darkBg),
             BorderBrush = new SolidColorBrush(borderColor),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0), // fill only (tint carries the colour)
             Padding = new Thickness(6, 4, 12, 4),
             Margin = new Thickness(0, 0, 8, 4),
             Cursor = Cursors.Hand,
@@ -2263,7 +2251,7 @@ public partial class LightsView : UserControl
         var labelBlock = new TextBlock
         {
             Text = label,
-            FontSize = 9,
+            FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             Foreground = LightsView.ThemeBrush("TextSecBrush"),
             VerticalAlignment = VerticalAlignment.Center,
@@ -3012,7 +3000,7 @@ public partial class LightsView : UserControl
         _onSave(_config);
     }
 
-    /// <summary>Shared accent-bar section header (UiKit) — theme brushes update live.</summary>
+    /// <summary>Shared quiet grey section header (UiKit) — theme brushes update live.</summary>
     private static FrameworkElement MakeSectionHeader(string title) => UiKit.SectionHeader(title);
 
     private Border MakeSeparator(int spacing = 10)
@@ -3035,7 +3023,7 @@ public partial class LightsView : UserControl
         UIElement MakeSliderCell(string label, StyledSlider slider, TextBlock valLabel)
         {
             var cell = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
-            cell.Children.Add(new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeights.SemiBold,
+            cell.Children.Add(new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold,
                 Foreground = dimBrush, Margin = new Thickness(0, 0, 0, 4) });
             var row = new DockPanel();
             DockPanel.SetDock(valLabel, Dock.Right);
@@ -3049,7 +3037,7 @@ public partial class LightsView : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var speedLabel = new TextBlock { Text = $"{(int)speedSlider.Value}%", FontSize = 11, FontWeight = FontWeights.SemiBold,
+        var speedLabel = new TextBlock { Text = $"{(int)speedSlider.Value}%", FontSize = 12, FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
         speedLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
         speedSlider.ValueChanged += (_, _) => speedLabel.Text = $"{(int)speedSlider.Value}%";
@@ -3057,7 +3045,7 @@ public partial class LightsView : UserControl
         Grid.SetColumn(speedCell as FrameworkElement, 0);
         grid.Children.Add(speedCell);
 
-        var brightLabel = new TextBlock { Text = $"{(int)brightSlider.Value}%", FontSize = 11, FontWeight = FontWeights.SemiBold,
+        var brightLabel = new TextBlock { Text = $"{(int)brightSlider.Value}%", FontSize = 12, FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
         brightLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
         brightSlider.ValueChanged += (_, _) => brightLabel.Text = $"{(int)brightSlider.Value}%";
@@ -3125,7 +3113,7 @@ public partial class LightsView : UserControl
         return new TextBlock
         {
             Text = text,
-            FontSize = 10,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = FindBrush("TextDimBrush"),
             Margin = new Thickness(0, 4, 0, 4)

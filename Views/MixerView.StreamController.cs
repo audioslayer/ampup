@@ -99,6 +99,8 @@ public partial class MixerView
                 Margin = new Thickness(0, 0, 0, 6),
                 MaxLength = 20,
                 ToolTip = "Click to rename this encoder",
+                // Kept visible: the user's own encoder name and the only place to rename it.
+                // The duplicate small label under the % is what's hidden.
             };
             label.GotFocus += (_, _) =>
             {
@@ -150,7 +152,7 @@ public partial class MixerView
             {
                 Text = "0%",
                 FontFamily = new FontFamily("Consolas"),
-                FontSize = 16,
+                FontSize = 18,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = FindBrush("TextPrimaryBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -164,13 +166,15 @@ public partial class MixerView
             volRow.Children.Add(rangeBtn);
             stripStack.Children.Add(volRow);
 
+            // Still updated (picker.Tag), but collapsed — the target picker shows the name.
             var targetDisplay = new TextBlock
             {
-                FontSize = 10,
+                FontSize = 12,
                 Foreground = FindBrush("TextSecBrush"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 2)
+                Margin = new Thickness(0, 0, 0, 2),
+                Visibility = Visibility.Collapsed,
             };
             _scTargetDisplays[i] = targetDisplay;
             stripStack.Children.Add(targetDisplay);
@@ -191,6 +195,7 @@ public partial class MixerView
                 Margin = new Thickness(0, 0, 0, 6),
                 ToolTip = "What this encoder controls",
                 Tag = targetDisplay,
+                BorderThickness = new Thickness(0), // fill only inside the encoder card
             };
             // Picker items populated lazily once _config is bound — the
             // full integration-aware catalogue requires knowing which
@@ -231,18 +236,32 @@ public partial class MixerView
                 Step = 0.1,
                 LabelFormat = "F1",
                 Suffix = "% per click",
-                Height = 28,
+                ShowLabel = false, // the current level is shown in the header row instead
+                Height = 24,
                 ToolTip = "How much the volume changes with each click of the wheel. Lower = finer control. Adjusts in 0.1% steps.",
             };
+            // Sensitivity lives in the encoder card itself, under the target:
+            // "Sensitivity" on the left, the current level on the right.
+            var sensHeader = new Grid { Margin = new Thickness(0, 10, 0, 0) };
+            var sensCaption = new TextBlock { Text = "Sensitivity", FontSize = 12, FontWeight = FontWeights.SemiBold };
+            sensCaption.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+            var sensValue = new TextBlock
+            {
+                Text = $"{sensitivity.Value:F1}% per click",
+                FontSize = 12,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            sensValue.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+            sensHeader.Children.Add(sensCaption);
+            sensHeader.Children.Add(sensValue);
+
             sensitivity.ValueChanged += (_, _) =>
             {
+                sensValue.Text = $"{sensitivity.Value:F1}% per click";
                 if (!_loading) SaveScSensitivity(idx);
             };
             _scSensitivitySliders[i] = sensitivity;
 
-            // Sensitivity lives in the encoder card itself, under the target.
-            var sensHeader = MakeLabel("SENSITIVITY");
-            sensHeader.Margin = new Thickness(0, 10, 0, 0);
             stripStack.Children.Add(sensHeader);
             stripStack.Children.Add(sensitivity);
 
@@ -257,8 +276,8 @@ public partial class MixerView
                 ToolTip = "Set the min and max volume this encoder can reach",
             };
 
-            var minLabel = new TextBlock { Text = "0%", FontSize = 10, Foreground = FindBrush("TextDimBrush") };
-            var maxLabel = new TextBlock { Text = "100%", FontSize = 10, Foreground = FindBrush("TextDimBrush"), HorizontalAlignment = HorizontalAlignment.Right };
+            var minLabel = new TextBlock { Text = "0%", FontSize = 12, Foreground = FindBrush("TextDimBrush") };
+            var maxLabel = new TextBlock { Text = "100%", FontSize = 12, Foreground = FindBrush("TextDimBrush"), HorizontalAlignment = HorizontalAlignment.Right };
             range.LowerValueChanged += (_, _) =>
             {
                 minLabel.Text = $"{(int)range.LowerValue}%";
@@ -277,7 +296,7 @@ public partial class MixerView
 
             // Volume range: inside the card, collapsed until the range icon is clicked.
             var rangePanel = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 0) };
-            rangePanel.Children.Add(MakeLabel("VOLUME RANGE"));
+            rangePanel.Children.Add(MakeLabel("Volume range"));
             rangePanel.Children.Add(range);
             rangePanel.Children.Add(labelsRow);
             stripStack.Children.Add(rangePanel);

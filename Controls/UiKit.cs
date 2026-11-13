@@ -320,11 +320,10 @@ public static class UiKit
         var list = new System.Windows.Controls.Border
         {
             CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(0), // fill only: list boxes sit inside cards
             Padding = new Thickness(4),
         };
         list.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "BgDarkBrush");
-        list.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "CardBorderBrush");
         rows = new StackPanel();
         list.Child = rows;
         return list;
@@ -359,7 +358,7 @@ public static class UiKit
         nameStack.Children.Add(n);
         detailText = new TextBlock
         {
-            Text = detail ?? "", FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0),
+            Text = detail ?? "", FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0),
             Visibility = string.IsNullOrEmpty(detail) ? Visibility.Collapsed : Visibility.Visible,
         };
         detailText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
@@ -412,7 +411,7 @@ public static class UiKit
         };
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
         var ic = new MaterialIcon { Kind = icon, Width = 14, Height = 14, Margin = new Thickness(1, 0, 11, 0), VerticalAlignment = VerticalAlignment.Center };
-        var tb = new TextBlock { Text = text, FontSize = 11.5, FontWeight = accent ? FontWeights.SemiBold : FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center };
+        var tb = new TextBlock { Text = text, FontSize = 12, FontWeight = accent ? FontWeights.SemiBold : FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center };
         string key = accent ? "AccentBrush" : "TextSecBrush";
         ic.SetResourceReference(MaterialIcon.ForegroundProperty, key);
         tb.SetResourceReference(TextBlock.ForegroundProperty, key);
