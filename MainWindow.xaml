@@ -148,7 +148,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- Content Area -->
-            <Border Grid.Column="1" Padding="24,16">
+            <Border x:Name="ContentHost" Grid.Column="1" Padding="24,16">
                 <!-- Not focusable: otherwise Tab / arrow keys land on it and WPF draws a
                      white focus rectangle around the whole page. -->
                 <ContentControl x:Name="ContentArea" Focusable="False" IsTabStop="False"

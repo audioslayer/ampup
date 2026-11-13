@@ -645,6 +645,7 @@ public partial class MainWindow : FluentWindow
     {
         ContentArea.Content = view;
         WireNavHover();
+        Dispatcher.BeginInvoke(() => AnchorPageScrollbar(view), System.Windows.Threading.DispatcherPriority.Loaded);
 
         bool animate = IsLoaded;
         if (_activeNavButton != null && _activeNavButton != navButton
@@ -658,6 +659,43 @@ public partial class MainWindow : FluentWindow
         }
 
         _activeNavButton = navButton;
+    }
+
+    // ── Page scrollbar on the window edge ───────────────────────────
+
+    private readonly HashSet<System.Windows.Controls.ScrollViewer> _edgeAnchoredScrollers = new();
+
+    /// <summary>
+    /// The page host has 24px right padding, which left every page's scrollbar floating 24px
+    /// in from the window edge. Pull the page's main (outermost) ScrollViewer out to the edge
+    /// and move that gap inside it as Padding, so content stays put and the scrollbar hugs the
+    /// right edge. Done once per ScrollViewer; views are reused across navigations.
+    /// </summary>
+    private void AnchorPageScrollbar(FrameworkElement view)
+    {
+        var sv = FindOutermostScrollViewer(view);
+        if (sv == null || !_edgeAnchoredScrollers.Add(sv)) return;
+        double gap = ContentHost.Padding.Right;
+        sv.Margin = new Thickness(sv.Margin.Left, sv.Margin.Top, sv.Margin.Right - gap, sv.Margin.Bottom);
+        sv.Padding = new Thickness(sv.Padding.Left, sv.Padding.Top, sv.Padding.Right + gap, sv.Padding.Bottom);
+    }
+
+    private static System.Windows.Controls.ScrollViewer? FindOutermostScrollViewer(DependencyObject root)
+    {
+        // Breadth-first so the page-level scroller wins over nested lists / pickers.
+        var queue = new Queue<DependencyObject>();
+        queue.Enqueue(root);
+        while (queue.Count > 0)
+        {
+            var node = queue.Dequeue();
+            if (node is System.Windows.Controls.ScrollViewer sv
+                && sv.VerticalScrollBarVisibility != System.Windows.Controls.ScrollBarVisibility.Disabled
+                && sv.VerticalScrollBarVisibility != System.Windows.Controls.ScrollBarVisibility.Hidden)
+                return sv;
+            int n = VisualTreeHelper.GetChildrenCount(node);
+            for (int i = 0; i < n; i++) queue.Enqueue(VisualTreeHelper.GetChild(node, i));
+        }
+        return null;
     }
 
     // ── Window drag ─────────────────────────────────────────────────
