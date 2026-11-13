@@ -453,6 +453,9 @@
     <!-- ── ScrollViewer ──────────────────────────────────────────── -->
     <Style TargetType="ScrollViewer">
         <Setter Property="PanningMode" Value="Both" />
+        <!-- Clicking empty page space focuses the page scroller; without this WPF draws a
+             white focus rectangle around the whole page. -->
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
     </Style>
 
     <!-- ── Section header with accent left border ───────────────── -->

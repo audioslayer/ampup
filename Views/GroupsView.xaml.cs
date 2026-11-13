@@ -452,25 +452,9 @@ public partial class GroupsView : UserControl
 
         var wrap = new WrapPanel();
         stack.Children.Add(wrap);
-        bool expanded = _expanded.Contains(key);
-        int shown = expanded ? rows.Count : Math.Min(rows.Count, CollapsedRowCount);
-        for (int i = 0; i < shown; i++)
-            wrap.Children.Add(rowFactory(rows[i]));
-
-        if (rows.Count > CollapsedRowCount)
-        {
-            var toggle = BuildLinkRow(
-                expanded ? MaterialIconKind.ChevronUp : MaterialIconKind.ChevronDown,
-                expanded ? "Show less" : $"+{rows.Count - CollapsedRowCount} more",
-                accent: false);
-            toggle.Margin = new Thickness(0, 0, 8, 8);
-            toggle.MouseLeftButtonUp += (_, _) =>
-            {
-                if (!_expanded.Remove(key)) _expanded.Add(key);
-                RebuildGroupPanel();
-            };
-            wrap.Children.Add(toggle);
-        }
+        // Show every member: the chips wrap onto extra lines, no "+N more" toggle to click.
+        foreach (var row in rows)
+            wrap.Children.Add(rowFactory(row));
 
         Border? add = null;
         add = BuildAddAppsChip(addLabel, () => onAdd(add!));
