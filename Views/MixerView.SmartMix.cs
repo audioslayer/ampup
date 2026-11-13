@@ -44,32 +44,11 @@ public partial class MixerView
         intro.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         SmartMixContent.Children.Add(intro);
 
-        // One card for both features, a thin divider between the two rows.
-        var rows = new StackPanel();
-        rows.Children.Add(BuildDuckingCard());
-        var divider = new Border { Height = 1 };
-        divider.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
-        rows.Children.Add(divider);
-        rows.Children.Add(BuildAutoSwitchCard());
-
-        var card = new Border { Padding = new Thickness(0), Margin = new Thickness(0, 0, 0, 12), Child = rows };
-        card.SetResourceReference(FrameworkElement.StyleProperty, "CardPanel");
-        card.Padding = new Thickness(0);
-        SmartMixContent.Children.Add(card);
-    }
-
-    /// <summary>
-    /// Turns a UiKit.Card root into a plain row of the shared Smart Mix card:
-    /// no own background / outline / margin (the outer card provides them).
-    /// </summary>
-    private static FrameworkElement AsSmartRow(Border cardRoot)
-    {
-        cardRoot.Style = null;
-        cardRoot.Background = Brushes.Transparent;
-        cardRoot.BorderThickness = new Thickness(0);
-        cardRoot.Margin = new Thickness(0);
-        cardRoot.Padding = new Thickness(0);
-        return cardRoot;
+        // Two separate cards with a small gap (user preferred this over one merged card:
+        // with both expanded, the merged version ran the two features together).
+        // UiKit.Card already has no stripe and only a faint edge.
+        SmartMixContent.Children.Add(BuildDuckingCard());
+        SmartMixContent.Children.Add(BuildAutoSwitchCard());
     }
 
     /// <summary>UiKit.ListContainer with fill only (no outline) — it sits inside a card.</summary>
@@ -114,7 +93,7 @@ public partial class MixerView
         var card = UiKit.Card(SmartDuckColor, MaterialIconKind.AccountVoice, "Voice ducking",
             "Lower other apps while a voice or call app is playing audio.", sw, _duckBody);
         RebuildDuckLists();
-        return AsSmartRow(card.Root);
+        return card.Root;
     }
 
     private FrameworkElement BuildAutoSwitchCard()
@@ -152,7 +131,7 @@ public partial class MixerView
         var card = UiKit.Card(SmartProfileColor, MaterialIconKind.SwapHorizontal, "Auto profile switching",
             "Switch to a profile automatically when a specific app is in focus.", sw, _autoBody);
         RebuildAutoSwitchRules();
-        return AsSmartRow(card.Root);
+        return card.Root;
     }
 
     // ── Load / collect ─────────────────────────────────────────────────
