@@ -64,6 +64,7 @@ public partial class App : Application
     private LgMonitorSync? _lgMonitor;
     private N3Controller? _n3;
     private SpotifyIntegration? _spotify;
+    private DevScreenshotServer? _devScreenshots;
     private PocketCastsIntegration? _pocketCasts;
     public static SpotifyIntegration? Spotify => (Current as App)?._spotify;
     private DiscordRpcIntegration? _discordRpc;
@@ -615,6 +616,10 @@ public partial class App : Application
         var args = Environment.GetCommandLineArgs();
         if (!args.Contains("--minimized"))
             _mainWindow.Show();
+
+        // Dev-only: deploy.bat launches with --dev-screenshots so tools can capture the UI
+        // over http://127.0.0.1:47823. Never enabled for normal installs.
+        _devScreenshots = DevScreenshotServer.StartIfEnabled(_mainWindow, args);
 
         // Hook WM_TASKBARCREATED on the main window's HWND so we can recreate the tray
         // icon if Explorer crashes or the taskbar is restarted for any reason.
@@ -6105,6 +6110,7 @@ public partial class App : Application
         _lgMonitor?.Dispose();
         _n3?.Dispose();
         _spotify?.Dispose();
+        _devScreenshots?.Dispose();
         _discordRpc?.Dispose();
         InvalidateMutePollingEndpoints();
         lock (_notifyLock)

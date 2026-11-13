@@ -43,7 +43,8 @@ if errorlevel 1 (
 
 echo.
 echo [5/5] Launching Amp Up...
-start "" "%~dp0bin\Debug\net8.0-windows\AmpUp.exe"
+rem --dev-screenshots: lets Claude capture the UI at http://127.0.0.1:47823 (dev builds only)
+start "" "%~dp0bin\Debug\net8.0-windows\AmpUp.exe" --dev-screenshots
 
 echo.
 echo Amp Up deployed and launched.
