@@ -1986,6 +1986,8 @@ public partial class SettingsView : UserControl
         {
             TxtSpotifyStatus.Text = "Error";
             GlassDialog.ShowWarning($"Spotify connect failed:\n{ex.Message}", owner: Window.GetWindow(this));
+            // A cancelled/failed manual reconnect shouldn't strand a still-valid saved login.
+            sp.StartAutoRestore();
         }
         finally
         {
@@ -2001,16 +2003,38 @@ public partial class SettingsView : UserControl
         RefreshSpotifyStatus();
     }
 
+    private bool _spotifyStatusHooked;
+
     private void RefreshSpotifyStatus()
     {
         if (_config == null) return;
-        bool connected = !string.IsNullOrWhiteSpace(_config.Spotify.RefreshToken);
-        if (connected)
+
+        // Follow live connection changes (background restore succeeding, token revoked, etc.).
+        var sp = App.Spotify;
+        if (sp != null && !_spotifyStatusHooked)
+        {
+            _spotifyStatusHooked = true;
+            sp.ConnectionChanged += () => Dispatcher.BeginInvoke(new Action(RefreshSpotifyStatus));
+        }
+
+        bool saved = !string.IsNullOrWhiteSpace(_config.Spotify.RefreshToken);
+        bool live = sp?.IsConnected == true;
+        string user = string.IsNullOrEmpty(_config.Spotify.ConnectedUser) ? "" : $" as {_config.Spotify.ConnectedUser}";
+
+        if (saved && live)
         {
             SpotifyStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1DB954"));
-            TxtSpotifyStatus.Text = string.IsNullOrEmpty(_config.Spotify.ConnectedUser)
-                ? "Connected"
-                : $"Connected as {_config.Spotify.ConnectedUser}";
+            TxtSpotifyStatus.Text = $"Connected{user}";
+            BtnSpotifyConnect.Content = "Reconnect";
+            BtnSpotifyDisconnect.IsEnabled = true;
+        }
+        else if (saved)
+        {
+            // Saved login exists but the session isn't live yet (still restoring, or Spotify unreachable).
+            SpotifyStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFB800"));
+            TxtSpotifyStatus.Text = sp?.IsRestoring == true
+                ? $"Reconnecting{user}…"
+                : $"Signed in{user} — can't reach Spotify";
             BtnSpotifyConnect.Content = "Reconnect";
             BtnSpotifyDisconnect.IsEnabled = true;
         }

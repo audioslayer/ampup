@@ -483,11 +483,10 @@ public partial class App : Application
 
         _spotify = new SpotifyIntegration(_config.Spotify, _ => ConfigManager.Save(_config));
         _spotify.OnStateChanged += HandleSpotifyStateChanged;
-        _ = Task.Run(async () =>
-        {
-            try { await _spotify.TryRestoreAsync(); }
-            catch (Exception ex) { Logger.Log($"Spotify auto-restore failed: {ex.Message}"); }
-        });
+        // Restore the saved session in the background. Retries with backoff (and on
+        // network-available) because with Start with Windows AmpUp often launches
+        // before the network is up — a single attempt left Spotify dead until restart.
+        _spotify.StartAutoRestore();
 
         // Start audio mixer
         _mixer.Start();

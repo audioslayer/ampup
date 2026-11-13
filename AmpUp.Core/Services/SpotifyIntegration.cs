@@ -63,21 +63,36 @@ public sealed class SpotifyIntegration : IDisposable
         Scopes.PlaylistReadCollaborative,
     };
 
+    /// <summary>True when a refresh token is saved (the user connected once and hasn't been revoked).</summary>
+    public bool HasSavedSession => !string.IsNullOrWhiteSpace(_config.RefreshToken);
+
+    /// <summary>True while the background auto-restore loop is still trying to bring the session back.</summary>
+    public bool IsRestoring => _restoreCts != null;
+
+    /// <summary>Fires when IsConnected / IsRestoring / HasSavedSession change (not on every track change).</summary>
+    public event Action? ConnectionChanged;
+
+    private CancellationTokenSource? _restoreCts;
+    private readonly SemaphoreSlim _restoreWake = new(0, 1);
+
+    private enum RestoreResult { Restored, NothingToRestore, Revoked, TransientFailure }
+
     /// <summary>
-    /// Try to rehydrate from a previously-saved refresh token. Returns true
-    /// when an existing session was restored successfully. Call at app
-    /// startup before any user-facing Connect button.
+    /// Try once to rehydrate from a previously-saved refresh token. Returns true
+    /// when an existing session was restored successfully.
     /// </summary>
-    public async Task<bool> TryRestoreAsync()
+    public async Task<bool> TryRestoreAsync() => await TryRestoreOnceAsync() == RestoreResult.Restored;
+
+    private async Task<RestoreResult> TryRestoreOnceAsync()
     {
-        if (string.IsNullOrWhiteSpace(_config.ClientId)) return false;
-        if (string.IsNullOrWhiteSpace(_config.RefreshToken)) return false;
+        if (string.IsNullOrWhiteSpace(_config.ClientId)) return RestoreResult.NothingToRestore;
+        if (string.IsNullOrWhiteSpace(_config.RefreshToken)) return RestoreResult.NothingToRestore;
         try
         {
             var refreshed = await new OAuthClient().RequestToken(
                 new PKCETokenRefreshRequest(_config.ClientId, _config.RefreshToken));
             await FinalizeLoginAsync(refreshed);
-            return true;
+            return RestoreResult.Restored;
         }
         catch (Exception ex)
         {
@@ -89,9 +104,68 @@ public sealed class SpotifyIntegration : IDisposable
                 _config.RefreshToken = "";
                 _config.ConnectedUser = "";
                 _persist(_config);
+                return RestoreResult.Revoked;
             }
-            return false;
+            // Network not up yet (common right after boot with Start with Windows),
+            // DNS failure, Spotify 5xx, etc. — worth retrying.
+            return RestoreResult.TransientFailure;
         }
+    }
+
+    /// <summary>
+    /// Restore the saved session in the background, retrying transient failures with
+    /// backoff (5s, 15s, 30s, then every 60s) and immediately when Windows reports the
+    /// network is available again. Stops on success, on a revoked token, on a manual
+    /// Connect/Disconnect, or on Dispose. Safe to call more than once.
+    /// </summary>
+    public void StartAutoRestore()
+    {
+        if (_client != null || !HasSavedSession || string.IsNullOrWhiteSpace(_config.ClientId)) return;
+        var cts = new CancellationTokenSource();
+        if (Interlocked.CompareExchange(ref _restoreCts, cts, null) != null) { cts.Dispose(); return; }
+
+        System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
+        ConnectionChanged?.Invoke();
+        var ct = cts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            int[] delaysSec = { 5, 15, 30 };
+            int attempt = 0;
+            try
+            {
+                while (!ct.IsCancellationRequested && _client == null)
+                {
+                    var result = await TryRestoreOnceAsync();
+                    if (result != RestoreResult.TransientFailure) break;
+
+                    int wait = attempt < delaysSec.Length ? delaysSec[attempt] : 60;
+                    attempt++;
+                    Logger.Log($"Spotify restore: retrying in {wait}s (attempt {attempt + 1})");
+                    try { await _restoreWake.WaitAsync(TimeSpan.FromSeconds(wait), ct); }
+                    catch (OperationCanceledException) { break; }
+                }
+            }
+            catch (Exception ex) { Logger.Log($"Spotify auto-restore loop error: {ex.Message}"); }
+            finally { StopAutoRestore(); }
+        }, ct);
+    }
+
+    private void StopAutoRestore()
+    {
+        var cts = Interlocked.Exchange(ref _restoreCts, null);
+        if (cts == null) return;
+        System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
+        try { cts.Cancel(); } catch { }
+        cts.Dispose();
+        ConnectionChanged?.Invoke();
+    }
+
+    private void OnNetworkAvailabilityChanged(object? sender, System.Net.NetworkInformation.NetworkAvailabilityEventArgs e)
+    {
+        if (!e.IsAvailable) return;
+        // Wake the retry loop now instead of waiting out the backoff.
+        try { if (_restoreWake.CurrentCount == 0) _restoreWake.Release(); } catch (SemaphoreFullException) { }
     }
 
     /// <summary>
@@ -104,6 +178,9 @@ public sealed class SpotifyIntegration : IDisposable
     {
         if (string.IsNullOrWhiteSpace(_config.ClientId))
             throw new InvalidOperationException("Spotify ClientId is not set. Create an app at developer.spotify.com and paste the Client ID into Settings.");
+
+        // A manual connect supersedes any background restore attempts.
+        StopAutoRestore();
 
         // PKCE: generate verifier + SHA-256 challenge.
         var (verifier, challenge) = PKCEUtil.GenerateCodes();
@@ -183,10 +260,12 @@ public sealed class SpotifyIntegration : IDisposable
         await ShutdownServerAsync();
         StartPolling();
         OnStateChanged?.Invoke();
+        ConnectionChanged?.Invoke();
     }
 
     public void Disconnect()
     {
+        StopAutoRestore();
         StopPolling();
         _client = null;
         _authenticator = null;
@@ -196,6 +275,7 @@ public sealed class SpotifyIntegration : IDisposable
         CurrentTrack = null;
         _persist?.Invoke(_config);
         OnStateChanged?.Invoke();
+        ConnectionChanged?.Invoke();
     }
 
     private void StartPolling()
@@ -383,6 +463,7 @@ public sealed class SpotifyIntegration : IDisposable
 
     public void Dispose()
     {
+        StopAutoRestore();
         StopPolling();
         ShutdownServerAsync().GetAwaiter().GetResult();
     }
