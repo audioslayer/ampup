@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -38,7 +39,14 @@ public sealed class KeyCaptureDialog : Window
     private List<string> _peakMods = new();
     private readonly List<string> _chordKeys = new();   // non-modifier keys pressed this recording, in press order
     private readonly HashSet<string> _heldKeyNames = new(); // non-modifier keys currently down
+    private readonly HashSet<string> _heldModNames = new(); // modifiers currently down (hook path)
     private string? _result;
+
+    // While recording, a low-level keyboard hook sees (and swallows) every key — including
+    // Windows shortcuts like Win+Ctrl+V / Win+V that the OS would otherwise act on before
+    // this window ever got a KeyDown, and the bare Win press that opens Start.
+    private IntPtr _hook = IntPtr.Zero;
+    private LowLevelKeyboardProc? _hookProc; // keep the delegate alive while hooked
 
     /// <summary>
     /// Show the recorder. Returns the sequence on Save ("" when the user cleared it), or null when cancelled.
@@ -180,7 +188,8 @@ public sealed class KeyCaptureDialog : Window
         Focusable = true;
         PreviewKeyDown += OnKeyDown;
         PreviewKeyUp += OnKeyUp;
-        Closed += (_, _) => StopPulse();
+        Closed += (_, _) => { StopPulse(); RemoveHook(); };
+        Deactivated += (_, _) => { if (_recording) StopRecording(); }; // never keep swallowing keys in the background
         _builder.Changed += () => Render();
         _builder.SelectionChanged += () => Render();
         _builder.RecordRequested += _ => StartRecording();
@@ -202,7 +211,9 @@ public sealed class KeyCaptureDialog : Window
         _peakMods = new List<string>();
         _chordKeys.Clear();
         _heldKeyNames.Clear();
+        _heldModNames.Clear();
         _recording = true;
+        InstallHook();
         Focus();
         Render();
     }
@@ -210,6 +221,7 @@ public sealed class KeyCaptureDialog : Window
     private void StopRecording()
     {
         _recording = false;
+        RemoveHookDeferred();
         _builder.CancelInsert();
         Render();
     }
@@ -218,9 +230,78 @@ public sealed class KeyCaptureDialog : Window
     private void CommitCombo(string combo)
     {
         _recording = false;
+        RemoveHookDeferred();
         _builder.PutCombo(combo);
         Render();
     }
+
+    // ── Low-level keyboard hook (recording only) ──────────────────
+
+    private void InstallHook()
+    {
+        if (_hook != IntPtr.Zero) return;
+        _hookProc = HookCallback;
+        _hook = SetWindowsHookEx(WH_KEYBOARD_LL, _hookProc, GetModuleHandle(null), 0);
+        if (_hook == IntPtr.Zero)
+            Logger.Log($"Macro recorder: keyboard hook unavailable (err {Marshal.GetLastWin32Error()}), using window key events");
+    }
+
+    private void RemoveHook()
+    {
+        var h = _hook;
+        _hook = IntPtr.Zero;
+        if (h != IntPtr.Zero) UnhookWindowsHookEx(h);
+    }
+
+    // Recording usually ends inside the hook callback; unhook after it returns.
+    private void RemoveHookDeferred() => Dispatcher.BeginInvoke(new Action(() => { if (!_recording) RemoveHook(); }));
+
+    private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0 && _recording && IsActive)
+        {
+            var kb = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+            if ((kb.flags & LLKHF_INJECTED) == 0) // let AmpUp's own SendInput (and other injectors) through
+            {
+                int msg = wParam.ToInt32();
+                try
+                {
+                    if (msg is WM_KEYDOWN or WM_SYSKEYDOWN) RecordDown((int)kb.vkCode);
+                    else if (msg is WM_KEYUP or WM_SYSKEYUP) RecordUp((int)kb.vkCode);
+                }
+                catch (Exception ex) { Logger.Log($"Macro recorder hook error: {ex.Message}"); }
+                return (IntPtr)1; // swallow: no Start menu, no Win+V clipboard, no Win+Ctrl+V sound flyout
+            }
+        }
+        return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
+    }
+
+    private static string? ModifierName(int vk) => vk switch
+    {
+        0x11 or 0xA2 or 0xA3 => "ctrl",
+        0x10 or 0xA0 or 0xA1 => "shift",
+        0x12 or 0xA4 or 0xA5 => "alt",
+        0x5B or 0x5C => "win",
+        _ => null,
+    };
+
+    private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct KBDLLHOOKSTRUCT { public uint vkCode, scanCode, flags, time; public IntPtr dwExtraInfo; }
+
+    private const int WH_KEYBOARD_LL = 13;
+    private const int WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_SYSKEYDOWN = 0x0104, WM_SYSKEYUP = 0x0105;
+    private const uint LLKHF_INJECTED = 0x10;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern IntPtr GetModuleHandle(string? lpModuleName);
 
     private void ToggleRecording()
     {
@@ -323,26 +404,36 @@ public sealed class KeyCaptureDialog : Window
         }
 
         e.Handled = true;
-        if (key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None)
+        if (_hook != IntPtr.Zero) return; // the keyboard hook is doing the recording
+        RecordDown(KeyInterop.VirtualKeyFromKey(key));
+    }
+
+    /// <summary>A key went down while recording (from the hook, or window events as a fallback).</summary>
+    private void RecordDown(int vk)
+    {
+        if (!_recording || vk == 0) return;
+
+        if (vk == 0x1B && HeldModifiers().Count == 0 && _heldKeyNames.Count == 0)
         {
             StopRecording();
             return;
         }
 
-        int vk = KeyInterop.VirtualKeyFromKey(key);
-        if (vk == 0 || KeyboardInjector.IsModifierVk(vk))
+        var mod = ModifierName(vk);
+        if (mod != null)
         {
             // Show the modifiers being held while waiting for the main key.
+            _heldModNames.Add(mod);
             var held = HeldModifiers();
             if (held.Count >= _peakMods.Count) _peakMods = held;
-            Render(held);
+            Render(LiveParts(held));
             return;
         }
 
         var name = KeyboardInjector.NameForVk(vk);
         if (name == null)
         {
-            _status.Text = $"{key} isn't supported, try another key";
+            _status.Text = "That key isn't supported, try another key";
             return;
         }
 
@@ -365,11 +456,21 @@ public sealed class KeyCaptureDialog : Window
     {
         if (!_recording) return;
         e.Handled = true;
+        if (_hook != IntPtr.Zero) return; // the keyboard hook is doing the recording
 
         var upKey = e.Key == Key.System ? e.SystemKey : e.Key;
         if (upKey == Key.ImeProcessed) upKey = e.ImeProcessedKey;
-        int upVk = KeyInterop.VirtualKeyFromKey(upKey);
-        if (upVk != 0 && !KeyboardInjector.IsModifierVk(upVk))
+        RecordUp(KeyInterop.VirtualKeyFromKey(upKey));
+    }
+
+    /// <summary>A key came up while recording; commits the chord once everything is released.</summary>
+    private void RecordUp(int upVk)
+    {
+        if (!_recording) return;
+
+        var mod = ModifierName(upVk);
+        if (mod != null) _heldModNames.Remove(mod);
+        else if (upVk != 0)
         {
             var upName = KeyboardInjector.NameForVk(upVk);
             if (upName != null) _heldKeyNames.Remove(upName);
@@ -395,9 +496,16 @@ public sealed class KeyCaptureDialog : Window
         }
     }
 
-    private static List<string> HeldModifiers()
+    private List<string> HeldModifiers()
     {
         var parts = new List<string>();
+        if (_hook != IntPtr.Zero)
+        {
+            // Hooked keys are swallowed, so WPF's Keyboard.Modifiers never sees them: use our own state.
+            foreach (var n in new[] { "ctrl", "shift", "alt", "win" })
+                if (_heldModNames.Contains(n)) parts.Add(n);
+            return parts;
+        }
         var m = Keyboard.Modifiers;
         if (m.HasFlag(ModifierKeys.Control)) parts.Add("ctrl");
         if (m.HasFlag(ModifierKeys.Shift)) parts.Add("shift");

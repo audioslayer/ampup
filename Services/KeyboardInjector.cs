@@ -149,6 +149,9 @@ public static class KeyboardInjector
     {
         var steps = new List<MacroStep>();
         if (string.IsNullOrWhiteSpace(seq)) return steps;
+        // Pre-1.4.5 macros were a single combo and spaces around '+' were allowed ("win + ctrl + v").
+        // Glue those back into one combo so they aren't split into separate steps.
+        seq = System.Text.RegularExpressions.Regex.Replace(seq, @"\s*\+\s*", "+");
         foreach (var tok in seq.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         {
             if (tok.StartsWith("wait:", StringComparison.OrdinalIgnoreCase))
