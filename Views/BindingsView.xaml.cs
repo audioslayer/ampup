@@ -645,7 +645,7 @@ public class BindingsView : UserControl
             Margin = new Thickness(4),
             Child = grid,
         };
-        b.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        b.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
         return b;
     }
 
@@ -1035,10 +1035,10 @@ public class BindingsView : UserControl
             ToolTip = $"{slot}: {text}",
             Child = sp,
         };
-        chip.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        chip.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
         var tint = dotColor ?? ThemeManager.Accent;
         chip.MouseEnter += (_, _) => chip.Background = new SolidColorBrush(ThemeManager.WithAlpha(tint, 0x26));
-        chip.MouseLeave += (_, _) => chip.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        chip.MouseLeave += (_, _) => chip.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
         chip.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
         AddHoverLift(chip, 1);
         return chip;
@@ -1180,11 +1180,11 @@ public class BindingsView : UserControl
             Cursor = Cursors.Hand,
             Opacity = hasContent ? 1.0 : 0.5,
         };
-        card.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        card.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
         card.MouseEnter += (_, _) =>
             card.Background = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x1E));
         card.MouseLeave += (_, _) =>
-            card.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            card.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
         card.MouseLeftButtonDown += (_, _) => _onNavigateToButtons?.Invoke(profileName);
 
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -1285,7 +1285,7 @@ public class BindingsView : UserControl
             var (r, g, b) = App.Rgb.GetCurrentColor(idx);
             cardBg = (r > 10 || g > 10 || b > 10)
                 ? new SolidColorBrush(Color.FromArgb(0x18, r, g, b))
-                : (SolidColorBrush)FindResource("BgDarkBrush");
+                : (SolidColorBrush)FindResource("CardInsetBrush");
         }
         else if (light != null && (light.R > 10 || light.G > 10 || light.B > 10))
         {
@@ -1296,7 +1296,7 @@ public class BindingsView : UserControl
         }
         else
         {
-            cardBg = (SolidColorBrush)FindResource("BgDarkBrush");
+            cardBg = (SolidColorBrush)FindResource("CardInsetBrush");
         }
 
         // Fill-only tile (no outline). The fill is the live LED tint, rewritten by
@@ -1431,7 +1431,7 @@ public class BindingsView : UserControl
             Cursor = Cursors.Hand,
             Opacity = isEmpty ? 0.45 : 1.0
         };
-        card.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        card.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
 
         var btnCardTransform = new TranslateTransform(0, 0);
         card.RenderTransform = btnCardTransform;
@@ -1446,7 +1446,7 @@ public class BindingsView : UserControl
         card.MouseLeave += (_, _) =>
         {
             btnCardTransform.Y = 0;
-            card.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            card.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
         };
         card.MouseLeftButtonDown += (_, _) => _onNavigateToButtons?.Invoke(profileName);
 

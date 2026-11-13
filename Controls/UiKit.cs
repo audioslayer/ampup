@@ -320,10 +320,12 @@ public static class UiKit
         var list = new System.Windows.Controls.Border
         {
             CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(0), // fill only: list boxes sit inside cards
-            Padding = new Thickness(4),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0),
+            // No fill: list boxes sit inside cards and rows go straight on the card
+            // (a near-black box here read as a hole cut into the card).
+            Background = Brushes.Transparent,
         };
-        list.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "BgDarkBrush");
         rows = new StackPanel();
         list.Child = rows;
         return list;
@@ -382,7 +384,8 @@ public static class UiKit
 
         row.MouseEnter += (_, _) =>
         {
-            row.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBgBrush");
+            // Rows sit on a card, so hover uses the inset shade (CardBg would be invisible).
+            row.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardInsetBrush");
             if (hoverActions != null) hoverActions.Opacity = 1;
         };
         row.MouseLeave += (_, _) =>
@@ -418,7 +421,7 @@ public static class UiKit
         sp.Children.Add(ic);
         sp.Children.Add(tb);
         row.Child = sp;
-        row.MouseEnter += (_, _) => row.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardBgBrush");
+        row.MouseEnter += (_, _) => row.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "CardInsetBrush");
         row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
         if (onClick != null) row.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClick(); };
         return row;

@@ -66,6 +66,8 @@ public static class ThemeManager
         res["CardBorder"] = cardBorder;
         res["InputBg"] = inputBg;
         res["InputBorder"] = inputBorder;
+        var cardInset = Mix(cardBg, inputBg, 0.5); // tiles inside cards: just lighter than the card
+        res["CardInset"] = cardInset;
 
         // Update brushes
         res["BgBaseBrush"] = Freeze(new SolidColorBrush(bgBase));
@@ -74,6 +76,7 @@ public static class ThemeManager
         res["CardBorderBrush"] = Freeze(new SolidColorBrush(cardBorder));
         res["InputBgBrush"] = Freeze(new SolidColorBrush(inputBg));
         res["InputBorderBrush"] = Freeze(new SolidColorBrush(inputBorder));
+        res["CardInsetBrush"] = Freeze(new SolidColorBrush(cardInset));
 
         OnCardThemeChanged?.Invoke();
     }

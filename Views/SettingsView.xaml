@@ -275,7 +275,7 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="16,14" />
             <Setter Property="Margin" Value="0,0,0,10" />
-            <Setter Property="Background" Value="{DynamicResource BgDarkBrush}" />
+            <Setter Property="Background" Value="{DynamicResource CardInsetBrush}" />
         </Style>
         <Style x:Key="SetRowTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="13" />

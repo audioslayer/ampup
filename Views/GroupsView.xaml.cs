@@ -173,11 +173,10 @@ public partial class GroupsView : UserControl
             + "point a knob at one to dim everything at once, or bind a button to toggle it.\n\n"
             + "App groups put several apps on one knob (Spotify + Steam as Music). Any knob or encoder can share one from the Mixer.",
             "Groups");
-        help.Margin = new Thickness(0, 0, 12, 0);
-        actions.Children.Add(help);
         actions.Children.Add(BuildNewGroupButton());
+        // "?" sits right next to the page title (titleHelp), like every other page.
         return UiKit.PageHeader("Groups", "Several devices or apps on one knob or button",
-            actions, Material.Icons.MaterialIconKind.Group);
+            actions, Material.Icons.MaterialIconKind.Group, titleHelp: help);
     }
 
     /// <summary>Small accent-tinted pill ("3 groups").</summary>
@@ -1079,7 +1078,7 @@ public partial class GroupsView : UserControl
             ToolTip = $"Open {label} in the Mixer",
             Child = sp,
         };
-        pill.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        pill.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
         pill.MouseEnter += (_, _) =>
         {
             pill.Background = new SolidColorBrush(ThemeManager.WithAlpha(ThemeManager.Accent, 0x22));
@@ -1087,7 +1086,7 @@ public partial class GroupsView : UserControl
         };
         pill.MouseLeave += (_, _) =>
         {
-            pill.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            pill.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
             tb.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
         };
         pill.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnOpenInMixer?.Invoke(isStreamController, idx); };
@@ -1507,7 +1506,7 @@ public partial class GroupsView : UserControl
                 Margin = new Thickness(0, 0, 6, 0),
                 BorderThickness = new Thickness(1),
                 Cursor = Cursors.Hand,
-                Background = isSelected ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)) : (SolidColorBrush)FindResource("BgDarkBrush"),
+                Background = isSelected ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)) : (SolidColorBrush)FindResource("CardInsetBrush"),
                 BorderBrush = isSelected ? new SolidColorBrush(accent) : (SolidColorBrush)FindResource("InputBorderBrush"),
                 Tag = value,
             };
@@ -1527,7 +1526,7 @@ public partial class GroupsView : UserControl
             foreach (var p in actionPills)
             {
                 bool sel = p.Tag as string == value;
-                p.Background = sel ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)) : (SolidColorBrush)FindResource("BgDarkBrush");
+                p.Background = sel ? new SolidColorBrush(ThemeManager.WithAlpha(accent, 0x22)) : (SolidColorBrush)FindResource("CardInsetBrush");
                 p.BorderBrush = sel ? new SolidColorBrush(accent) : (SolidColorBrush)FindResource("InputBorderBrush");
                 ((TextBlock)p.Child).Foreground = sel ? new SolidColorBrush(accent) : Brush("#9A9A9A");
             }

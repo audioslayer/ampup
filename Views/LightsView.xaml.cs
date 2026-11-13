@@ -977,7 +977,7 @@ public partial class LightsView : UserControl
             ToolTip = "Stop preview (resume normal)",
             Child = UiKit.Icon(MaterialIconKind.Close, 16),
         };
-        offSwatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        offSwatch.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
         offSwatch.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         offSwatch.MouseLeftButtonDown += (_, _) => ClearCalibPreview();
         testRow.Children.Add(offSwatch);
@@ -1168,7 +1168,7 @@ public partial class LightsView : UserControl
             if (active)
                 tile.Background = new SolidColorBrush(Color.FromArgb(0x2E, accent.R, accent.G, accent.B));
             else
-                tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                tile.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
         }
 
         // Show manual section only when "Solid" is active (custom color picking)
@@ -1340,7 +1340,7 @@ public partial class LightsView : UserControl
                 BorderThickness = new Thickness(0),
                 Child = tileContent,
             };
-            swatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            swatch.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
 
             var presetC1 = c1;
             var presetC2 = c2;
@@ -1374,7 +1374,7 @@ public partial class LightsView : UserControl
             swatch.MouseLeave += (_, _) =>
             {
                 swatchTransform.Y = 0;
-                swatch.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                swatch.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
                 label.Foreground = LightsView.ThemeBrush("TextDimBrush");
             };
 

@@ -4341,7 +4341,7 @@ public partial class RoomView : UserControl
                 Margin = new Thickness(0, 0, 6, 6),
                 Cursor = Cursors.Hand, ToolTip = pname, Child = tileContent,
             };
-            tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            tile.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
             tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             tile.MouseEnter += (_, _) =>
             {
@@ -4353,7 +4353,7 @@ public partial class RoomView : UserControl
             tile.MouseLeave += (_, _) =>
             {
                 tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-                tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                tile.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
                 nameLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x77, 0x77, 0x77));
             };
             tile.MouseLeftButtonDown += (_, _) => ApplyCorsairColors(captured[0], captured[captured.Length > 1 ? captured.Length - 1 : 0]);
@@ -5601,7 +5601,7 @@ public partial class RoomView : UserControl
                 CornerRadius = new CornerRadius(8),
                 Background = isActive
                     ? new SolidColorBrush(Color.FromArgb(0x30, corsairYellow.R, corsairYellow.G, corsairYellow.B))
-                    : FindBrush("BgDarkBrush"),
+                    : FindBrush("CardInsetBrush"),
                 BorderBrush = isActive
                     ? new SolidColorBrush(corsairYellow)
                     : FindBrush("CardBorderBrush"),
@@ -6051,7 +6051,7 @@ public partial class RoomView : UserControl
             CornerRadius = new CornerRadius(6),
             Background = isActive
                 ? new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B))
-                : FindBrush("BgDarkBrush"),
+                : FindBrush("CardInsetBrush"),
             BorderBrush = isActive
                 ? new SolidColorBrush(accent)
                 : FindBrush("CardBorderBrush"),
@@ -6096,7 +6096,7 @@ public partial class RoomView : UserControl
         {
             if (!isActive)
             {
-                tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                tile.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
                 tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
             }
         };
@@ -6133,7 +6133,7 @@ public partial class RoomView : UserControl
         {
             Background = isActive
                 ? new SolidColorBrush(Color.FromArgb(0x30, colors[0].R, colors[0].G, colors[0].B))
-                : FindBrush("BgDarkBrush"),
+                : FindBrush("CardInsetBrush"),
             CornerRadius = new CornerRadius(6),
             BorderBrush = isActive
                 ? new SolidColorBrush(Colors.White)
@@ -6159,7 +6159,7 @@ public partial class RoomView : UserControl
             if (_roomActivePreset != name)
             {
                 tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
-                tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                tile.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
             }
         };
 
@@ -7316,7 +7316,7 @@ public partial class RoomView : UserControl
             ToolTip = "Set a solid color",
             Tag = "__solid__",
         };
-        tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+        tile.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
         tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
         var tileContent = new StackPanel
@@ -7350,7 +7350,7 @@ public partial class RoomView : UserControl
         };
         tile.MouseLeave += (_, _) =>
         {
-            tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            tile.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
             tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         };
 
@@ -7359,7 +7359,7 @@ public partial class RoomView : UserControl
             foreach (var child in wrap.Children)
                 if (child is Border b)
                 {
-                    b.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                    b.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
                     b.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                 }
 
@@ -7426,7 +7426,7 @@ public partial class RoomView : UserControl
                 ToolTip = scene.Name,
                 Tag = sceneId,
             };
-            tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+            tile.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
             tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
 
             var tileContent = new StackPanel
@@ -7468,7 +7468,7 @@ public partial class RoomView : UserControl
             {
                 if (tile.Tag as string != activeSceneId)
                 {
-                    tile.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                    tile.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
                     tile.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                 }
             };
@@ -7478,7 +7478,7 @@ public partial class RoomView : UserControl
                 {
                     if (child is Border b && b.Tag as string != sceneId)
                     {
-                        b.SetResourceReference(Border.BackgroundProperty, "BgDarkBrush");
+                        b.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
                         b.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
                     }
                 }

@@ -366,7 +366,7 @@ public partial class ButtonsView
             int localIdx = i;
             var card = new Border
             {
-                Background = FindBrush("BgDarkBrush"),
+                Background = FindBrush("CardInsetBrush"),
                 BorderBrush = FindBrush("CardBorderBrush"),
                 BorderThickness = new Thickness(1.5),
                 CornerRadius = new CornerRadius(14),
@@ -1310,7 +1310,7 @@ public partial class ButtonsView
     {
         var border = new Border
         {
-            Background = FindBrush("BgDarkBrush"),
+            Background = FindBrush("CardInsetBrush"),
             BorderBrush = FindBrush("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
@@ -3392,7 +3392,7 @@ public partial class ButtonsView
             : FindBrush("CardBorderBrush");
         border.Background = active
             ? new SolidColorBrush(Color.FromArgb(0x15, ThemeManager.Accent.R, ThemeManager.Accent.G, ThemeManager.Accent.B))
-            : FindBrush("BgDarkBrush");
+            : FindBrush("CardInsetBrush");
     }
 
     private void UpdateDeviceSurfaceVisibility(DeviceSurface surface)
@@ -4367,7 +4367,7 @@ public partial class ButtonsView
     {
         var row = new Border
         {
-            Background = FindBrush("BgDarkBrush"),
+            Background = FindBrush("CardInsetBrush"),
             BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(8, 8, 8, 8),
