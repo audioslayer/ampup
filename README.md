@@ -71,10 +71,11 @@ The experimental macOS port has been discontinued. Current releases support **64
 ### A modern interface
 
 - A slim sidebar that expands on hover, with sections for Hardware, Lighting, and App and the profile switcher at the top.
-- **Overview** page with a hero header for the active profile, live device status pills, large device photos, and a glass card for every profile with compact knob, button, and key chips. Click a chip to jump straight to it.
+- A clean, calm layout: one soft card per section with no heavy outlines, boxes-inside-boxes, or colored stripes, quiet grey section headings, readable 12px labels, and scrollbars that sit on the window's right edge.
+- **Overview** page with the active profile as the page heading, live device status pills, large device photos, and a card for every profile with compact knob, button, and key chips. Click a chip to jump straight to it.
 - **Settings** redesigned in four tabs: **Devices** (big hardware-mode cards and device cards with product photos), **General**, **Profiles**, and **Integrations**.
 - **Integrations hub:** one sidebar lists Govee, Corsair iCUE, SignalRGB, Home Assistant, OBS Studio, VoiceMeeter, Discord, and Spotify with their logos and a Connected / On / Off status. Pick a service to see its settings, and use its **Setup guide** for a step-by-step walkthrough.
-- **Groups** page with glass cards, app chips with real app icons, and "used by" pills that show which knobs share each group.
+- **Groups** page with every member of a group shown as chips (real app icons included) and "used by" pills that show which knobs share each group.
 - Compact page headers, and the same cards, switches, sliders, dropdowns, and text boxes on every page.
 - Searchable pickers with sections, friendly names, short descriptions, and real app icons.
 - Small **?** help tips explain each feature on hover instead of filling pages with text.
@@ -94,11 +95,11 @@ The experimental macOS port has been discontinued. Current releases support **64
 
 ### Buttons, profiles, and automation
 
-- Assign tap, double-press, and hold actions to each Turn Up button.
+- Assign tap, double-press, and hold actions to each Turn Up button. A tap fires instantly when the button has no double-press action.
 - Use media, mute, app, device, profile, macro, URL, text, screenshot, power, integration, toggle, and multi-action commands.
 - Mute the default mic, or a specific microphone or output device, from any button or key.
 - **Macros with pauses:** the **Macro** category at the top of the action list builds multi-step keystroke sequences on a timeline. Record keys, hover between steps to drop in a pause (100 ms to 2 s, or any length), edit pauses in place, and drag steps to reorder. Press several keys together (like `T + Y`) to record a real chord. Sequences run in the background, so a long macro never freezes your knobs.
-- **Keystroke recorder:** press **Record** and tap your hotkey. F1-F24 (including F13-F24), numpad, media, and punctuation keys all work, and **Hold key** keeps keys down while you hold the button for push-to-talk.
+- **Keystroke recorder:** press **Record** and tap your hotkey. F1-F24 (including F13-F24), numpad, media, and punctuation keys all work, Windows shortcuts like `Win+V` and `Win+Ctrl+V` record without triggering Windows, and **Hold key** keeps keys down while you hold the button for push-to-talk. Macros can also be typed by hand (`ctrl+shift+m`, `win + ctrl + v`).
 - **Chrome media buttons:** play/pause, next, and previous that control only Chrome (YouTube and friends) so they never grab your Spotify session.
 - Build profiles, import/export configurations, back up settings, and switch profiles manually or by foreground application.
 - Automatically duck selected apps when a voice or priority application becomes active.
@@ -128,7 +129,7 @@ Mix your stream from the mixer. Amp Up talks to OBS Studio 28+ over its built-in
 - **OBS scenes Quick Wheel:** hold a button and pick a scene, with the live scene marked.
 - **Status everywhere:** mute LEDs follow OBS, and N3 keys can show recording, streaming, paused, replay buffer, and virtual camera states.
 
-To connect, open **Tools → WebSocket Server Settings** in OBS, tick **Enable WebSocket server**, and copy the port and password into **Settings → Connected Apps → OBS Studio** in Amp Up. For a second PC, use that PC's IP address as the host.
+To connect, open **Tools → WebSocket Server Settings** in OBS, tick **Enable WebSocket server**, and copy the port and password into **Settings → Integrations → OBS Studio** in Amp Up. For a second PC, use that PC's IP address as the host.
 
 ### Turn Up RGB lighting
 
@@ -153,7 +154,8 @@ To connect, open **Tools → WebSocket Server Settings** in OBS, tick **Enable W
 
 ### Room lighting
 
-- Synchronize Govee, Corsair iCUE, and Turn Up lighting from one Room workspace.
+- Synchronize Govee, Corsair iCUE, Home Assistant, and Turn Up lighting from one Room workspace.
+- Add **Home Assistant lights** from a searchable picker grouped by room, then control power, brightness, and white balance and let room effects, Music Reactive, and VU Fill drive them (best for static colors and slow effects; optional Screen Sync).
 - Use static and animated room effects, Music Reactive, VU Fill, Screen Sync, and Game Mode.
 - Screen Sync uses GPU capture (DXGI Desktop Duplication) with HDR tone-mapping. It samples the screen edges, picks dominant colors, and adjusts brightness to the scene.
 - Set white balance per device and map light segments to screen edges, for example a rope light bent around a frame.
@@ -178,10 +180,10 @@ To connect, open **Tools → WebSocket Server Settings** in OBS, tick **Enable W
 | **SignalRGB** | Free localhost bridge for Turn Up LEDs, layouts, effect actions, blackout/restore, and profile sync without surrendering the serial port |
 | **Govee** | LAN and Cloud devices, scenes, brightness, color, temperature, groups, RGBIC segments, room effects, and screen/music sync |
 | **Corsair iCUE** | Room lighting, static and reactive effects, device sync, and supported fan/pump controls |
-| **Home Assistant** | Entity actions and controls from hardware buttons, knobs, and N3 keys |
+| **Home Assistant** | Entity actions and controls from hardware buttons, knobs, and N3 keys, plus Home Assistant lights in the Room page driven by room effects |
 | **OBS Studio** | Source volume knobs with live OBS meters and two-way sync, scene / mute / source / filter / stream / record / replay / virtual camera actions, On Air lighting, and a scene Quick Wheel, on this PC or a second streaming PC. See [OBS Studio](#obs-studio) |
 | **VoiceMeeter** | Strip and bus gain and mute for Basic, Banana, and Potato; automatic detection or a chosen install folder, with automatic reconnect when VoiceMeeter restarts |
-| **Spotify** | Playback actions, session restore, track state, and N3 now-playing artwork |
+| **Spotify** | Playback actions, track state, and N3 now-playing artwork. Connect once: the session reconnects on its own after a reboot, even when Amp Up starts before the network is up |
 | **Discord RPC** | Mute, deafen, push-to-talk, auto gain, echo cancellation, noise suppression, and leave-channel actions, plus Discord **input and output volume** as knob and N3 encoder targets, with live on/off state on N3 keys. Tester preview until Discord approves public access: open **Settings → Integrations → Discord → Setup guide**, send a friend request to **aud10sayer** on Discord asking for Amp Up tester access, and install the tester invite you get back |
 
 Every integration has a **Setup guide** in **Settings → Integrations** that walks through connecting it, including Home Assistant tokens, OBS WebSocket, VoiceMeeter, iCUE, SignalRGB, Spotify, and Discord tester access.

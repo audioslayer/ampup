@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [1.4.6] - 2026-11-12
 
 ### Added
 - Home Assistant lights in Room > Devices: a discovery window scans Home Assistant and shows your lights as a searchable grid grouped by room, with on/off state and color support, so you can tick the ones to add. Control power, brightness and white balance from cards like the Govee ones.
@@ -15,9 +15,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - Room, Lights, On-Screen Display and Settings now have the compact page header with icon + label tabs on the right (accent underline on the active tab; Left/Right arrows switch tabs), replacing the old centered tab bars.
+- Calmer look across every page: card outlines are barely visible, there are no boxes inside boxes or colored stripes on cards, section headings are quiet grey labels, tiles and rows inside a card use a soft lighter shade instead of a near-black "hole", small labels are 12px, and the line under page titles is gone.
+- Mixer: knob rings keep each knob's LED hue but in a softer shade instead of full-brightness neon; the duplicate channel name under the percentage is gone; Sensitivity shows its live value.
+- Settings → Devices: the "Your devices" card is replaced by a status pill next to the title, and the mode and device cards are fill-only.
+- Overview: the active profile is a plain page heading instead of a card.
+- Groups: every device and app in a group is shown (no more "+N more"), and the "?" help sits next to the page title.
+- Page scrollbars sit on the window's right edge.
 
 ### Fixed
 - Button taps fire instantly when the button has no double-press action. Every tap used to wait 300 ms for a possible second press, so buttons felt laggy; buttons that do have a double-press action keep the short wait.
+- Spotify no longer needs reconnecting after a reboot: if Amp Up starts before the network is up, it keeps retrying (and retries the moment the network comes back) instead of giving up after one try. Settings shows Connected / Reconnecting / can't reach Spotify.
+- Macros typed with spaces around `+` (e.g. `win + ctrl + v`) work again; 1.4.5 split them into separate key presses.
+- The keystroke recorder captures Windows shortcuts such as Win+V and Win+Ctrl+V (and a bare Win key) instead of Windows acting on them.
+- The macro editor no longer shows two Record buttons.
+- Clicking an empty spot on a page no longer draws a white focus box around it.
 
 ## [1.4.5] - 2026-11-10
 
