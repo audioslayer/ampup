@@ -756,15 +756,8 @@ public sealed class KeyCaptureDialog : Window
         var body = new StackPanel();
         card.Child = body;
 
-        // Header: glowing macro tile + label
-        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-        var headTile = MacroSequenceBuilder.GlowTile(a, MaterialIconKind.KeyboardOutline, 28);
-        headTile.Margin = new Thickness(0, 0, 9, 0);
-        head.Children.Add(headTile);
-        var headText = new TextBlock { Text = "MACRO STEPS", FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-        headText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
-        head.Children.Add(headText);
-        body.Children.Add(head);
+        // No header of its own: every place that hosts the recorder already labels it
+        // ("MACRO KEYS", the "MACRO" section, a multi-action step), so one would double up.
 
         // Step timeline (click to select, hover slots to insert, footer with Clear all)
         var builder = new MacroSequenceBuilder(24) { ShowEmptyRecordButton = false };
