@@ -49,7 +49,14 @@ public sealed class MacroSequenceBuilder
     public int PendingInsert { get; private set; } = -1;
 
     /// <summary>Show a Record button in the empty state (off when the host has its own right below).</summary>
-    public bool ShowEmptyRecordButton { get; set; } = true;
+    public bool ShowEmptyRecordButton
+    {
+        get => _showEmptyRecordButton;
+        // Re-render: callers set this in an object initializer, which runs after the
+        // constructor already drew the empty state (that showed a duplicate Record button).
+        set { if (_showEmptyRecordButton == value) return; _showEmptyRecordButton = value; if (_root != null) Render(); }
+    }
+    private bool _showEmptyRecordButton = true;
 
     /// <summary>The timeline (steps + footer).</summary>
     public FrameworkElement Chips => _root;

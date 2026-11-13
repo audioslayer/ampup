@@ -748,8 +748,7 @@ public sealed class KeyCaptureDialog : Window
         var card = new Border
         {
             CornerRadius = new CornerRadius(12),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x33)),
+            BorderThickness = new Thickness(0), // fill only: it sits inside the button card
             Padding = new Thickness(12, 14, 12, 10),
             Margin = new Thickness(0, 0, 0, 6),
         };
@@ -762,8 +761,8 @@ public sealed class KeyCaptureDialog : Window
         var headTile = MacroSequenceBuilder.GlowTile(a, MaterialIconKind.KeyboardOutline, 28);
         headTile.Margin = new Thickness(0, 0, 9, 0);
         head.Children.Add(headTile);
-        var headText = new TextBlock { Text = "MACRO STEPS", FontSize = 11, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
-        headText.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
+        var headText = new TextBlock { Text = "MACRO STEPS", FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        headText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         head.Children.Add(headText);
         body.Children.Add(head);
 
@@ -807,7 +806,7 @@ public sealed class KeyCaptureDialog : Window
         // Footer: "Edit as text" link
         var editIcon = UiKit.Icon(MaterialIconKind.FormTextbox, 14);
         editIcon.Margin = new Thickness(0, 0, 5, 0);
-        var editText = new TextBlock { Text = "Edit as text", FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+        var editText = new TextBlock { Text = "Edit as text", FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
         editText.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
         var editContent = new StackPanel { Orientation = Orientation.Horizontal };
         editContent.Children.Add(editIcon);
