@@ -65,6 +65,7 @@ public partial class App : Application
     private N3Controller? _n3;
     private SpotifyIntegration? _spotify;
     private DevScreenshotServer? _devScreenshots;
+    private readonly DateTime _appStartUtc = DateTime.UtcNow;
     private PocketCastsIntegration? _pocketCasts;
     public static SpotifyIntegration? Spotify => (Current as App)?._spotify;
     private DiscordRpcIntegration? _discordRpc;
@@ -537,7 +538,13 @@ public partial class App : Application
         // BeginInvoke: the timer thread must not block on the UI thread while
         // the profile switch rebuilds views (that also let ticks overlap).
         _autoSwitcher.OnProfileSwitchRequested += profileName =>
-            Dispatcher.BeginInvoke(() => SwitchToProfile(profileName));
+            Dispatcher.BeginInvoke(() =>
+            {
+                // "Return to Default" fires on the first poll after launch even when Default is
+                // already active; that no-op switch reloaded the profile and flashed the OSD.
+                if (string.Equals(profileName, _config.ActiveProfile, StringComparison.OrdinalIgnoreCase)) return;
+                SwitchToProfile(profileName);
+            });
         _autoSwitchTimer = new System.Threading.Timer(_ =>
         {
             if (Interlocked.Exchange(ref _autoSwitchRunning, 1) != 0) return;
@@ -2969,8 +2976,9 @@ public partial class App : Application
         // full view rebuild.
         RunOnUi(() => (MainWindow as MainWindow)?.RefreshViews(_config));
 
-        // Show OSD for profile switch
-        if (_config.Osd.ShowProfileSwitch)
+        // Show OSD for profile switch — but not while Amp Up is still starting up (an
+        // auto-switch rule matching the app already in front shouldn't pop an OSD at boot).
+        if (_config.Osd.ShowProfileSwitch && (DateTime.UtcNow - _appStartUtc).TotalSeconds > 10)
         {
             RunOnUi(() =>
             {
