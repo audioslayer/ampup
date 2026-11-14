@@ -485,6 +485,18 @@ public partial class App : Application
 
         _spotify = new SpotifyIntegration(_config.Spotify, _ => ConfigManager.Save(_config));
         _spotify.OnStateChanged += HandleSpotifyStateChanged;
+        _spotify.LikeChanged += (liked, title, artists) => Dispatcher.BeginInvoke(() =>
+        {
+            // Confirm Like / Unlike presses with the OSD (same card style as device switches).
+            if (!EnsureOsd()) return;
+            var name = string.IsNullOrWhiteSpace(artists) ? title : $"{title} · {artists}";
+            _osdOverlay!.ShowNotice(
+                liked ? "ADDED TO LIKED SONGS" : "REMOVED FROM LIKED SONGS",
+                string.IsNullOrWhiteSpace(name) ? "Spotify" : name,
+                liked ? "Heart" : "HeartOffOutline",
+                liked ? "#1DB954" : "#9AA7B8",
+                _config.Osd.DeviceDuration);
+        });
         // Restore the saved session in the background. Retries with backoff (and on
         // network-available) because with Start with Windows AmpUp often launches
         // before the network is up — a single attempt left Spotify dead until restart.

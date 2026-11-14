@@ -40,6 +40,9 @@ public sealed class SpotifyIntegration : IDisposable
     public SpotifyTrackState? CurrentTrack { get; private set; }
     public event Action? OnStateChanged;
 
+    /// <summary>Fires after a Like key press succeeds: (nowLiked, track title, artists).</summary>
+    public event Action<bool, string, string>? LikeChanged;
+
     private static string TokenCachePath =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -444,6 +447,7 @@ public sealed class SpotifyIntegration : IDisposable
                 CurrentTrack = CurrentTrack with { Liked = !liked };
                 OnStateChanged?.Invoke();
             }
+            LikeChanged?.Invoke(!liked, track.Title, track.Artists);
         }
         catch (Exception ex) { Logger.Log($"Spotify like toggle failed: {ex.Message}"); }
     }

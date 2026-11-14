@@ -554,6 +554,29 @@ public partial class OsdOverlay : Window
         _dismissTimer.Start();
     }
 
+    /// <summary>
+    /// Short notice in the same style as the device switch: small category label, colored
+    /// icon and a title (e.g. "ADDED TO LIKED SONGS" / heart / track name).
+    /// </summary>
+    public void ShowNotice(string category, string title, string symbolName, string colorHex, double seconds)
+    {
+        _closing = false;
+        _dismissTimer.Stop();
+
+        Width = 372;
+        ProfileBindingsPanel.Visibility = Visibility.Collapsed;
+
+        CategoryLabel.Text = category;
+        SetSymbolIcon(symbolName, colorHex);
+        OsdTitle.Text = title;
+        OsdValue.Visibility = Visibility.Collapsed;
+        BarContainer.Visibility = Visibility.Collapsed;
+
+        PositionAndShow();
+        _dismissTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.5, seconds));
+        _dismissTimer.Start();
+    }
+
     private void PositionAndShow()
     {
         // Use selected monitor's work area (0 = primary)
