@@ -15,10 +15,10 @@ namespace AmpUp.Views;
 /// N3 "blueprint" device drawing for the Buttons tab. Follows the real TreasLin / MiraBox N3
 /// layout — 3x2 LCD block top-left, one large knob top-right, three round buttons and two
 /// small knobs along the bottom — drawn as accent line art on a drafting grid.
-/// Controls carry numbered badges (no leader lines); a CONTROLS legend beside the drawing
-/// spells out each control's Twist / Press / Tap / Double / Hold actions. Knobs show their
+/// No leader lines or labels: hovering a control shows a blueprint-style tooltip card that
+/// spells out its Twist / Press / Tap / Double / Hold actions. Knobs show their
 /// live level as an arc + pointer; side buttons show where they go (Spotify, Home, …).
-/// Clicking a control or its legend row selects it in the editor.
+/// Clicking a control selects it in the editor.
 /// </summary>
 public partial class ButtonsView
 {
@@ -54,7 +54,8 @@ public partial class ButtonsView
         public Border RowBadge = null!;
         public TextBlock RowBadgeText = null!;
         public TextBlock RowName = null!;
-        public WrapPanel RowChips = null!;
+        public WrapPanel? RowChips;
+        public FrameworkElement? Hit;   // the clickable control on the drawing (carries the tooltip)
         public bool Hover;
         public double LastLevel = -1;
     }
@@ -97,21 +98,8 @@ public partial class ButtonsView
         top.Children.Add(nav);
         root.Children.Add(top);
 
-        // Drawing on the left, CONTROLS legend on the right
-        var body = new Grid { Margin = new Thickness(0, 4, 0, 0) };
-        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        body.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        root.Children.Add(body);
-
         var canvas = new Canvas { Width = BpCanvasW, Height = BpCanvasH };
-        var viewbox = new Viewbox { Child = canvas, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Top };
-        body.Children.Add(viewbox);
-
-        var legend = new StackPanel { Width = 260, Margin = new Thickness(12, 6, 0, 0) };
-        legend.Children.Add(BpText("CONTROLS", 11, BpLine(0xAA)));
-        ((FrameworkElement)legend.Children[0]).Margin = new Thickness(4, 0, 0, 8);
-        Grid.SetColumn(legend, 1);
-        body.Children.Add(legend);
+        root.Children.Add(new Viewbox { Child = canvas, Stretch = Stretch.Uniform, Margin = new Thickness(0, 4, 0, 0) });
 
         DrawBlueprintBody(canvas);
         DrawBlueprintDimensions(canvas);
@@ -143,8 +131,9 @@ public partial class ButtonsView
         for (int s = 0; s < small.Count; s++)
             AddBlueprintKnob(canvas, small[s], smallCx[s], rowCy, BpSmallKnobD, number: 5 + s);
 
-        foreach (var ctl in _v2HwControls.OrderBy(c => c.Number))
-            legend.Children.Add(BuildBlueprintLegendRow(ctl));
+        // Hover a control for a blueprint-style card with what it does (no permanent legend).
+        foreach (var ctl in _v2HwControls)
+            if (ctl.Hit != null) ctl.Hit.ToolTip = BuildBlueprintToolTip(ctl);
 
         // Knob arcs follow the live encoder positions while the drawing is on screen.
         canvas.Loaded += (_, _) =>
@@ -345,7 +334,7 @@ public partial class ButtonsView
         HookBlueprintControl(g, ctl);
         At(g, cx - d / 2, cy - d / 2);
         c.Children.Add(g);
-        AddBlueprintBadge(c, ctl, cx, cy, d);
+        // (numbered badges removed: details live in the hover tooltip)
         _v2HwControls.Add(ctl);
         return ctl;
     }
@@ -381,67 +370,61 @@ public partial class ButtonsView
         HookBlueprintControl(g, ctl);
         At(g, cx - d / 2, cy - d / 2);
         c.Children.Add(g);
-        AddBlueprintBadge(c, ctl, cx, cy, d);
+        // (numbered badges removed: details live in the hover tooltip)
         _v2HwControls.Add(ctl);
         return ctl;
     }
 
-    /// <summary>Small numbered badge at the control's top-right, matching its legend row.</summary>
-    private void AddBlueprintBadge(Canvas c, V2HwControl ctl, double cx, double cy, double d)
+    /// <summary>
+    /// Blueprint-style hover card for a control: accent hairline on top, mono tag
+    /// ("KNOB 1"), what it controls, and Twist / Press / Tap / Double / Hold chips.
+    /// RowName / RowChips are filled by <see cref="RefreshV2HardwareTiles"/>.
+    /// </summary>
+    private ToolTip BuildBlueprintToolTip(V2HwControl ctl)
     {
-        const double bd = 26;
-        ctl.BadgeText = new TextBlock
-        {
-            Text = ctl.Number.ToString(), FontFamily = BpMono, FontSize = 13, FontWeight = FontWeights.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-        };
-        ctl.Badge = new Border
-        {
-            Width = bd, Height = bd, CornerRadius = new CornerRadius(bd / 2), BorderThickness = new Thickness(1.5),
-            Child = ctl.BadgeText, IsHitTestVisible = false,
-        };
-        double off = d / 2 * 0.71; // 45° on the rim
-        At(ctl.Badge, cx + off - bd / 2 + 4, cy - off - bd / 2 - 4);
-        c.Children.Add(ctl.Badge);
-    }
-
-    private FrameworkElement BuildBlueprintLegendRow(V2HwControl ctl)
-    {
-        ctl.RowBadgeText = new TextBlock
-        {
-            Text = ctl.Number.ToString(), FontFamily = BpMono, FontSize = 12, FontWeight = FontWeights.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-        };
-        ctl.RowBadge = new Border
-        {
-            Width = 24, Height = 24, CornerRadius = new CornerRadius(12), BorderThickness = new Thickness(1.5),
-            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 10, 0), Child = ctl.RowBadgeText,
-        };
-
-        var text = new StackPanel();
-        text.Children.Add(new TextBlock
+        var a = ThemeManager.Accent;
+        var stack = new StackPanel { Margin = new Thickness(14, 10, 14, 10), MinWidth = 180, MaxWidth = 300 };
+        stack.Children.Add(new TextBlock
         {
             Text = ctl.Name.ToUpperInvariant(), FontFamily = BpMono, FontSize = 11, FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(BpLine(0xBB)),
+            Foreground = new SolidColorBrush(BpLine(0xDD)),
         });
-        ctl.RowName = new TextBlock { FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        ctl.RowName = new TextBlock { FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         ctl.RowName.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        text.Children.Add(ctl.RowName);
-        ctl.RowChips = new WrapPanel { Margin = new Thickness(0, 5, 0, 0) };
-        text.Children.Add(ctl.RowChips);
+        stack.Children.Add(ctl.RowName);
+        ctl.RowChips = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        stack.Children.Add(ctl.RowChips);
 
-        var dock = new DockPanel();
-        DockPanel.SetDock(ctl.RowBadge, Dock.Left);
-        dock.Children.Add(ctl.RowBadge);
-        dock.Children.Add(text);
-
-        ctl.Row = new Border
+        var inner = new StackPanel();
+        inner.Children.Add(new Border
         {
-            CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 4),
-            Background = Brushes.Transparent, Cursor = Cursors.Hand, Child = dock,
+            Height = 2, CornerRadius = new CornerRadius(10, 10, 0, 0),
+            Background = new LinearGradientBrush(a, Color.FromArgb(0, a.R, a.G, a.B), 0),
+        });
+        inner.Children.Add(stack);
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x66)),
+            Background = new LinearGradientBrush(Color.FromRgb(0x10, 0x1C, 0x2A), Color.FromRgb(0x0A, 0x12, 0x1C), 90),
+            Margin = new Thickness(10), // room for the glow
+            Effect = new DropShadowEffect { Color = a, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.35 },
+            Child = inner,
         };
-        HookBlueprintControl(ctl.Row, ctl);
-        return ctl.Row;
+
+        var tip = new ToolTip
+        {
+            Content = card, Background = Brushes.Transparent, BorderThickness = new Thickness(0),
+            Padding = new Thickness(0), HasDropShadow = false,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Top,
+        };
+        if (ctl.Hit != null)
+        {
+            ToolTipService.SetInitialShowDelay(ctl.Hit, 150);
+            ToolTipService.SetShowDuration(ctl.Hit, 60000);
+        }
+        return tip;
     }
 
     private static Border BpChip(string gesture, string action)
@@ -460,6 +443,7 @@ public partial class ButtonsView
 
     private void HookBlueprintControl(FrameworkElement hit, V2HwControl ctl)
     {
+        ctl.Hit ??= hit;
         hit.MouseEnter += (_, _) => { ctl.Hover = true; ApplyBlueprintState(ctl); };
         hit.MouseLeave += (_, _) => { ctl.Hover = false; ApplyBlueprintState(ctl); };
         hit.MouseLeftButtonUp += (_, _) =>
@@ -477,7 +461,8 @@ public partial class ButtonsView
         foreach (var ctl in _v2HwControls)
         {
             var press = _config.N3.Buttons.FirstOrDefault(b => b.Idx == ctl.ButtonIdx);
-            ctl.RowChips?.Children.Clear();
+            var chips = ctl.RowChips; // built with the legend rows, before the first refresh
+            chips?.Children.Clear();
             if (ctl.EncoderIdx >= 0)
             {
                 var rotation = GetEffectiveEditorEncoderBinding(ctl.EncoderIdx);
@@ -485,11 +470,11 @@ public partial class ButtonsView
                 var kind = BlueprintTargetIcon(rotation?.Target);
                 ctl.Color = IsSpotifyish(rotation?.Target) ? BpSpotifyGreen : ThemeManager.Accent;
                 SetBlueprintIcon(ctl.Icon, kind, ctl.Color);
-                if (ctl.RowName != null)
+                if (ctl.RowName != null && chips != null)
                 {
                     ctl.RowName.Text = rotation == null || kind == null ? "Not set" : rotateLabel;
-                    ctl.RowChips.Children.Add(BpChip("Twist", kind == null ? "Nothing" : rotateLabel));
-                    AddGestureChips(ctl.RowChips, press, "Press");
+                    chips.Children.Add(BpChip("Twist", kind == null ? "Nothing" : rotateLabel));
+                    AddGestureChips(chips, press, "Press");
                 }
                 ctl.LastLevel = -1; // repaint arc in the new colour
                 UpdateBlueprintLevel(ctl);
@@ -499,10 +484,10 @@ public partial class ButtonsView
                 var (kind, dest) = BlueprintButtonLook(press);
                 ctl.Color = IsSpotifyish(dest) || IsSpotifyish(press?.Action) ? BpSpotifyGreen : ThemeManager.Accent;
                 SetBlueprintIcon(ctl.Icon, kind, ctl.Color);
-                if (ctl.RowName != null)
+                if (ctl.RowName != null && chips != null)
                 {
                     ctl.RowName.Text = dest;
-                    AddGestureChips(ctl.RowChips, press, "Tap");
+                    AddGestureChips(chips, press, "Tap");
                 }
             }
             ApplyBlueprintState(ctl);
