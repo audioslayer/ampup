@@ -449,6 +449,14 @@ public partial class ButtonsView
         hit.MouseLeftButtonUp += (_, _) =>
         {
             string name = ctl.EncoderIdx >= 0 ? $"Encoder Press {ctl.EncoderIdx + 1}" : ctl.Name;
+            // A side button that opens a Space takes the editor (and the N3) into that Space,
+            // like pressing it on the device. The button stays selected so it's still editable.
+            if (ctl.EncoderIdx < 0)
+            {
+                var press = _config?.N3.Buttons.FirstOrDefault(b => b.Idx == ctl.ButtonIdx);
+                if (press?.Action == "open_folder")
+                    NavigateToFolderInEditor(press.FolderName ?? "");
+            }
             SelectStreamControllerItem(new StreamControllerSelection(ctl.ButtonIdx, name, null));
         };
     }
