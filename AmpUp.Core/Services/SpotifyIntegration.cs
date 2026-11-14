@@ -346,12 +346,8 @@ public sealed class SpotifyIntegration : IDisposable
         // Liked-state requires a second call (PlaybackState doesn't include it).
         if (!string.IsNullOrEmpty(next.TrackId) && next.TrackId != prevTrack)
         {
-            try
-            {
-                var liked = await _client.Library.CheckItems(new LibraryCheckItemsRequest(new[] { next.TrackId }));
-                if (liked?.Count > 0) next = next with { Liked = liked[0] };
-            }
-            catch { /* best-effort */ }
+            var liked = await LibraryContainsAsync(TrackUri(next.TrackId));
+            if (liked.HasValue) next = next with { Liked = liked.Value };
         }
         else if (CurrentTrack != null)
         {
@@ -430,17 +426,77 @@ public sealed class SpotifyIntegration : IDisposable
 
     public async Task ToggleLikeAsync()
     {
-        if (_client == null || string.IsNullOrEmpty(CurrentTrack?.TrackId)) return;
+        var track = CurrentTrack;
+        if (_client == null || string.IsNullOrEmpty(track?.TrackId)) return;
+        bool liked = track.Liked;
         try
         {
-            bool liked = CurrentTrack?.Liked ?? false;
-            if (liked)
-                await _client.Library.RemoveItems(new LibraryRemoveItemsRequest(new[] { CurrentTrack!.TrackId }));
-            else
-                await _client.Library.SaveItems(new LibrarySaveItemsRequest(new[] { CurrentTrack!.TrackId }));
+            // Re-check first: the cached state can be stale (e.g. liked in the Spotify app).
+            var current = await LibraryContainsAsync(TrackUri(track.TrackId));
+            if (current.HasValue) liked = current.Value;
+
+            await LibraryWriteAsync(liked ? HttpMethod.Delete : HttpMethod.Put, TrackUri(track.TrackId));
+
+            // The poll only re-checks liked state when the track changes, so update it here
+            // (N3 heart key + a second press to unlike both depend on it).
+            if (CurrentTrack?.TrackId == track.TrackId)
+            {
+                CurrentTrack = CurrentTrack with { Liked = !liked };
+                OnStateChanged?.Invoke();
+            }
         }
         catch (Exception ex) { Logger.Log($"Spotify like toggle failed: {ex.Message}"); }
-        _ = Task.Run(async () => { await Task.Delay(350); try { await PollOnceAsync(default); } catch { } });
+    }
+
+    // ── /me/library (unified save / remove / contains) ─────────────────
+    // Called directly over HTTP: SpotifyAPI.Web 7.4's SaveItems/RemoveItems requests made
+    // Spotify answer "Missing required field: uris". Spotify wants full URIs
+    // (spotify:track:ID); we send them both as the ?uris= query and in the JSON body.
+
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
+
+    private static string TrackUri(string trackId) =>
+        trackId.StartsWith("spotify:", StringComparison.Ordinal) ? trackId : $"spotify:track:{trackId}";
+
+    private string AccessToken =>
+        _tokenResponse?.AccessToken ?? throw new InvalidOperationException("Spotify is not connected");
+
+    private async Task LibraryWriteAsync(HttpMethod method, string uri)
+    {
+        var url = $"https://api.spotify.com/v1/me/library?uris={Uri.EscapeDataString(uri)}";
+        using var req = new HttpRequestMessage(method, url)
+        {
+            Content = new StringContent($"{{\"uris\":[\"{uri}\"]}}", System.Text.Encoding.UTF8, "application/json"),
+        };
+        req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
+        using var resp = await Http.SendAsync(req);
+        if (!resp.IsSuccessStatusCode)
+            throw new Exception($"{(int)resp.StatusCode} {await resp.Content.ReadAsStringAsync()}");
+    }
+
+    private async Task<bool?> LibraryContainsAsync(string uri)
+    {
+        try
+        {
+            var url = $"https://api.spotify.com/v1/me/library/contains?uris={Uri.EscapeDataString(uri)}";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
+            using var resp = await Http.SendAsync(req);
+            var body = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"Spotify liked check failed: {(int)resp.StatusCode} {body}");
+                return null;
+            }
+            // Response is a JSON array of booleans, e.g. [true]
+            var t = body.Trim().TrimStart('[').TrimEnd(']').Split(',')[0].Trim();
+            return t.Equals("true", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Spotify liked check failed: {ex.Message}");
+            return null;
+        }
     }
 
     public async Task SetVolumeAsync(int percent)
