@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using AmpUp.Controls;
 using Material.Icons;
 using Material.Icons.WPF;
@@ -13,9 +14,11 @@ namespace AmpUp.Views;
 /// <summary>
 /// N3 "blueprint" device drawing for the Buttons tab. Follows the real TreasLin / MiraBox N3
 /// layout — 3x2 LCD block top-left, one large knob top-right, three round buttons and two
-/// small knobs along the bottom — drawn as accent line art on a drafting grid. The LCD
-/// screens show the live key previews; each button / knob shows its assigned action's icon.
-/// Everything sits on a fixed canvas inside a Viewbox so it scales with the pane.
+/// small knobs along the bottom — drawn as accent line art on a drafting grid.
+/// Controls carry numbered badges (no leader lines); a CONTROLS legend beside the drawing
+/// spells out each control's Twist / Press / Tap / Double / Hold actions. Knobs show their
+/// live level as an arc + pointer; side buttons show where they go (Spotify, Home, …).
+/// Clicking a control or its legend row selects it in the editor.
 /// </summary>
 public partial class ButtonsView
 {
@@ -24,26 +27,40 @@ public partial class ButtonsView
     private const int V2BigKnobEncoder = 0;
 
     // Canvas geometry. The body keeps the real 129 x 78 mm proportions (≈1.65 : 1).
-    private const double BpCanvasW = 860, BpCanvasH = 690;
-    private const double BpBodyX = 62, BpBodyY = 100, BpBodyW = 760, BpBodyH = 460;
+    private const double BpCanvasW = 860, BpCanvasH = 610;
+    private const double BpBodyX = 62, BpBodyY = 40, BpBodyW = 760, BpBodyH = 460;
     private const double BpKeySize = 120, BpKeyGap = 12, BpKeyInset = 44;
     private const double BpBigKnobD = 220, BpSmallKnobD = 112, BpButtonD = 72;
     private static readonly FontFamily BpMono = new("Cascadia Mono, Consolas, Courier New");
+    private static readonly Color BpSpotifyGreen = Color.FromRgb(0x1D, 0xB9, 0x54);
 
     private sealed class V2HwControl
     {
         public int ButtonIdx;
         public int EncoderIdx = -1;     // -1 for the side buttons
+        public int Number;              // badge number (1 = big knob, 2-4 buttons, 5-6 small knobs)
         public string Name = "";
+        public double Diameter;
+        public Color Color;
         public Ellipse Outline = null!;
         public DropShadowEffect Glow = null!;
         public MaterialIcon Icon = null!;
-        public MaterialIcon? PressIcon;
-        public TextBlock Sub = null!;
+        public Path? ValueArc;
+        public RotateTransform? Pointer;
+        public Border Badge = null!;
+        public TextBlock BadgeText = null!;
+        // Legend row
+        public Border Row = null!;
+        public Border RowBadge = null!;
+        public TextBlock RowBadgeText = null!;
+        public TextBlock RowName = null!;
+        public WrapPanel RowChips = null!;
         public bool Hover;
+        public double LastLevel = -1;
     }
 
     private readonly List<V2HwControl> _v2HwControls = new();
+    private DispatcherTimer? _bpLevelTimer;
 
     private static Color BpLine(byte alpha) => ThemeManager.WithAlpha(ThemeManager.Accent, alpha);
 
@@ -80,8 +97,21 @@ public partial class ButtonsView
         top.Children.Add(nav);
         root.Children.Add(top);
 
+        // Drawing on the left, CONTROLS legend on the right
+        var body = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        root.Children.Add(body);
+
         var canvas = new Canvas { Width = BpCanvasW, Height = BpCanvasH };
-        root.Children.Add(new Viewbox { Child = canvas, Stretch = Stretch.Uniform, Margin = new Thickness(0, 4, 0, 0) });
+        var viewbox = new Viewbox { Child = canvas, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Top };
+        body.Children.Add(viewbox);
+
+        var legend = new StackPanel { Width = 260, Margin = new Thickness(12, 6, 0, 0) };
+        legend.Children.Add(BpText("CONTROLS", 11, BpLine(0xAA)));
+        ((FrameworkElement)legend.Children[0]).Margin = new Thickness(4, 0, 0, 8);
+        Grid.SetColumn(legend, 1);
+        body.Children.Add(legend);
 
         DrawBlueprintBody(canvas);
         DrawBlueprintDimensions(canvas);
@@ -95,8 +125,7 @@ public partial class ButtonsView
         double keyBlockH = 2 * BpKeySize + BpKeyGap;
         double bigCx = BpBodyX + BpBodyW - 44 - BpBigKnobD / 2;
         double topCy = BpBodyY + BpKeyInset + keyBlockH / 2;
-        var big = AddBlueprintKnob(canvas, V2BigKnobEncoder, bigCx, topCy, BpBigKnobD);
-        AddBlueprintCallout(canvas, big, bigCx, topCy - BpBigKnobD / 2, above: true);
+        AddBlueprintKnob(canvas, V2BigKnobEncoder, bigCx, topCy, BpBigKnobD, number: 1);
 
         // Bottom row: one button under each LCD column, then the two small knobs to the right,
         // under the big knob. Centred in the band between the key block and the body edge.
@@ -106,17 +135,26 @@ public partial class ButtonsView
         for (int i = 0; i < 3; i++)
         {
             double cx = keysX + BpKeySize / 2 + i * (BpKeySize + BpKeyGap);
-            var b = AddBlueprintButton(canvas, i, cx, rowCy);
-            AddBlueprintCallout(canvas, b, cx, rowCy + BpButtonD / 2, above: false);
+            AddBlueprintButton(canvas, i, cx, rowCy, number: 2 + i);
         }
         var small = Enumerable.Range(0, 3).Where(e => e != V2BigKnobEncoder).ToList();
         double smallRight = BpBodyX + BpBodyW - 40 - BpSmallKnobD / 2;
         double[] smallCx = { smallRight - 150, smallRight };
         for (int s = 0; s < small.Count; s++)
+            AddBlueprintKnob(canvas, small[s], smallCx[s], rowCy, BpSmallKnobD, number: 5 + s);
+
+        foreach (var ctl in _v2HwControls.OrderBy(c => c.Number))
+            legend.Children.Add(BuildBlueprintLegendRow(ctl));
+
+        // Knob arcs follow the live encoder positions while the drawing is on screen.
+        canvas.Loaded += (_, _) =>
         {
-            var k = AddBlueprintKnob(canvas, small[s], smallCx[s], rowCy, BpSmallKnobD);
-            AddBlueprintCallout(canvas, k, smallCx[s], rowCy + BpSmallKnobD / 2, above: false);
-        }
+            _bpLevelTimer ??= new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(250) };
+            _bpLevelTimer.Tick -= BpLevelTick;
+            _bpLevelTimer.Tick += BpLevelTick;
+            _bpLevelTimer.Start();
+        };
+        canvas.Unloaded += (_, _) => _bpLevelTimer?.Stop();
 
         RefreshV2HardwareTiles();
         return card;
@@ -208,7 +246,7 @@ public partial class ButtonsView
     {
         var col = BpLine(0x99);
         // Width — along the bottom edge of the drawing
-        double y = BpBodyY + BpBodyH + 96;
+        double y = BpBodyY + BpBodyH + 46;
         c.Children.Add(BpLineShape(BpBodyX, BpBodyY + BpBodyH + 6, BpBodyX, y + 6, BpLine(0x44)));
         c.Children.Add(BpLineShape(BpBodyX + BpBodyW, BpBodyY + BpBodyH + 6, BpBodyX + BpBodyW, y + 6, BpLine(0x44)));
         c.Children.Add(BpArrowLine(BpBodyX, y, BpBodyX + BpBodyW, y, col));
@@ -244,28 +282,35 @@ public partial class ButtonsView
 
     // ── Controls ──────────────────────────────────────────────────────
 
-    private V2HwControl AddBlueprintKnob(Canvas c, int encoderIdx, double cx, double cy, double d)
+    private V2HwControl AddBlueprintKnob(Canvas c, int encoderIdx, double cx, double cy, double d, int number)
     {
         var ctl = new V2HwControl
         {
             ButtonIdx = StreamControllerEncoderPressBase + encoderIdx,
             EncoderIdx = encoderIdx,
+            Number = number,
             Name = $"Knob {encoderIdx + 1}",
+            Diameter = d,
+            Color = ThemeManager.Accent,
         };
         var g = new Grid { Width = d, Height = d, Cursor = Cursors.Hand, Background = Brushes.Transparent };
 
-        // Knurled skirt — a thick dashed stroke reads as grip ridges
-        g.Children.Add(new Ellipse
+        // Level track + live value arc (270° sweep, gap at the bottom like a real pot)
+        double arcT = Math.Max(3, d * 0.035);
+        g.Children.Add(new Path { Data = BpArcGeometry(d, arcT, 270), Stroke = new SolidColorBrush(BpLine(0x30)), StrokeThickness = arcT, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, IsHitTestVisible = false });
+        ctl.ValueArc = new Path
         {
-            Stroke = new SolidColorBrush(BpLine(0x50)), StrokeThickness = d * 0.05,
-            StrokeDashArray = new DoubleCollection { 0.5, 1.2 },
-            Margin = new Thickness(d * 0.025),
-        });
+            Stroke = new SolidColorBrush(ThemeManager.Accent), StrokeThickness = arcT,
+            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, IsHitTestVisible = false,
+            Effect = new DropShadowEffect { Color = ThemeManager.Accent, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.7 },
+        };
+        g.Children.Add(ctl.ValueArc);
+
         ctl.Glow = new DropShadowEffect { Color = ThemeManager.Accent, BlurRadius = 22, ShadowDepth = 0, Opacity = 0 };
         ctl.Outline = new Ellipse
         {
-            Margin = new Thickness(d * 0.07),
-            Fill = new RadialGradientBrush(Color.FromRgb(0x18, 0x26, 0x36), Color.FromRgb(0x08, 0x0E, 0x16))
+            Margin = new Thickness(d * 0.11),
+            Fill = new RadialGradientBrush(Color.FromRgb(0x1C, 0x2B, 0x3C), Color.FromRgb(0x08, 0x0E, 0x16))
                 { GradientOrigin = new Point(0.35, 0.28), RadiusX = 0.7, RadiusY = 0.7 },
             Effect = ctl.Glow,
         };
@@ -273,38 +318,25 @@ public partial class ButtonsView
         // Machined top face
         g.Children.Add(new Ellipse
         {
-            Margin = new Thickness(d * 0.17),
+            Margin = new Thickness(d * 0.2),
             Stroke = new SolidColorBrush(BpLine(0x3A)), StrokeThickness = 1,
             StrokeDashArray = new DoubleCollection { 3, 3 },
+            IsHitTestVisible = false,
         });
-        // Pointer
-        g.Children.Add(new Border
+        // Pointer — rotates with the knob's level
+        ctl.Pointer = new RotateTransform(0);
+        var pointerHost = new Grid { RenderTransform = ctl.Pointer, RenderTransformOrigin = new Point(0.5, 0.5), IsHitTestVisible = false };
+        pointerHost.Children.Add(new Border
         {
-            Width = Math.Max(3, d * 0.018), Height = d * 0.09, CornerRadius = new CornerRadius(2),
-            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, d * 0.1, 0, 0),
+            Width = Math.Max(3, d * 0.022), Height = d * 0.1, CornerRadius = new CornerRadius(2),
+            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, d * 0.135, 0, 0),
             Background = new SolidColorBrush(ThemeManager.Accent),
             Effect = new DropShadowEffect { Color = ThemeManager.Accent, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.9 },
-            IsHitTestVisible = false,
         });
+        g.Children.Add(pointerHost);
 
-        ctl.Icon = new MaterialIcon { Width = d * 0.3, Height = d * 0.3, IsHitTestVisible = false,
-            Margin = new Thickness(0, 0, 0, d * 0.06) };
+        ctl.Icon = new MaterialIcon { Width = d * 0.28, Height = d * 0.28, IsHitTestVisible = false };
         g.Children.Add(ctl.Icon);
-
-        // Press-action badge at the bottom of the cap
-        double bd = Math.Max(24, d * 0.2);
-        ctl.PressIcon = new MaterialIcon { Width = bd * 0.56, Height = bd * 0.56 };
-        var badge = new Border
-        {
-            Width = bd, Height = bd, CornerRadius = new CornerRadius(bd / 2),
-            VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, d * 0.13),
-            BorderThickness = new Thickness(1),
-            Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x12, 0x1C)),
-            BorderBrush = new SolidColorBrush(BpLine(0x66)),
-            Child = ctl.PressIcon,
-            IsHitTestVisible = false,
-        };
-        g.Children.Add(badge);
 
         // Centre marks
         c.Children.Add(BpDashedLine(cx - d / 2 - 14, cy, cx + d / 2 + 14, cy));
@@ -313,14 +345,19 @@ public partial class ButtonsView
         HookBlueprintControl(g, ctl);
         At(g, cx - d / 2, cy - d / 2);
         c.Children.Add(g);
+        AddBlueprintBadge(c, ctl, cx, cy, d);
         _v2HwControls.Add(ctl);
         return ctl;
     }
 
-    private V2HwControl AddBlueprintButton(Canvas c, int i, double cx, double cy)
+    private V2HwControl AddBlueprintButton(Canvas c, int i, double cx, double cy, int number)
     {
         double d = BpButtonD;
-        var ctl = new V2HwControl { ButtonIdx = StreamControllerSideButtonBase + i, Name = $"Button {i + 1}" };
+        var ctl = new V2HwControl
+        {
+            ButtonIdx = StreamControllerSideButtonBase + i, Number = number, Name = $"Button {i + 1}",
+            Diameter = d, Color = ThemeManager.Accent,
+        };
         var g = new Grid { Width = d, Height = d, Cursor = Cursors.Hand, Background = Brushes.Transparent };
 
         // Bezel ring
@@ -338,14 +375,87 @@ public partial class ButtonsView
             Effect = ctl.Glow,
         };
         g.Children.Add(ctl.Outline);
-        ctl.Icon = new MaterialIcon { Width = d * 0.36, Height = d * 0.36, IsHitTestVisible = false };
+        ctl.Icon = new MaterialIcon { Width = d * 0.38, Height = d * 0.38, IsHitTestVisible = false };
         g.Children.Add(ctl.Icon);
 
         HookBlueprintControl(g, ctl);
         At(g, cx - d / 2, cy - d / 2);
         c.Children.Add(g);
+        AddBlueprintBadge(c, ctl, cx, cy, d);
         _v2HwControls.Add(ctl);
         return ctl;
+    }
+
+    /// <summary>Small numbered badge at the control's top-right, matching its legend row.</summary>
+    private void AddBlueprintBadge(Canvas c, V2HwControl ctl, double cx, double cy, double d)
+    {
+        const double bd = 26;
+        ctl.BadgeText = new TextBlock
+        {
+            Text = ctl.Number.ToString(), FontFamily = BpMono, FontSize = 13, FontWeight = FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        };
+        ctl.Badge = new Border
+        {
+            Width = bd, Height = bd, CornerRadius = new CornerRadius(bd / 2), BorderThickness = new Thickness(1.5),
+            Child = ctl.BadgeText, IsHitTestVisible = false,
+        };
+        double off = d / 2 * 0.71; // 45° on the rim
+        At(ctl.Badge, cx + off - bd / 2 + 4, cy - off - bd / 2 - 4);
+        c.Children.Add(ctl.Badge);
+    }
+
+    private FrameworkElement BuildBlueprintLegendRow(V2HwControl ctl)
+    {
+        ctl.RowBadgeText = new TextBlock
+        {
+            Text = ctl.Number.ToString(), FontFamily = BpMono, FontSize = 12, FontWeight = FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        };
+        ctl.RowBadge = new Border
+        {
+            Width = 24, Height = 24, CornerRadius = new CornerRadius(12), BorderThickness = new Thickness(1.5),
+            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 10, 0), Child = ctl.RowBadgeText,
+        };
+
+        var text = new StackPanel();
+        text.Children.Add(new TextBlock
+        {
+            Text = ctl.Name.ToUpperInvariant(), FontFamily = BpMono, FontSize = 11, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(BpLine(0xBB)),
+        });
+        ctl.RowName = new TextBlock { FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 1, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        ctl.RowName.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        text.Children.Add(ctl.RowName);
+        ctl.RowChips = new WrapPanel { Margin = new Thickness(0, 5, 0, 0) };
+        text.Children.Add(ctl.RowChips);
+
+        var dock = new DockPanel();
+        DockPanel.SetDock(ctl.RowBadge, Dock.Left);
+        dock.Children.Add(ctl.RowBadge);
+        dock.Children.Add(text);
+
+        ctl.Row = new Border
+        {
+            CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 4),
+            Background = Brushes.Transparent, Cursor = Cursors.Hand, Child = dock,
+        };
+        HookBlueprintControl(ctl.Row, ctl);
+        return ctl.Row;
+    }
+
+    private static Border BpChip(string gesture, string action)
+    {
+        var tb = new TextBlock { FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 210 };
+        var g = new System.Windows.Documents.Run(gesture + " · ");
+        g.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "TextDimBrush");
+        var a = new System.Windows.Documents.Run(action);
+        a.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "TextSecBrush");
+        tb.Inlines.Add(g);
+        tb.Inlines.Add(a);
+        var chip = new Border { CornerRadius = new CornerRadius(9), Padding = new Thickness(8, 2, 8, 3), Margin = new Thickness(0, 0, 5, 4), Child = tb, ToolTip = $"{gesture}: {action}" };
+        chip.SetResourceReference(Border.BackgroundProperty, "CardInsetBrush");
+        return chip;
     }
 
     private void HookBlueprintControl(FrameworkElement hit, V2HwControl ctl)
@@ -359,35 +469,6 @@ public partial class ButtonsView
         };
     }
 
-    /// <summary>Leader line from the control to a mono title + action caption.</summary>
-    private void AddBlueprintCallout(Canvas c, V2HwControl ctl, double x, double edgeY, bool above)
-    {
-        const double labelW = 124; // < the 132px spacing between neighbouring controls
-        double labelTop = above ? BpBodyY - 86 : BpBodyY + BpBodyH + 20;
-        double lineEnd = above ? labelTop + 40 : labelTop - 2;
-        double lineStart = above ? edgeY - 4 : edgeY + 4;
-        c.Children.Add(BpLineShape(x, lineStart, x, lineEnd, BpLine(0x66), dashed: true));
-        var dot = new Ellipse { Width = 5, Height = 5, Fill = new SolidColorBrush(BpLine(0xCC)) };
-        At(dot, x - 2.5, lineStart - 2.5);
-        c.Children.Add(dot);
-
-        var stack = new StackPanel { Width = labelW };
-        stack.Children.Add(new TextBlock
-        {
-            Text = ctl.Name.ToUpperInvariant(), FontFamily = BpMono, FontSize = 12, FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(BpLine(0xEE)), HorizontalAlignment = HorizontalAlignment.Center,
-        });
-        ctl.Sub = new TextBlock
-        {
-            FontSize = 11, Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis,
-            HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = labelW,
-        };
-        ctl.Sub.SetResourceReference(TextBlock.ForegroundProperty, "TextSecBrush");
-        stack.Children.Add(ctl.Sub);
-        At(stack, x - labelW / 2, labelTop);
-        c.Children.Add(stack);
-    }
-
     // ── Refresh ───────────────────────────────────────────────────────
 
     private void RefreshV2HardwareTiles()
@@ -396,48 +477,137 @@ public partial class ButtonsView
         foreach (var ctl in _v2HwControls)
         {
             var press = _config.N3.Buttons.FirstOrDefault(b => b.Idx == ctl.ButtonIdx);
+            ctl.RowChips?.Children.Clear();
             if (ctl.EncoderIdx >= 0)
             {
                 var rotation = GetEffectiveEditorEncoderBinding(ctl.EncoderIdx);
                 string rotateLabel = FormatN3EncoderTarget(rotation?.Target);
-                string pressLabel = GetStreamActionDisplay(press);
-                if (ctl.Sub != null)
+                var kind = BlueprintTargetIcon(rotation?.Target);
+                ctl.Color = IsSpotifyish(rotation?.Target) ? BpSpotifyGreen : ThemeManager.Accent;
+                SetBlueprintIcon(ctl.Icon, kind, ctl.Color);
+                if (ctl.RowName != null)
                 {
-                    ctl.Sub.Text = pressLabel == "None" ? rotateLabel : $"{rotateLabel} / {pressLabel}";
-                    ctl.Sub.ToolTip = $"Turn: {rotateLabel}\nPress: {pressLabel}";
+                    ctl.RowName.Text = rotation == null || kind == null ? "Not set" : rotateLabel;
+                    ctl.RowChips.Children.Add(BpChip("Twist", kind == null ? "Nothing" : rotateLabel));
+                    AddGestureChips(ctl.RowChips, press, "Press");
                 }
-                SetBlueprintIcon(ctl.Icon, BlueprintTargetIcon(rotation?.Target));
-                if (ctl.PressIcon != null)
-                {
-                    var pk = BlueprintActionIcon(press?.Action);
-                    ctl.PressIcon.Kind = pk ?? MaterialIconKind.GestureTap;
-                    ctl.PressIcon.Foreground = new SolidColorBrush(pk != null ? ThemeManager.Accent : BpLine(0x66));
-                }
+                ctl.LastLevel = -1; // repaint arc in the new colour
+                UpdateBlueprintLevel(ctl);
             }
             else
             {
-                if (ctl.Sub != null) ctl.Sub.Text = GetStreamActionDisplay(press);
-                SetBlueprintIcon(ctl.Icon, BlueprintActionIcon(press?.Action));
+                var (kind, dest) = BlueprintButtonLook(press);
+                ctl.Color = IsSpotifyish(dest) || IsSpotifyish(press?.Action) ? BpSpotifyGreen : ThemeManager.Accent;
+                SetBlueprintIcon(ctl.Icon, kind, ctl.Color);
+                if (ctl.RowName != null)
+                {
+                    ctl.RowName.Text = dest;
+                    AddGestureChips(ctl.RowChips, press, "Tap");
+                }
             }
             ApplyBlueprintState(ctl);
         }
     }
 
+    /// <summary>Tap/Press, Double and Hold chips for whichever gestures are set.</summary>
+    private void AddGestureChips(WrapPanel chips, ButtonConfig? btn, string firstGesture)
+    {
+        string tap = GetStreamActionDisplay(btn);
+        chips.Children.Add(BpChip(firstGesture, tap == "None" ? "Nothing" : tap));
+        if (btn == null) return;
+        if (!string.IsNullOrWhiteSpace(btn.DoublePressAction) && btn.DoublePressAction != "none")
+            chips.Children.Add(BpChip("Double", GetStreamActionDisplay(btn.DoublePressAction)));
+        if (!string.IsNullOrWhiteSpace(btn.HoldAction) && btn.HoldAction != "none")
+            chips.Children.Add(BpChip("Hold", GetStreamActionDisplay(btn.HoldAction)));
+    }
+
+    /// <summary>What a side button shows: where it goes for Spaces, else the action's icon.</summary>
+    private (MaterialIconKind? Kind, string Dest) BlueprintButtonLook(ButtonConfig? btn)
+    {
+        if (btn == null || string.IsNullOrWhiteSpace(btn.Action) || btn.Action == "none") return (null, "Not set");
+        if (btn.Action == "open_folder")
+        {
+            var space = string.IsNullOrWhiteSpace(btn.FolderName) ? "Home" : btn.FolderName;
+            var s = space.ToLowerInvariant();
+            MaterialIconKind kind =
+                s == "home" ? MaterialIconKind.HomeOutline
+                : s.Contains("spotify") ? MaterialIconKind.Spotify
+                : s.Contains("light") ? MaterialIconKind.LightbulbOutline
+                : s.Contains("effect") || s.Contains("fx") ? MaterialIconKind.CreationOutline
+                : s.Contains("music") || s.Contains("podcast") || s.Contains("pocket") ? MaterialIconKind.PlaylistMusic
+                : MaterialIconKind.FolderOutline;
+            return (kind, space);
+        }
+        return (BlueprintActionIcon(btn.Action), GetStreamActionDisplay(btn));
+    }
+
+    private static bool IsSpotifyish(string? s) => !string.IsNullOrEmpty(s) && s.Contains("spotify", StringComparison.OrdinalIgnoreCase);
+
+    private void BpLevelTick(object? sender, EventArgs e)
+    {
+        foreach (var ctl in _v2HwControls)
+            if (ctl.EncoderIdx >= 0) UpdateBlueprintLevel(ctl);
+    }
+
+    /// <summary>Arc + pointer follow the encoder's live position (0-1).</summary>
+    private static void UpdateBlueprintLevel(V2HwControl ctl)
+    {
+        if (ctl.ValueArc == null || ctl.EncoderIdx < 0) return;
+        var positions = App.StreamControllerKnobPositions;
+        double v = ctl.EncoderIdx < positions.Length ? Math.Clamp(positions[ctl.EncoderIdx], 0f, 1f) : 0;
+        if (Math.Abs(v - ctl.LastLevel) < 0.002) return;
+        ctl.LastLevel = v;
+        double t = ctl.ValueArc.StrokeThickness;
+        ctl.ValueArc.Data = v < 0.004 ? null : BpArcGeometry(ctl.Diameter, t, 270 * v);
+        ctl.ValueArc.Stroke = new SolidColorBrush(ctl.Color);
+        if (ctl.ValueArc.Effect is DropShadowEffect fx) fx.Color = ctl.Color;
+        if (ctl.Pointer != null) ctl.Pointer.Angle = -135 + 270 * v;
+    }
+
+    /// <summary>Arc on a circle of diameter d (inset by half the stroke), starting at -135° (bottom-left).</summary>
+    private static Geometry BpArcGeometry(double d, double thickness, double sweepDeg)
+    {
+        double r = d / 2 - thickness / 2 - 1, c = d / 2;
+        Point P(double deg) { double a = deg * Math.PI / 180; return new Point(c + r * Math.Sin(a), c - r * Math.Cos(a)); }
+        sweepDeg = Math.Clamp(sweepDeg, 0.5, 270);
+        var fig = new PathFigure { StartPoint = P(-135), IsClosed = false, IsFilled = false };
+        fig.Segments.Add(new ArcSegment(P(-135 + sweepDeg), new Size(r, r), 0, sweepDeg > 180, SweepDirection.Clockwise, true));
+        var geo = new PathGeometry();
+        geo.Figures.Add(fig);
+        geo.Freeze();
+        return geo;
+    }
+
     private void ApplyBlueprintState(V2HwControl ctl)
     {
         bool selected = _scSelectedButtonIdx == ctl.ButtonIdx;
-        ctl.Outline.Stroke = new SolidColorBrush(selected ? ThemeManager.Accent : BpLine(ctl.Hover ? (byte)0xDD : (byte)0x99));
+        var a = ThemeManager.Accent;
+        ctl.Outline.Stroke = new SolidColorBrush(selected ? a : BpLine(ctl.Hover ? (byte)0xDD : (byte)0x99));
         ctl.Outline.StrokeThickness = selected ? 2.6 : 1.6;
-        ctl.Glow.Color = ThemeManager.Accent;
+        ctl.Glow.Color = a;
         ctl.Glow.Opacity = selected ? 0.95 : ctl.Hover ? 0.5 : 0;
+
+        foreach (var (badge, txt) in new[] { (ctl.Badge, ctl.BadgeText), (ctl.RowBadge, ctl.RowBadgeText) })
+        {
+            if (badge == null) continue;
+            badge.BorderBrush = new SolidColorBrush(a);
+            badge.Background = new SolidColorBrush(selected ? a : Color.FromRgb(0x0A, 0x13, 0x1E));
+            txt.Foreground = new SolidColorBrush(selected ? Colors.White : ThemeManager.WithAlpha(a, 0xDD));
+        }
+        if (ctl.Row != null)
+        {
+            if (selected) ctl.Row.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x26));
+            else if (ctl.Hover) ctl.Row.Background = new SolidColorBrush(ThemeManager.WithAlpha(a, 0x12));
+            else ctl.Row.Background = Brushes.Transparent;
+        }
     }
 
-    private static void SetBlueprintIcon(MaterialIcon icon, MaterialIconKind? kind)
+    private static void SetBlueprintIcon(MaterialIcon icon, MaterialIconKind? kind, Color color)
     {
         icon.Kind = kind ?? MaterialIconKind.Plus;
-        icon.Foreground = new SolidColorBrush(kind != null ? ThemeManager.Accent : BpLine(0x55));
+        icon.Foreground = new SolidColorBrush(kind != null ? color : BpLine(0x55));
         icon.Effect = kind != null
-            ? new DropShadowEffect { Color = ThemeManager.Accent, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.6 }
+            ? new DropShadowEffect { Color = color, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.6 }
             : null;
     }
 
