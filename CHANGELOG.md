@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased] - 1.4.7
+
+### Added
+- Spotify Like key shows an on-screen confirmation: "Added to Liked Songs" (green heart) or "Removed from Liked Songs", with the track and artist.
+
+### Changed
+- N3 Buttons tab: the blueprint drawing now has numbered controls and a CONTROLS list beside it that spells out each control's Twist / Press / Tap / Double / Hold actions (click a row to edit that control). Knobs show their live position as a ring and pointer, and side buttons show where they go (Spotify, Home, Lights, Effects) instead of a generic folder icon. The dashed leader lines and labels are gone.
+
+### Fixed
+- Spotify Like key works again ("Missing required field: uris"), and the N3 heart follows the liked state so a second press unlikes.
+- No profile pop-up when Amp Up launches: auto profile switching no longer "switches" to the profile that's already active, and profile pop-ups are skipped for the first few seconds after launch.
+
 ## [1.4.6] - 2026-11-12
 
 ### Added
