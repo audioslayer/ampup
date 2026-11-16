@@ -4691,14 +4691,17 @@ public partial class App : Application
                 SetGoveePower(dev, false);
             }
 
-            if (_corsairSync != null)
+            if (_corsairSync is { } corsair)
             {
                 _roomToggleSavedCorsairMode = _config.Corsair.LightSyncMode;
-                _corsairSync.RefreshDevices();
-                _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
                 _config.Corsair.LightSyncMode = "static";
                 _config.Corsair.Enabled = false;
-                _corsairSync.Stop();
+                QueueCorsairWork("room white off", () =>
+                {
+                    corsair.RefreshDevices();
+                    _ = corsair.SetStaticColorAllAsync(0, 0, 0);
+                    corsair.Stop();
+                });
             }
 
             ConfigManager.Save(_config);
@@ -4760,13 +4763,16 @@ public partial class App : Application
         _ambienceSync?.ClearAllSegmentTracking();
 
         // Corsair: park it on static white.
-        if (_corsairSync != null)
+        if (_corsairSync is { } corsairW)
         {
             _config.Corsair.Enabled = true;
             _config.Corsair.LightSyncMode = "static";
-            _corsairSync.RefreshDevices();
-            _corsairSync.Resume();
-            _ = _corsairSync.SetStaticColorAllAsync(W, W, W);
+            QueueCorsairWork("room white on", () =>
+            {
+                corsairW.RefreshDevices();
+                corsairW.Resume();
+                _ = corsairW.SetStaticColorAllAsync(W, W, W);
+            });
         }
 
         ConfigManager.Save(_config);
@@ -4795,24 +4801,31 @@ public partial class App : Application
         // _paused + Enabled=false together block every painter (OnFrameReady,
         // OnRoomFrame, music timer). Preserve the prior LightSyncMode so the
         // on-press restores the exact mode the user had before.
-        if (_corsairSync != null)
+        if (_corsairSync is { } corsair)
         {
-            _corsairSync.RefreshDevices();
             if (_roomLightsOn)
             {
                 _config.Corsair.Enabled = true;
                 if (!string.IsNullOrEmpty(_roomToggleSavedCorsairMode))
                     _config.Corsair.LightSyncMode = _roomToggleSavedCorsairMode!;
                 _roomToggleSavedCorsairMode = null;
-                _corsairSync.Resume();
+                QueueCorsairWork("room on", () =>
+                {
+                    corsair.RefreshDevices();
+                    corsair.Resume();
+                });
             }
             else
             {
                 _roomToggleSavedCorsairMode = _config.Corsair.LightSyncMode;
-                _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
                 _config.Corsair.LightSyncMode = "static";
                 _config.Corsair.Enabled = false;
-                _corsairSync.Stop();
+                QueueCorsairWork("room off", () =>
+                {
+                    corsair.RefreshDevices();
+                    _ = corsair.SetStaticColorAllAsync(0, 0, 0);
+                    corsair.Stop();
+                });
             }
         }
 
@@ -4835,25 +4848,32 @@ public partial class App : Application
     /// </summary>
     private void HandleCorsairToggle()
     {
-        if (_corsairSync == null) return;
+        if (_corsairSync is not { } corsair) return;
 
-        _corsairSync.RefreshDevices();
         bool turningOn = !_config.Corsair.Enabled;
         _config.Corsair.Enabled = turningOn;
 
         if (turningOn)
         {
-            _corsairSync.Resume();
             // Restore the last meaningful sync mode; "off" would silently
             // keep the LEDs dark, which defeats the toggle.
             if (_config.Corsair.LightSyncMode == "off" || string.IsNullOrEmpty(_config.Corsair.LightSyncMode))
                 _config.Corsair.LightSyncMode = "vu_reactive";
+            QueueCorsairWork("toggle on", () =>
+            {
+                corsair.RefreshDevices();
+                corsair.Resume();
+            });
         }
         else
         {
-            _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
             _config.Corsair.LightSyncMode = "static"; // prevent frames overwriting black
-            _corsairSync.Stop();
+            QueueCorsairWork("toggle off", () =>
+            {
+                corsair.RefreshDevices();
+                _ = corsair.SetStaticColorAllAsync(0, 0, 0);
+                corsair.Stop();
+            });
         }
 
         ConfigManager.Save(_config);
@@ -4873,6 +4893,26 @@ public partial class App : Application
         catch (Exception ex)
         {
             Logger.Log($"HandleButtonAppGroupChanged failed: {ex.Message}");
+        }
+    }
+
+    private Task _corsairWorkChain = Task.CompletedTask;
+    private readonly object _corsairWorkGate = new();
+
+    /// <summary>
+    /// Runs iCUE SDK calls off the hardware-input threads, in order. The SDK
+    /// can block indefinitely (e.g. after resume); doing that inline on the
+    /// N3 / Turn Up input pump froze every later key press.
+    /// </summary>
+    private void QueueCorsairWork(string what, Action work)
+    {
+        lock (_corsairWorkGate)
+        {
+            _corsairWorkChain = _corsairWorkChain.ContinueWith(_ =>
+            {
+                try { work(); }
+                catch (Exception ex) { Logger.Log($"Corsair {what} failed: {ex.Message}"); }
+            }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
         }
     }
 
@@ -4933,22 +4973,29 @@ public partial class App : Application
                     // subsequent config save re-runs the Start()/Stop()
                     // callback (App.xaml.cs:1033) and unpauses the sync,
                     // letting the music-reactive timer repaint the LEDs.
-                    if (_corsairSync != null)
+                    if (_corsairSync is { } corsair)
                     {
-                        _corsairSync.RefreshDevices();
                         if (newState)
                         {
                             _config.Corsair.Enabled = true;
-                            _corsairSync.Resume();
                             if (_config.Corsair.LightSyncMode == "static" || string.IsNullOrEmpty(_config.Corsair.LightSyncMode))
                                 _config.Corsair.LightSyncMode = "vu_reactive";
+                            QueueCorsairWork("group on", () =>
+                            {
+                                corsair.RefreshDevices();
+                                corsair.Resume();
+                            });
                         }
                         else
                         {
-                            _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
                             _config.Corsair.LightSyncMode = "static";
                             _config.Corsair.Enabled = false;
-                            _corsairSync.Stop();
+                            QueueCorsairWork("group off", () =>
+                            {
+                                corsair.RefreshDevices();
+                                _ = corsair.SetStaticColorAllAsync(0, 0, 0);
+                                corsair.Stop();
+                            });
                         }
                     }
                     break;
