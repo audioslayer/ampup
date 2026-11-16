@@ -294,14 +294,20 @@ public class CorsairSync : IDisposable
             _connected = true;
             Logger.Log($"CorsairSync: connected to iCUE (SDK {sv.major}.{sv.minor}.{sv.patch}, iCUE {hv.major}.{hv.minor}.{hv.patch})");
 
-            AcquireLightingControl();
-
-            // Set higher priority so our colors show on top of iCUE's own effects
-            CorsairSetLayerPriority(200);
-
-            // Auto-discover devices
+            // Never call back into the iCUE SDK from inside its own session
+            // callback: CorsairRequestControl blocks forever there, wedging the
+            // SDK so every later call (render loop, N3/Turn Up group toggles)
+            // hangs too. Do all post-connect SDK work on a pool thread.
             _ = Task.Run(() =>
             {
+                try
+                {
+                    AcquireLightingControl();
+                    // Set higher priority so our colors show on top of iCUE's own effects
+                    CorsairSetLayerPriority(200);
+                }
+                catch (Exception ex) { Logger.Log($"CorsairSync: lighting control setup failed — {ex.Message}"); }
+
                 try { DiscoverDevices(force: true); }
                 catch (Exception ex) { Logger.Log($"CorsairSync: device discovery failed — {ex.Message}"); }
             });
