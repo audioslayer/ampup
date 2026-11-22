@@ -6,7 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased] - 1.4.7
+## [Unreleased] - 1.4.8
+
+### Added
+- **Blend Sweep** lighting effect: a port of the official Turn Up "Position Blend". All 3 LEDs stay lit and the Left color sweeps across the arc as the knob turns up (0% = all Right, 100% = all Left). Also available as a Mute / Device Mute state effect. The existing Position Blend is unchanged. (#31)
+- Turn Up config import maps "Position Blend" to Blend Sweep instead of Solid.
+
+### Changed
+- Lights: for Mic / Device Mute / App Mute / App Group Mute / OBS Live, each state's colors now sit together (UNMUTED, UNMUTED 2, MUTED, MUTED 2), and the pills read LEFT / RIGHT when that state uses a left-to-right effect (Position Blend, Blend Sweep, Gradient). Plain Position Blend / Blend Sweep / Gradient label their colors LEFT / RIGHT too.
+
+## [1.4.7] - 2026-11-15
+
+### Fixed
+- Lights and the Stream Controller could freeze after waking from sleep with Corsair iCUE running: the iCUE session callback called back into the SDK and deadlocked it, and the next key that touched Corsair blocked all input behind it.
+- Light toggle keys (group / room / room white / Corsair) run their iCUE calls on a background task so a slow SDK can't block other key presses.
 
 ### Added
 - Spotify Like key shows an on-screen confirmation: "Added to Liked Songs" (green heart) or "Removed from Liked Songs", with the track and artist.

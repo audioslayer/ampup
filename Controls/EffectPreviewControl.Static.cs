@@ -57,6 +57,23 @@ namespace AmpUp.Controls
             c.Dc.DrawRoundedRectangle(bar, null, new Rect(0, 0, fillW, c.H), 2, 2);
         }
 
+        /// <summary>
+        /// Official Turn Up Position Blend: the whole bar stays lit; the Left color
+        /// sweeps in from the left over the Right color as the "knob" rises.
+        /// </summary>
+        private void RenderBlendSweep(Ctx c)
+        {
+            double pct = Sin01(c.T * 1.2);
+            for (int i = 0; i < 3; i++)
+            {
+                // Same per-LED crossfade as RgbController.EffectBlendSweep
+                double t = Math.Clamp(pct * 3 - i, 0, 1);
+                var col = Lerp(c.Color2, c.Color, t);
+                double segW = c.W / 3.0;
+                Rect(c.Dc, i * segW + 0.5, 0, segW - 1, c.H, col, 1.0, 3);
+            }
+        }
+
         private void RenderPositionBlendMute(Ctx c)
         {
             double cycle = Saw(c.T / 4.0);

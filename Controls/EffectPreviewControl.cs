@@ -234,6 +234,7 @@ namespace AmpUp.Controls
                 case LightEffect.ColorBlendMute:  RenderColorBlendMute(c);  break;
                 case LightEffect.PositionFill:    RenderPositionFill(c);    break;
                 case LightEffect.PositionBlend:   RenderPositionBlend(c);   break;
+                case LightEffect.BlendSweep:      RenderBlendSweep(c);      break;
                 case LightEffect.PositionBlendMute: RenderPositionBlendMute(c); break;
                 case LightEffect.CycleFill:       RenderCycleFill(c);       break;
                 case LightEffect.RainbowFill:     RenderRainbowFill(c);     break;

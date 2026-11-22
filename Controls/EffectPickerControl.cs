@@ -183,6 +183,7 @@ namespace AmpUp.Controls
 
             // New static effects
             { LightEffect.PositionBlend,    Color.FromRgb(0x80, 0xDE, 0xEA) }, // light cyan
+            { LightEffect.BlendSweep,       Color.FromRgb(0x41, 0xC8, 0xE8) }, // cyan, sweeps to companion pink
             { LightEffect.PositionBlendMute,Color.FromRgb(0xFF, 0x70, 0x43) }, // orange-red (blend + mute)
             { LightEffect.CycleFill,        Color.FromRgb(0xE0, 0x6C, 0x9F) }, // pink
             { LightEffect.RainbowFill,      Color.FromRgb(0xFF, 0xD5, 0x4F) }, // gold
@@ -345,6 +346,7 @@ namespace AmpUp.Controls
                 (LightEffect.ColorBlendMute,   "◑⊘",  "Blend+Mute",false),
                 (LightEffect.PositionFill, "▂▅█", "Fill",     false),
                 (LightEffect.PositionBlend,    "▂▄▇", "PosBlend",  false),
+                (LightEffect.BlendSweep,       "◧▸",  "Sweep",     false),
                 (LightEffect.PositionBlendMute,"▂▄⊘", "Pos+Mute",false),
                 (LightEffect.CycleFill,    "▂▅⟳", "CycleFill", false),
                 (LightEffect.RainbowFill,  "▂▅🌈","RbwFill",   false),
@@ -713,6 +715,7 @@ namespace AmpUp.Controls
                 LightEffect.ColorBlendMute   => Color.FromRgb(0x55, 0x55, 0x55),
                 LightEffect.GradientFill     => Color.FromRgb(0xE0, 0x6C, 0x9F),
                 LightEffect.PositionBlend    => Color.FromRgb(0xE0, 0x6C, 0x9F),
+                LightEffect.BlendSweep       => Color.FromRgb(0xE0, 0x6C, 0x9F),
                 LightEffect.PositionBlendMute=> Color.FromRgb(0x55, 0x55, 0x55),
                 LightEffect.CycleFill        => Color.FromRgb(0x66, 0xBB, 0x6A),
                 LightEffect.ProgramStatus    => Color.FromRgb(0xFF, 0x40, 0x40),

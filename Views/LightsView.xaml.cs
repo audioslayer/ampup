@@ -173,7 +173,7 @@ public partial class LightsView : UserControl
     private List<(string Id, string Name, bool IsOutput)> _audioDevices = new();
 
     private static readonly LightEffect[] EffectsNeedingColor2 =
-        { LightEffect.ColorBlend, LightEffect.ColorBlendMute, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.ObsLive, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments, LightEffect.PositionBlend, LightEffect.ProgramMute, LightEffect.ProgramStatus, LightEffect.AppGroupMute, LightEffect.CycleFill, LightEffect.PositionBlendMute };
+        { LightEffect.ColorBlend, LightEffect.ColorBlendMute, LightEffect.Blink, LightEffect.Pulse, LightEffect.MicStatus, LightEffect.DeviceMute, LightEffect.ObsLive, LightEffect.AudioReactive, LightEffect.GradientFill, LightEffect.Fire, LightEffect.PingPong, LightEffect.Candle, LightEffect.Scanner, LightEffect.ColorWave, LightEffect.Segments, LightEffect.PositionBlend, LightEffect.BlendSweep, LightEffect.ProgramMute, LightEffect.ProgramStatus, LightEffect.AppGroupMute, LightEffect.CycleFill, LightEffect.PositionBlendMute };
     private static readonly LightEffect[] EffectsNeedingSpeed =
         { LightEffect.Blink, LightEffect.Pulse, LightEffect.RainbowWave, LightEffect.RainbowCycle, LightEffect.AudioReactive, LightEffect.AudioPositionBlend, LightEffect.Breathing, LightEffect.Comet, LightEffect.Sparkle, LightEffect.PingPong, LightEffect.Stack, LightEffect.Wave, LightEffect.Candle, LightEffect.Scanner, LightEffect.MeteorRain, LightEffect.ColorWave, LightEffect.Segments, LightEffect.Wheel, LightEffect.RainbowWheel, LightEffect.CycleFill, LightEffect.RainbowFill, LightEffect.Fire, LightEffect.Heartbeat, LightEffect.Plasma, LightEffect.Drip, LightEffect.Waterfall, LightEffect.Lava, LightEffect.VuWave, LightEffect.NebulaDrift, LightEffect.Vortex, LightEffect.Shockwave, LightEffect.Tidal, LightEffect.Prism, LightEffect.EmberDrift, LightEffect.Glitch, LightEffect.OpalWave, LightEffect.Bloom, LightEffect.ColorTwinkle };
     private static readonly LightEffect[] EffectsNeedingProgramName =
@@ -2165,6 +2165,7 @@ public partial class LightsView : UserControl
         picker.AddCategory("Fill");
         picker.AddEffect("Fill", LightEffect.PositionFill.ToString(), MaterialIconKind.SignalCellular3, Color.FromRgb(0x4A, 0xB3, 0xFF), "Progressively fill with this state's color");
         picker.AddEffect("Position Blend", LightEffect.PositionBlend.ToString(), MaterialIconKind.SignalCellular2, Color.FromRgb(0x8A, 0xFF, 0xA8), "Progressively fill from this state's color to secondary");
+        picker.AddEffect("Blend Sweep", LightEffect.BlendSweep.ToString(), MaterialIconKind.GradientHorizontal, Color.FromRgb(0x41, 0xC8, 0xE8), "Like the official Turn Up Position Blend: all LEDs lit, the LEFT color sweeps across as the knob turns up");
         picker.AddEffect("Cycle Fill", LightEffect.CycleFill.ToString(), MaterialIconKind.Autorenew, Color.FromRgb(0xFF, 0xD5, 0x4F), "Progressive fill with cycling colors");
         picker.AddEffect("Rainbow Fill", LightEffect.RainbowFill.ToString(), MaterialIconKind.Looks, Color.FromRgb(0xFF, 0x66, 0xDD), "Progressive rainbow fill");
         picker.AddCategory("Animated");
@@ -2595,6 +2596,25 @@ public partial class LightsView : UserControl
             && EffectsNeedingColor2.Contains(fx);
     }
 
+    /// <summary>Effects whose two colors run left → right across the knob's LEDs.</summary>
+    private static bool IsLeftRightEffect(LightEffect? effect) =>
+        effect is LightEffect.PositionBlend or LightEffect.BlendSweep or LightEffect.GradientFill;
+
+    private static LightEffect? GetPickerEffect(EffectGridPicker? picker) =>
+        picker != null && Enum.TryParse<LightEffect>(picker.SelectedValue, out var fx) ? fx : null;
+
+    /// <summary>Reorders the color pills in place (no-op when already in that order).</summary>
+    private void SetColorPillOrder(int idx, params Border[] order)
+    {
+        var row = _customColorRows[idx];
+        if (row == null) return;
+        bool same = row.Children.Count == order.Length
+            && order.Select((p, i) => ReferenceEquals(row.Children[i], p)).All(x => x);
+        if (same) return;
+        row.Children.Clear();
+        foreach (var pill in order) row.Children.Add(pill);
+    }
+
     private void UpdateVisibility(int idx, LightEffect effect)
     {
         bool noColors = EffectsNoColors.Contains(effect);
@@ -2620,6 +2640,14 @@ public partial class LightsView : UserControl
         _programStatusEffectPanels[idx].Visibility = needsProgramStatusColors ? Visibility.Visible : Visibility.Collapsed;
         _muteStatusEffectPanels[idx].Visibility = isMuteStatus ? Visibility.Visible : Visibility.Collapsed;
 
+        // Two-state effects: keep each state's pair together (UNMUTED, UNMUTED 2,
+        // MUTED, MUTED 2). The old 1-2-3-4 order put MUTED between the two unmuted
+        // colors, so people set the gradient's right color in MUTED and got a flat blend.
+        if (isMuteStatus)
+            SetColorPillOrder(idx, _color1Swatches[idx], _color3Swatches[idx], _color2Swatches[idx], _color4Swatches[idx]);
+        else
+            SetColorPillOrder(idx, _color1Swatches[idx], _color2Swatches[idx], _color3Swatches[idx], _color4Swatches[idx]);
+
         // Pill labels follow what the colors mean for the selected effect
         if (effect == LightEffect.ObsLive)
         {
@@ -2630,10 +2658,27 @@ public partial class LightsView : UserControl
         }
         else if (isMuteStatus)
         {
-            SetSwatchLabel(_color1Swatches[idx], "UNMUTED", "Color while unmuted (primary for the unmuted state effect)");
-            SetSwatchLabel(_color2Swatches[idx], "MUTED", "Color while muted (primary for the muted state effect)");
-            SetSwatchLabel(_color3Swatches[idx], "UNMUTED 2", "Second color for the unmuted state effect");
-            SetSwatchLabel(_color4Swatches[idx], "MUTED 2", "Second color for the muted state effect");
+            if (IsLeftRightEffect(GetPickerEffect(_muteStatusUnmutedPickers[idx])))
+            {
+                SetSwatchLabel(_color1Swatches[idx], "UNMUTED · LEFT", "Left-side color of the unmuted gradient");
+                SetSwatchLabel(_color3Swatches[idx], "UNMUTED · RIGHT", "Right-side color of the unmuted gradient");
+            }
+            else
+            {
+                SetSwatchLabel(_color1Swatches[idx], "UNMUTED", "Color while unmuted (primary for the unmuted state effect)");
+                SetSwatchLabel(_color3Swatches[idx], "UNMUTED 2", "Second color for the unmuted state effect");
+            }
+
+            if (IsLeftRightEffect(GetPickerEffect(_muteStatusMutedPickers[idx])))
+            {
+                SetSwatchLabel(_color2Swatches[idx], "MUTED · LEFT", "Left-side color of the muted gradient");
+                SetSwatchLabel(_color4Swatches[idx], "MUTED · RIGHT", "Right-side color of the muted gradient");
+            }
+            else
+            {
+                SetSwatchLabel(_color2Swatches[idx], "MUTED", "Color while muted (primary for the muted state effect)");
+                SetSwatchLabel(_color4Swatches[idx], "MUTED 2", "Second color for the muted state effect");
+            }
         }
         else if (needsProgramStatusColors)
         {
@@ -2641,6 +2686,11 @@ public partial class LightsView : UserControl
             SetSwatchLabel(_color2Swatches[idx], "SECONDARY", "Secondary color (accent/contrast for animated effects)");
             SetSwatchLabel(_color3Swatches[idx], "MUTED", "ProgramStatus color while the watched app is muted");
             SetSwatchLabel(_color4Swatches[idx], "NOT RUNNING", "ProgramStatus color while the watched app process is not running");
+        }
+        else if (IsLeftRightEffect(effect))
+        {
+            SetSwatchLabel(_color1Swatches[idx], "LEFT", "Left-side color of the gradient");
+            SetSwatchLabel(_color2Swatches[idx], "RIGHT", "Right-side color of the gradient");
         }
         else
         {

@@ -331,6 +331,8 @@ public static class TurnUpImporter
         {
             "SingleColor" => LightEffect.SingleColor,
             "PositionFill" => LightEffect.PositionFill,
+            // Turn Up colors[0] = Left, colors[1] = Right — same as color1/color2 here.
+            "PositionBlend" => LightEffect.BlendSweep,
             "RainbowCycle" => LightEffect.RainbowCycle,
             "RainbowWave" => LightEffect.RainbowWave,
             "Blink" => LightEffect.Blink,

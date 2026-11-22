@@ -1980,7 +1980,7 @@ public partial class RoomView : UserControl
         return effect switch
         {
             LightEffect.SingleColor or LightEffect.ColorBlend or LightEffect.PositionFill
-                or LightEffect.PositionBlend or LightEffect.PositionBlendMute or LightEffect.ColorBlendMute or LightEffect.CycleFill
+                or LightEffect.PositionBlend or LightEffect.BlendSweep or LightEffect.PositionBlendMute or LightEffect.ColorBlendMute or LightEffect.CycleFill
                 or LightEffect.RainbowFill or LightEffect.GradientFill => 0,
 
             LightEffect.Blink or LightEffect.Pulse or LightEffect.Breathing or LightEffect.Fire

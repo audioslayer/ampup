@@ -1049,6 +1049,9 @@ public partial class RgbController : IDisposable
             case LightEffect.PositionBlend:
                 EffectPositionBlend(k, light, rawPos);
                 break;
+            case LightEffect.BlendSweep:
+                EffectBlendSweep(k, light, rawPos);
+                break;
             case LightEffect.PositionBlendMute:
                 EffectPositionBlendMute(k, light, rawPos);
                 break;
@@ -1679,6 +1682,33 @@ public partial class RgbController : IDisposable
     }
 
     /// <summary>
+    /// Port of the official Turn Up "Position Blend" (TurnUpService PositionBlend.cs).
+    /// All 3 LEDs stay lit. Each LED crossfades from color2 (Right) to color1 (Left)
+    /// as the knob passes through its third, so turning up sweeps the Left color
+    /// across the arc: 0% = all Right, 50% = Left / blend / Right, 100% = all Left.
+    /// </summary>
+    private void EffectBlendSweep(int k, LightConfig light, float pos)
+    {
+        float pct = Math.Clamp(pos, 0f, 1f) * 100f;
+        var left = GetKnobPaletteColor(light, 0f);
+        var right = GetKnobPaletteColor(light, 1f);
+
+        float t0 = pct < 33f ? pct / 33f : 1f;
+        float t1 = pct < 33f ? 0f : pct < 66f ? (pct - 33f) / 33f : 1f;
+        float t2 = pct > 66f ? (pct - 66f) / 34f : 0f;
+
+        float[] t = { t0, t1, t2 };
+        for (int led = 0; led < 3; led++)
+        {
+            float f = t[led];
+            SetColor(k, led,
+                Math.Clamp((int)(right.r + (left.r - right.r) * f), 0, 255),
+                Math.Clamp((int)(right.g + (left.g - right.g) * f), 0, 255),
+                Math.Clamp((int)(right.b + (left.b - right.b) * f), 0, 255));
+        }
+    }
+
+    /// <summary>
     /// PositionBlend while this knob's linked target is unmuted.
     /// When muted: all 3 LEDs show a dim version of color2 as a clear mute indicator.
     /// color1 = low end (unmuted), color2 = high end (unmuted) / mute color.
@@ -2082,6 +2112,9 @@ public partial class RgbController : IDisposable
                 break;
             case LightEffect.PositionBlend:
                 EffectPositionBlend(k, light, rawPos);
+                break;
+            case LightEffect.BlendSweep:
+                EffectBlendSweep(k, light, rawPos);
                 break;
             case LightEffect.CycleFill:
                 EffectCycleFill(k, light, rawPos);

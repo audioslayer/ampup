@@ -402,6 +402,8 @@ public enum LightEffect
     BlackHole, LavaLamp, Bubbles, FractalMotion, NoiseMap,
     MovingPanes, Sunrise, Shimmer, SpotsFade, StreamDual,
     ObsLive,
+    /// <summary>Official Turn Up "Position Blend": all 3 LEDs lit, Left color sweeps across as the knob rises.</summary>
+    BlendSweep,
 }
 
 public class N3Config
