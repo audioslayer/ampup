@@ -136,7 +136,8 @@ To connect, open **Tools → WebSocket Server Settings** in OBS, tick **Enable W
 - Drive all 15 LEDs directly with per-knob or room-wide Scenes.
 - Choose from more than 60 static, animated, audio-reactive, position-aware, and state-aware effects.
 - Edit gradients and palettes, brightness, speed, effect direction, and per-channel gamma calibration.
-- Use app-status lighting for running, muted, unmuted, and activity states.
+- Use app-status lighting for running, muted, unmuted, and activity states. Each mute state (mic, device, app, app group) can run its own effect with its own left and right colors.
+- Match the official Turn Up look with **Blend Sweep**: all three LEDs stay lit and your left color sweeps across the arc as you turn the knob up. Imported Turn Up configs use it automatically.
 - Combine the active output-device color with physical knob position using **Dev+Pos** mode.
 - Show when you're live with **OBS On Air**, or put an OBS source's live level on a knob with **OBS Meter**.
 - Preview effects on the hardware while browsing the effect library.
