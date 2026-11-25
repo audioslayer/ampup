@@ -157,7 +157,7 @@ public class AmbienceSync : IDisposable
                     int r = linear45[srcIdx * 3];
                     int g = linear45[srcIdx * 3 + 1];
                     int b = linear45[srcIdx * 3 + 2];
-                    (r, g, b) = ApplySettings(r, g, b, cfg);
+                    (r, g, b) = ScaleByPercent(ApplySettings(r, g, b, cfg), FrameBrightness(device, true));
                     segColors[s] = ((byte)r, (byte)g, (byte)b);
                 }
 
@@ -180,7 +180,7 @@ public class AmbienceSync : IDisposable
             {
                 // Single color: use brightest LED
                 var (r, g, b) = DeriveColor(linear45);
-                (r, g, b) = ApplySettings(r, g, b, cfg);
+                (r, g, b) = ScaleByPercent(ApplySettings(r, g, b, cfg), FrameBrightness(device, false));
 
                 // Delta threshold
                 if (_lastSent.TryGetValue(ip, out var prev))
@@ -1010,7 +1010,7 @@ public class AmbienceSync : IDisposable
 
     /// <summary>
     /// Send a frame to a single device. Handles rate limiting, segments, and single-color.
-    /// Single-color devices pre-scale brightness into RGB (1 packet instead of 2 → 10 FPS).
+    /// Brightness is applied once here, see FrameBrightness.
     /// </summary>
     private void SendDeviceFrame(GoveeDeviceConfig device, (int R, int G, int B)[] colors, bool isSegment)
     {
@@ -1021,17 +1021,12 @@ public class AmbienceSync : IDisposable
         if (_lastSendTick.TryGetValue(ip, out long lastTick) && now - lastTick < minTicks)
             return;
 
-        int deviceBrightness = Math.Clamp(device.BrightnessScale, 0, 100);
-        if (deviceBrightness != 100)
+        int brightness = FrameBrightness(device, isSegment);
+        if (brightness != 100)
         {
             var scaled = new (int R, int G, int B)[colors.Length];
             for (int i = 0; i < colors.Length; i++)
-            {
-                scaled[i] = (
-                    Math.Clamp(colors[i].R * deviceBrightness / 100, 0, 255),
-                    Math.Clamp(colors[i].G * deviceBrightness / 100, 0, 255),
-                    Math.Clamp(colors[i].B * deviceBrightness / 100, 0, 255));
-            }
+                scaled[i] = ScaleByPercent(colors[i], brightness);
             colors = scaled;
         }
 
@@ -1055,7 +1050,6 @@ public class AmbienceSync : IDisposable
         }
         else
         {
-            // Pre-scale brightness into RGB — single colorwc packet, no separate brightness needed
             var (r, g, b) = colors[0];
 
             if (_lastSent.TryGetValue(ip, out var prev))
@@ -1096,14 +1090,24 @@ public class AmbienceSync : IDisposable
         return (rSum / 15, gSum / 15, bSum / 15);
     }
 
+    /// <summary>
+    /// How much to dim the colors sent to a light. The light's own level is the only level:
+    /// the room knob/slider writes it to every light, so also multiplying by the room level
+    /// dimmed twice. Segment lights are dimmed in the colors; single-color lights get their
+    /// level as a hardware brightness command, so their colors stay full (0 = black).
+    /// </summary>
+    internal static int FrameBrightness(GoveeDeviceConfig device, bool isSegment)
+    {
+        int level = Math.Clamp(device.BrightnessScale, 0, 100);
+        return isSegment || level == 0 ? level : 100;
+    }
+
+    private static (int R, int G, int B) ScaleByPercent((int R, int G, int B) c, int percent)
+        => (c.R * percent / 100, c.G * percent / 100, c.B * percent / 100);
+
     private static (int R, int G, int B) ApplySettings(int r, int g, int b, AmbienceConfig cfg)
     {
         (r, g, b) = BoostEffectColor(r, g, b);
-
-        // Brightness scale
-        r = r * cfg.BrightnessScale / 100;
-        g = g * cfg.BrightnessScale / 100;
-        b = b * cfg.BrightnessScale / 100;
 
         // Warm tone shift
         if (cfg.WarmToneShift)

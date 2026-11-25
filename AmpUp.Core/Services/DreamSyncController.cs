@@ -537,7 +537,7 @@ public class DreamSyncController : IDisposable
 
                                 segColors = SmoothColors(mapping.DeviceIp, segColors);
 
-                                int brightnessScale = CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale);
+                                int brightnessScale = AmbienceSync.FrameBrightness(dev, true);
                                 for (int s = 0; s < segColors.Length; s++)
                                     segColors[s] = ApplyWhiteBalance(ApplyBrightness(LedChromaGamma(segColors[s]), brightnessScale), dev);
 
@@ -557,7 +557,7 @@ public class DreamSyncController : IDisposable
                                     ? AverageRegion(grid, gridCols, gridRows, EdgeRegion(mapping.Side, gridRows))
                                     : SampleColorForSide(effectiveZones, effectiveZones.Length, mapping.Side);
                                 color = SmoothColors(mapping.DeviceIp, new[] { color })[0];
-                                color = ApplyWhiteBalance(ApplyBrightness(LedChromaGamma(color), CombinedBrightnessScale(amb.BrightnessScale, dev.BrightnessScale)), dev);
+                                color = ApplyWhiteBalance(ApplyBrightness(LedChromaGamma(color), AmbienceSync.FrameBrightness(dev, false)), dev);
 
                                 int sensitivity = ChangeDeadband(cfg.Sensitivity);
                                 if (_lastSent.TryGetValue(mapping.DeviceIp, out var prev))
@@ -851,11 +851,6 @@ public class DreamSyncController : IDisposable
             wb = Math.Clamp(dev.WhiteBalanceB, 0, 100);
         if (wr == 100 && wg == 100 && wb == 100) return c;
         return ((byte)(c.R * wr / 100), (byte)(c.G * wg / 100), (byte)(c.B * wb / 100));
-    }
-
-    private static int CombinedBrightnessScale(int globalScale, int deviceScale)
-    {
-        return Math.Clamp(globalScale, 0, 100) * Math.Clamp(deviceScale, 0, 100) / 100;
     }
 
     /// <summary>

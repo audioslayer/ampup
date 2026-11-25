@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - Room Lights knob / encoder: turning down to 0 and back up no longer leaves lights ignoring brightness for up to 30 seconds. Frames resume at once, the room effect restarts if it wasn't running, and late "off" commands can't undo turning back on.
+- Govee lights no longer dim two or three times over in room effects and Screen Sync: 64% now means 64% (it was about 41%, less on single-color lights). Lights below 100% look brighter than before.
 - Turning Room Lights down to 0 no longer saves 1% brightness, which left lights almost black when switched on another way.
 - N3 Room Lights encoders continue from the real room brightness instead of jumping to each Space's own last position.
 - Waking the PC no longer overwrites the saved brightness of segment (RGBIC) Govee lights.
