@@ -1177,6 +1177,8 @@ public class AmbienceSync : IDisposable
                 if (GetSegmentCount(device) > 0 && device.UseSegmentProtocol)
                     ClearAllSegmentTracking();
                 string ip = device.Ip;
+                NextPowerRequest(ip);
+                ResumeSync(ip); // the preceding "off" paused frames for 30 s
                 _ = SendTurnAsync(ip, true);
             }
         }
@@ -1195,6 +1197,8 @@ public class AmbienceSync : IDisposable
             device.PoweredOn = true;
             if (GetSegmentCount(device) > 0 && device.UseSegmentProtocol)
                 ClearAllSegmentTracking();
+            NextPowerRequest(ip);
+            ResumeSync(ip);
             _ = SendTurnAsync(ip, true);
         }
     }
@@ -1377,6 +1381,8 @@ public class AmbienceSync : IDisposable
         if (device == null || string.IsNullOrWhiteSpace(device.Ip)) return;
 
         string ip = device.Ip;
+        int request = NextPowerRequest(ip);
+        bool Superseded() => _powerRequests.TryGetValue(ip, out int latest) && latest != request;
         bool usesSegments = device.UseSegmentProtocol && GetSegmentCount(device) > 0;
         PauseSync(ip, on ? 5 : 30);
 
@@ -1384,6 +1390,7 @@ public class AmbienceSync : IDisposable
         {
             await DisableSegmentMode(ip);
             await Task.Delay(160);
+            if (Superseded()) return; // turned back on while we were waiting
         }
 
         await SendTurnAsync(ip, on);
@@ -1391,9 +1398,14 @@ public class AmbienceSync : IDisposable
         if (!on && usesSegments)
         {
             await Task.Delay(140);
+            if (Superseded()) return;
             await SendTurnAsync(ip, false);
         }
     }
+
+    // Newest power request per light, so a slow "off" sequence can't undo a later "on".
+    private static readonly ConcurrentDictionary<string, int> _powerRequests = new();
+    private static int NextPowerRequest(string ip) => _powerRequests.AddOrUpdate(ip, 1, (_, n) => n + 1);
 
     /// <summary>
     /// Sets a Govee device to a specific color via LAN UDP.

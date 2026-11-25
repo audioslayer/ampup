@@ -2508,6 +2508,13 @@ public partial class App : Application
             // Continue from Discord's real volume, so a change made in Discord isn't undone
             current = VolumePipeline.ComputeRawValue(discordVolume, knob);
         }
+        else if (knob.Target.Equals("room_lights", StringComparison.OrdinalIgnoreCase)
+            && TryGetRoomLightsRawValue(knob, out int roomRaw))
+        {
+            // Continue from the real room brightness: each Space has its own encoder
+            // position, so the first click after switching Spaces used to jump.
+            current = roomRaw;
+        }
         else if (CanReadN3TargetVolume(knob.Target) && _mixer.GetVolume(knob) is var liveVolume && liveVolume >= 0f)
         {
             // Continue from the target's real volume. -1 = nothing to read (focused window has
@@ -2528,6 +2535,25 @@ public partial class App : Application
         int next = Math.Clamp(current + (e.Delta * step), 0, 1023);
         StreamControllerKnobPositions[e.Index] = next / 1023f;
         ApplyKnobConfig(knob, next, stateIdx, false);
+    }
+
+    /// <summary>
+    /// Encoder position matching the current room brightness. False when every light is
+    /// off or the encoder already agrees (keeping its finer position avoids rounding drift).
+    /// </summary>
+    private bool TryGetRoomLightsRawValue(KnobConfig knob, out int raw)
+    {
+        raw = 0;
+        if (!_config.Ambience.GoveeDevices.Any(d => d.PoweredOn)) return false;
+
+        int live = _config.Ambience.BrightnessScale;
+        if (knob.LastRawValue >= 0)
+        {
+            int own = (int)Math.Round(VolumePipeline.ComputeVolume(knob.LastRawValue, knob) * 100);
+            if (Math.Abs(own - live) <= 1) return false;
+        }
+        raw = VolumePipeline.ComputeRawValue(live / 100f, knob);
+        return true;
     }
 
     private KnobConfig? GetEffectiveN3KnobConfig(int encoderIdx)
@@ -4243,7 +4269,9 @@ public partial class App : Application
                     if (status.HasValue)
                     {
                         dev.PoweredOn = status.Value.On;
-                        if (status.Value.Brightness > 0)
+                        // Segment lights are dimmed in software; their hardware value isn't ours
+                        if (status.Value.Brightness > 0
+                            && (AmbienceSync.GetSegmentCount(dev) == 0 || !dev.UseSegmentProtocol))
                             dev.BrightnessScale = status.Value.Brightness;
                     }
                     else
@@ -4328,7 +4356,8 @@ public partial class App : Application
             {
                 await AmbienceSync.SendDevicePowerAsync(dev, on);
 
-                if (useH61A0CloudFallback)
+                // Skip if the light was turned back on meanwhile: the cloud off lands late.
+                if (useH61A0CloudFallback && !dev.PoweredOn)
                 {
                     using var api = new GoveeCloudApi(lanFallbackApiKey);
                     bool ok = await api.ControlDeviceAsync(
@@ -4563,6 +4592,9 @@ public partial class App : Application
     /// </summary>
     private void ApplyRoomLightsBrightness(float norm, int pctRoom)
     {
+        bool repeatedOff = pctRoom == 0 && _roomKnobAtZero;
+        _roomKnobAtZero = pctRoom == 0;
+
         if (pctRoom == 0)
         {
             // Off — route every device through SetGoveePower so cloud-only
@@ -4574,16 +4606,24 @@ public partial class App : Application
                                 && !string.IsNullOrWhiteSpace(dev.DeviceId)
                                 && !string.IsNullOrWhiteSpace(dev.Sku);
                 if (!hasLan && !hasCloud) continue;
+                // Extra clicks at 0 must not queue more (delayed) off commands
+                if (repeatedOff && !dev.PoweredOn) continue;
                 SetGoveePower(dev, false);
             }
-            if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
+            if (!repeatedOff && _corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
                 _ = _corsairSync.SetStaticColorAllAsync(0, 0, 0);
         }
         else
         {
             // LAN path — existing behavior (covers every device with an IP)
+            bool anyLanWasOff = _config.Ambience.GoveeEnabled && _config.Ambience.GoveeDevices.Any(d =>
+                !d.PoweredOn && !string.IsNullOrWhiteSpace(d.Ip));
             _ambienceSync?.EnsureDevicesPoweredOn();
             _ambienceSync?.SetBrightness(norm);
+
+            // Segment lights only dim through effect frames, so the effect must be running
+            if (anyLanWasOff)
+                Dispatcher.BeginInvoke(() => _mainWindow?.GetRoomView()?.ResumeRoomEffect());
 
             // Bluetooth path — lights without LAN that AmpUp reaches over Bluetooth
             // get the light's own brightness (it also dims camera mode).
@@ -4619,9 +4659,13 @@ public partial class App : Application
             if (_corsairSync?.IsAvailable == true && _config.Corsair.Enabled)
                 _config.Corsair.LightBrightness = (int)(pctRoom * 2.0);
         }
-        _config.Ambience.BrightnessScale = Math.Max(pctRoom, 1);
+        // Off keeps the last brightness, so turning the lights on elsewhere isn't stuck at 1%
+        if (pctRoom > 0)
+            _config.Ambience.BrightnessScale = pctRoom;
         Dispatcher.BeginInvoke(() => _mainWindow?.UpdateGoveeDeviceBrightness(null, norm, pctRoom > 0));
     }
+
+    private bool _roomKnobAtZero;
 
     // Remember Corsair state across a room-toggle off/on cycle so we can
     // restore the exact same mode instead of forcing "vu_reactive".

@@ -6734,7 +6734,8 @@ public partial class RoomView : UserControl
             if (state.HasValue)
             {
                 dev.PoweredOn = state.Value.On;
-                if (state.Value.Brightness > 0)
+                if (state.Value.Brightness > 0
+                    && (AmbienceSync.GetSegmentCount(dev) == 0 || !dev.UseSegmentProtocol))
                     dev.BrightnessScale = state.Value.Brightness;
             }
             else

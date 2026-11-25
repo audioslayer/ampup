@@ -6,7 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased] - 1.4.8
+## [Unreleased] - 1.4.9
+
+### Fixed
+- Room Lights knob / encoder: turning down to 0 and back up no longer leaves lights ignoring brightness for up to 30 seconds. Frames resume at once, the room effect restarts if it wasn't running, and late "off" commands can't undo turning back on.
+- Turning Room Lights down to 0 no longer saves 1% brightness, which left lights almost black when switched on another way.
+- N3 Room Lights encoders continue from the real room brightness instead of jumping to each Space's own last position.
+- Waking the PC no longer overwrites the saved brightness of segment (RGBIC) Govee lights.
+
+## [1.4.8] - 2026-11-21
 
 ### Added
 - **Blend Sweep** lighting effect: a port of the official Turn Up "Position Blend". All 3 LEDs stay lit and the Left color sweeps across the arc as the knob turns up (0% = all Right, 100% = all Left). Also available as a Mute / Device Mute state effect. The existing Position Blend is unchanged. (#31)
