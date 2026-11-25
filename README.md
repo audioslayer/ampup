@@ -137,7 +137,7 @@ To connect, open **Tools → WebSocket Server Settings** in OBS, tick **Enable W
 
 - Drive all 15 LEDs directly with per-knob or room-wide Scenes.
 - Choose from more than 60 static, animated, audio-reactive, position-aware, and state-aware effects.
-- Edit gradients and palettes, effect direction, and per-channel gamma calibration.
+- Edit gradients and palettes, speed, effect direction, and per-channel gamma calibration.
 - Set brightness for all knobs at once or per knob, with the LEDs updating as you drag, or turn a knob's LEDs **Off** completely.
 - Add an **Activity Flash**: a temporary effect while you turn a knob or press its button.
 - Use app-status lighting for running, muted, unmuted, and activity states. Each mute state (mic, device, app, app group) can run its own effect with its own left and right colors.
