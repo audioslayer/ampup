@@ -235,10 +235,17 @@ public partial class LightsView : UserControl
             + "Right-click a knob's strip for copy / paste shortcuts.",
             "Lights");
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal };
-        headerActions.Children.Add(_allKnobsBrightnessRow);
         headerActions.Children.Add(BuildModeDock());
-        PageHeaderHost.Content = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED", headerActions,
+        var pageHeader = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED", headerActions,
             icon: Material.Icons.MaterialIconKind.LightbulbOnOutline, titleHelp: lightsHelp);
+        var headerGrid = new Grid();
+        headerGrid.Children.Add(pageHeader);
+        headerGrid.Children.Add(_allKnobsBrightnessRow);
+        PlaceAllKnobsBrightness(headerGrid, headerActions, pageHeader, centered: true);
+        // Centered when there's room between the title and the tabs, else next to the tabs
+        headerGrid.SizeChanged += (_, e) =>
+            PlaceAllKnobsBrightness(headerGrid, headerActions, pageHeader, centered: e.NewSize.Width >= 1140);
+        PageHeaderHost.Content = headerGrid;
 
         BuildPresetsSection();
         BuildGlobalCard();
@@ -3154,6 +3161,30 @@ public partial class LightsView : UserControl
         grid.Children.Add(brightCell);
 
         return grid;
+    }
+
+    private void PlaceAllKnobsBrightness(Grid headerGrid, StackPanel headerActions, FrameworkElement pageHeader, bool centered)
+    {
+        if (_allKnobsBrightnessRow is not { } row) return;
+        if (centered)
+        {
+            if (!headerGrid.Children.Contains(row))
+            {
+                headerActions.Children.Remove(row);
+                headerGrid.Children.Add(row);
+            }
+            row.HorizontalAlignment = HorizontalAlignment.Center;
+            row.Margin = new Thickness(0, 0, 0, pageHeader.Margin.Bottom); // same line as the title
+        }
+        else
+        {
+            if (!headerActions.Children.Contains(row))
+            {
+                headerGrid.Children.Remove(row);
+                headerActions.Children.Insert(0, row);
+            }
+            row.Margin = new Thickness(0, 0, 20, 0);
+        }
     }
 
     private static FrameworkElement BuildAllKnobsBrightnessRow(StyledSlider slider)
