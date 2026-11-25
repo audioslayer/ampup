@@ -8,6 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased] - 1.4.9
 
+### Changed
+- Lights > Activity Flash has a "?" explaining that it temporarily replaces the knob's effect, and the colors it uses now always show (as FLASH / FLASH 2 when only the flash uses them).
+
 ### Fixed
 - Room Lights knob / encoder: turning down to 0 and back up no longer leaves lights ignoring brightness for up to 30 seconds. Frames resume at once, the room effect restarts if it wasn't running, and late "off" commands can't undo turning back on.
 - Govee lights no longer dim two or three times over in room effects and Screen Sync: 64% now means 64% (it was about 41%, less on single-color lights). Lights below 100% look brighter than before.

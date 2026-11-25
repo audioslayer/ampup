@@ -1801,6 +1801,10 @@ public partial class LightsView : UserControl
                 "Temporary effect played while this knob is being turned or its button pressed. None = disabled.",
                 includeNone: true);
             activityPicker.Select("none");
+            activityPicker.SelectionChanged += (_, _) =>
+            {
+                if (!_loading) UpdateVisibility(idx, _effectPickers[idx].SelectedEffect);
+            };
             activityContainer.Children.Add(MakeStatusEffectRow("ON INPUT", activityPicker));
             _activityPickers[idx] = activityPicker;
 
@@ -1827,7 +1831,11 @@ public partial class LightsView : UserControl
             };
             _activityDurationSliders[idx] = activityDurationSlider;
             activityContainer.Children.Add(activityDurationSlider);
-            panel.Children.Add(MakeSectionCard("ACTIVITY FLASH", activityContainer));
+            panel.Children.Add(MakeSectionCardWithHelp("ACTIVITY FLASH",
+                "While you turn this knob or press its button, this effect temporarily replaces the knob's normal effect. "
+                + "The normal effect comes back when the duration runs out.\n\n"
+                + "None turns it off, so the knob always shows its normal effect.",
+                activityContainer));
 
             // DeviceSelect rows (hidden unless DeviceSelect effect)
             var deviceSelectContainer = new StackPanel { Visibility = Visibility.Collapsed };
@@ -2628,10 +2636,15 @@ public partial class LightsView : UserControl
         bool muteUnmutedNeeds2 = isMuteStatus && StateEffectNeedsColor2(_muteStatusUnmutedPickers[idx]);
         bool muteMutedNeeds2 = isMuteStatus && StateEffectNeedsColor2(_muteStatusMutedPickers[idx]);
 
+        // The activity flash uses the same colors, so show them even when the main effect doesn't need them
+        var flash = GetPickerEffect(_activityPickers[idx]);
+        bool flashUsesColors = flash is LightEffect flashFx && flashFx != LightEffect.Off && !EffectsNoColors.Contains(flashFx);
+        bool flashNeeds2 = flashUsesColors && EffectsNeedingColor2.Contains(flash!.Value);
+
         // Hide entire color section for pure rainbow/HSV effects
         if (_colorSections[idx] != null)
-            _colorSections[idx].Visibility = noColors ? Visibility.Collapsed : Visibility.Visible;
-        _color2Panels[idx].Visibility = (!noColors && needsColor2) ? Visibility.Visible : Visibility.Collapsed;
+            _colorSections[idx].Visibility = noColors && !flashUsesColors ? Visibility.Collapsed : Visibility.Visible;
+        _color2Panels[idx].Visibility = (!noColors && needsColor2) || flashNeeds2 ? Visibility.Visible : Visibility.Collapsed;
         _color3Panels[idx].Visibility = (!noColors && (needsProgramStatusColors || muteUnmutedNeeds2)) ? Visibility.Visible : Visibility.Collapsed;
         _color4Panels[idx].Visibility = (!noColors && (needsProgramStatusColors || muteMutedNeeds2)) ? Visibility.Visible : Visibility.Collapsed;
         _speedPanels[idx].Visibility = Visibility.Visible; // always show (brightness is always relevant)
@@ -2694,8 +2707,11 @@ public partial class LightsView : UserControl
         }
         else
         {
-            SetSwatchLabel(_color1Swatches[idx], "PRIMARY", "Primary LED color");
-            SetSwatchLabel(_color2Swatches[idx], "SECONDARY", "Secondary color (accent/contrast for animated effects)");
+            SetSwatchLabel(_color1Swatches[idx], noColors ? "FLASH" : "PRIMARY",
+                noColors ? "Color of the activity flash" : "Primary LED color");
+            bool flashOnly2 = noColors || !needsColor2;
+            SetSwatchLabel(_color2Swatches[idx], flashOnly2 ? "FLASH 2" : "SECONDARY",
+                flashOnly2 ? "Second color of the activity flash" : "Secondary color (accent/contrast for animated effects)");
         }
 
         if (_deviceSelectPanels[idx] != null)
@@ -3115,9 +3131,26 @@ public partial class LightsView : UserControl
     }
 
     private Border MakeSectionCard(string title, params UIElement[] children)
+        => MakeSectionCardWithHelp(title, null, children);
+
+    private Border MakeSectionCardWithHelp(string title, string? help, params UIElement[] children)
     {
         var content = new StackPanel();
-        content.Children.Add(MakeSectionHeader(title));
+        var header = MakeSectionHeader(title);
+        if (string.IsNullOrEmpty(help))
+            content.Children.Add(header);
+        else
+        {
+            // "?" right after the title, sharing the header's bottom spacing
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = header.Margin };
+            header.Margin = new Thickness(0);
+            header.VerticalAlignment = VerticalAlignment.Center;
+            var tip = UiKit.HelpTip(help, title);
+            tip.Margin = new Thickness(0);
+            row.Children.Add(header);
+            row.Children.Add(tip);
+            content.Children.Add(row);
+        }
         foreach (var child in children)
             content.Children.Add(child);
         var border = new Border
