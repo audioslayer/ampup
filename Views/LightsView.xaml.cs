@@ -103,6 +103,8 @@ public partial class LightsView : UserControl
     private PaletteEditorControl? _globalPaletteEditor;
     // _linkToAmbienceCheck removed — Link to Ambience moved to Room Lighting tab
     private StyledSlider? _brightnessSlider;
+    private StyledSlider? _perKnobAllBrightnessSlider;
+    private bool _syncingAllKnobsBrightness;
     private readonly Border[] _ledToggleBorders = new Border[5];
     private readonly bool[] _ledEnabled = { true, true, true, true, true };
     private StackPanel? _ledTogglePanel;
@@ -205,9 +207,26 @@ public partial class LightsView : UserControl
             ToolTip = "Global LED brightness (0 = off, 100 = full brightness)",
         };
         _brightnessSlider.ValueChanged += (_, _) =>
+            SetAllKnobsBrightness((int)_brightnessSlider.Value, _perKnobAllBrightnessSlider);
+
+        // Same setting on the Per Knob tab, so it's found without switching to Global
+        _perKnobAllBrightnessSlider = new StyledSlider
         {
-            if (!_loading) QueueSave();
+            Minimum = 0,
+            Maximum = 100,
+            Value = 100,
+            ShowLabel = false,
+            Height = 28,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            AccentColor = ThemeManager.Accent,
+            ToolTip = "Brightness of every knob's LEDs (0 = off, 100 = full brightness)",
         };
+        _perKnobAllBrightnessSlider.ValueChanged += (_, _) =>
+            SetAllKnobsBrightness((int)_perKnobAllBrightnessSlider.Value, _brightnessSlider);
+        PerKnobGrid.Children.Insert(0, BuildAllKnobsBrightnessRow(_perKnobAllBrightnessSlider));
+
+        // A knob or button can change it while this page is hidden
+        IsVisibleChanged += (_, _) => { if (IsVisible) LoadAllKnobsBrightness(); };
 
         var lightsHelp = UiKit.HelpTip(
             "Per Knob gives each knob's LEDs its own effect and colors. Global runs one effect across every knob "
@@ -349,8 +368,7 @@ public partial class LightsView : UserControl
             LoadDeviceSelectColors(i, light);
         }
 
-        if (_brightnessSlider != null)
-            _brightnessSlider.Value = Math.Clamp(config.LedBrightness, 0, 100);
+        LoadAllKnobsBrightness();
 
         _loading = false;
         _configLoaded = true;
@@ -864,7 +882,7 @@ public partial class LightsView : UserControl
         _brightnessSlider.Height = 28;
         _brightnessSlider.HorizontalAlignment = HorizontalAlignment.Stretch;
 
-        var speedBrightnessRow = MakeSpeedBrightnessRow(speedSlider, _brightnessSlider);
+        var speedBrightnessRow = MakeSpeedBrightnessRow(speedSlider, _brightnessSlider, "BRIGHTNESS (ALL KNOBS)");
         _globalSpeedCard = speedBrightnessRow;
 
         settings.Children.Add(speedBrightnessRow);
@@ -1641,7 +1659,7 @@ public partial class LightsView : UserControl
             };
             _brightnessSliders[i] = brightSlider;
 
-            var sbRow = MakeSpeedBrightnessRow(speedSlider, brightSlider);
+            var sbRow = MakeSpeedBrightnessRow(speedSlider, brightSlider, "BRIGHTNESS (THIS KNOB)");
             _speedPanels[i] = sbRow;
             panel.Children.Add(sbRow);
 
@@ -3060,9 +3078,8 @@ public partial class LightsView : UserControl
             }
         }
 
-        if (_brightnessSlider != null)
-            _config.LedBrightness = (int)_brightnessSlider.Value;
-
+        // LedBrightness is written by SetAllKnobsBrightness only, so saving another setting
+        // can't undo a brightness set by a knob or button.
         _onSave(_config);
     }
 
@@ -3082,7 +3099,7 @@ public partial class LightsView : UserControl
     /// <summary>
     /// Builds a side-by-side SPEED + BRIGHTNESS slider row (Room tab style).
     /// </summary>
-    private Grid MakeSpeedBrightnessRow(StyledSlider speedSlider, StyledSlider brightSlider)
+    private Grid MakeSpeedBrightnessRow(StyledSlider speedSlider, StyledSlider brightSlider, string brightnessLabel)
     {
         var dimBrush = ThemeBrush("TextDimBrush");
 
@@ -3115,11 +3132,57 @@ public partial class LightsView : UserControl
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
         brightLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
         brightSlider.ValueChanged += (_, _) => brightLabel.Text = $"{(int)brightSlider.Value}%";
-        var brightCell = MakeSliderCell("BRIGHTNESS", brightSlider, brightLabel);
+        var brightCell = MakeSliderCell(brightnessLabel, brightSlider, brightLabel);
         Grid.SetColumn(brightCell as FrameworkElement, 1);
         grid.Children.Add(brightCell);
 
         return grid;
+    }
+
+    private static FrameworkElement BuildAllKnobsBrightnessRow(StyledSlider slider)
+    {
+        var row = new DockPanel { Margin = new Thickness(0, 4, 16, 12) };
+        var title = new TextBlock
+        {
+            Text = "BRIGHTNESS (ALL KNOBS)", FontSize = 12, FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0),
+        };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        var value = new TextBlock
+        {
+            Text = $"{(int)slider.Value}%", FontSize = 12, FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0),
+        };
+        value.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+        slider.ValueChanged += (_, _) => value.Text = $"{(int)slider.Value}%";
+        DockPanel.SetDock(title, Dock.Left);
+        DockPanel.SetDock(value, Dock.Right);
+        row.Children.Add(title);
+        row.Children.Add(value);
+        row.Children.Add(slider);
+        return row;
+    }
+
+    /// <summary>A brightness slider moved: store it and move the other tab's slider along.</summary>
+    private void SetAllKnobsBrightness(int pct, StyledSlider? other)
+    {
+        if (_loading || _syncingAllKnobsBrightness || _config == null) return;
+        _config.LedBrightness = pct;
+        App.Rgb?.SetBrightness(pct); // live while dragging
+        _syncingAllKnobsBrightness = true;
+        if (other != null) other.Value = pct;
+        _syncingAllKnobsBrightness = false;
+        QueueSave();
+    }
+
+    private void LoadAllKnobsBrightness()
+    {
+        if (_config == null) return;
+        int pct = Math.Clamp(_config.LedBrightness, 0, 100);
+        _syncingAllKnobsBrightness = true;
+        if (_brightnessSlider != null) _brightnessSlider.Value = pct;
+        if (_perKnobAllBrightnessSlider != null) _perKnobAllBrightnessSlider.Value = pct;
+        _syncingAllKnobsBrightness = false;
     }
 
     /// <summary>Section card whose visibility follows <paramref name="container"/> (callers toggle the container).</summary>
@@ -3177,6 +3240,8 @@ public partial class LightsView : UserControl
             _globalEffectPicker.AccentColor = accent;
         if (_brightnessSlider != null)
             _brightnessSlider.AccentColor = accent;
+        if (_perKnobAllBrightnessSlider != null)
+            _perKnobAllBrightnessSlider.AccentColor = accent;
         foreach (var s in _speedSliders)
             if (s != null) s.AccentColor = accent;
         foreach (var s in _brightnessSliders)

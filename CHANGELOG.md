@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased] - 1.4.9
 
 ### Changed
+- Lights > Per Knob has a "Brightness (all knobs)" slider; before, it was only on the Global tab. It updates the LEDs while you drag.
 - Lights > Activity Flash has a "?" explaining that it temporarily replaces the knob's effect, and the colors it uses now always show (as FLASH / FLASH 2 when only the flash uses them).
 
 ### Fixed
@@ -17,6 +18,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Segment (RGBIC) Govee lights no longer flash their own stored color (such as a white set in Google Home) just before turning off.
 - Turning Room Lights down to 0 no longer saves 1% brightness, which left lights almost black when switched on another way.
 - N3 Room Lights encoders continue from the real room brightness instead of jumping to each Space's own last position.
+- Changing a Lights setting no longer undoes an LED brightness set by a knob or button.
 - Waking the PC no longer overwrites the saved brightness of segment (RGBIC) Govee lights.
 
 ## [1.4.8] - 2026-11-21
