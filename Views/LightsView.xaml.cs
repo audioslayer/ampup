@@ -104,6 +104,7 @@ public partial class LightsView : UserControl
     // _linkToAmbienceCheck removed — Link to Ambience moved to Room Lighting tab
     private StyledSlider? _brightnessSlider;
     private StyledSlider? _perKnobAllBrightnessSlider;
+    private FrameworkElement? _allKnobsBrightnessRow; // page header, Per Knob tab only
     private bool _syncingAllKnobsBrightness;
     private readonly Border[] _ledToggleBorders = new Border[5];
     private readonly bool[] _ledEnabled = { true, true, true, true, true };
@@ -223,7 +224,7 @@ public partial class LightsView : UserControl
         };
         _perKnobAllBrightnessSlider.ValueChanged += (_, _) =>
             SetAllKnobsBrightness((int)_perKnobAllBrightnessSlider.Value, _brightnessSlider);
-        PerKnobGrid.Children.Insert(0, BuildAllKnobsBrightnessRow(_perKnobAllBrightnessSlider));
+        _allKnobsBrightnessRow = BuildAllKnobsBrightnessRow(_perKnobAllBrightnessSlider);
 
         // A knob or button can change it while this page is hidden
         IsVisibleChanged += (_, _) => { if (IsVisible) LoadAllKnobsBrightness(); };
@@ -234,6 +235,7 @@ public partial class LightsView : UserControl
             + "Right-click a knob's strip for copy / paste shortcuts.",
             "Lights");
         var headerActions = new StackPanel { Orientation = Orientation.Horizontal };
+        headerActions.Children.Add(_allKnobsBrightnessRow);
         headerActions.Children.Add(BuildModeDock());
         PageHeaderHost.Content = UiKit.PageHeader("Lights", "Effects, colors and brightness for every LED", headerActions,
             icon: Material.Icons.MaterialIconKind.LightbulbOnOutline, titleHelp: lightsHelp);
@@ -874,7 +876,9 @@ public partial class LightsView : UserControl
         };
         speedSlider.ValueChanged += (_, _) =>
         {
-            if (!_loading) QueueSave();
+            if (_loading) return;
+            if (_config != null) _config.GlobalLight.EffectSpeed = (int)speedSlider.Value;
+            QueueSave();
         };
         _globalSpeedSlider = speedSlider;
 
@@ -1033,7 +1037,9 @@ public partial class LightsView : UserControl
         {
             if (_txtMuteBrightness != null && _sldMuteBrightness != null)
                 _txtMuteBrightness.Text = $"{(int)_sldMuteBrightness.Value}%";
-            if (!_loading) QueueSave();
+            if (_loading) return;
+            App.Rgb?.SetMuteBrightness((int)_sldMuteBrightness.Value);
+            QueueSave();
         };
         muteContent.Children.Add(_sldMuteBrightness);
         calib.Children.Add(MakeSectionCard("MUTE DIM LEVEL", muteContent));
@@ -1248,6 +1254,9 @@ public partial class LightsView : UserControl
 
         // Per-knob editor (selector row + shared editor panel)
         PerKnobGrid.Visibility = (!globalEnabled && !calib) ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_allKnobsBrightnessRow != null)
+            _allKnobsBrightnessRow.Visibility = PerKnobGrid.Visibility;
 
         // Calibration panel
         if (_calibrationPanel != null)
@@ -1638,7 +1647,11 @@ public partial class LightsView : UserControl
             };
             speedSlider.ValueChanged += (_, _) =>
             {
-                if (!_loading) QueueSave();
+                if (_loading) return;
+                // The engine renders from these config objects, so this shows while dragging
+                if (_config?.Lights.FirstOrDefault(l => l.Idx == idx) is { } light)
+                    light.EffectSpeed = (int)speedSlider.Value;
+                QueueSave();
             };
             _speedSliders[i] = speedSlider;
 
@@ -1655,7 +1668,10 @@ public partial class LightsView : UserControl
             };
             brightSlider.ValueChanged += (_, _) =>
             {
-                if (!_loading) QueueSave();
+                if (_loading) return;
+                if (_config?.Lights.FirstOrDefault(l => l.Idx == idx) is { } light)
+                    light.Brightness = (int)brightSlider.Value;
+                QueueSave();
             };
             _brightnessSliders[i] = brightSlider;
 
@@ -3141,25 +3157,36 @@ public partial class LightsView : UserControl
 
     private static FrameworkElement BuildAllKnobsBrightnessRow(StyledSlider slider)
     {
-        var row = new DockPanel { Margin = new Thickness(0, 4, 16, 12) };
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 20, 0),
+            ToolTip = slider.ToolTip,
+            Background = Brushes.Transparent,
+        };
+        var icon = UiKit.Icon(MaterialIconKind.Brightness6, 16);
+        icon.Margin = new Thickness(0, 0, 6, 0);
         var title = new TextBlock
         {
-            Text = "BRIGHTNESS (ALL KNOBS)", FontSize = 12, FontWeight = FontWeights.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0),
+            Text = "ALL KNOBS", FontSize = 12, FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0),
         };
         title.SetResourceReference(TextBlock.ForegroundProperty, "TextDimBrush");
+        slider.Width = 130;
+        slider.VerticalAlignment = VerticalAlignment.Center;
         var value = new TextBlock
         {
             Text = $"{(int)slider.Value}%", FontSize = 12, FontWeight = FontWeights.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0),
+            Width = 36, // fixed, so the header doesn't shift while dragging
         };
         value.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
         slider.ValueChanged += (_, _) => value.Text = $"{(int)slider.Value}%";
-        DockPanel.SetDock(title, Dock.Left);
-        DockPanel.SetDock(value, Dock.Right);
+        row.Children.Add(icon);
         row.Children.Add(title);
-        row.Children.Add(value);
         row.Children.Add(slider);
+        row.Children.Add(value);
         return row;
     }
 
