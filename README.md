@@ -14,6 +14,7 @@
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white" alt="Windows 10 and 11" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white" alt=".NET 8" />
   <img src="https://img.shields.io/badge/Turn%20Up-stable-00B875" alt="Stable Turn Up support" />
+  <a href="https://discord.gg/QqVT2T4WQq"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Join the Discord" /></a>
 </p>
 
 <p align="center">
@@ -24,7 +25,8 @@
   <a href="#obs-studio">OBS</a> ·
   <a href="#integrations">Integrations</a> ·
   <a href="#build-from-source">Build</a> ·
-  <a href="https://github.com/audioslayer/ampup/issues">Issues</a>
+  <a href="https://github.com/audioslayer/ampup/issues">Issues</a> ·
+  <a href="https://discord.gg/QqVT2T4WQq">Discord</a>
 </p>
 
 Amp Up replaces the original Turn Up desktop software with a fast, modern WPF application. It maps physical controls to Windows audio, apps, profiles, lighting, macros, devices, and automations while keeping the original mixer responsive and useful as a daily driver.
@@ -135,7 +137,9 @@ To connect, open **Tools → WebSocket Server Settings** in OBS, tick **Enable W
 
 - Drive all 15 LEDs directly with per-knob or room-wide Scenes.
 - Choose from more than 60 static, animated, audio-reactive, position-aware, and state-aware effects.
-- Edit gradients and palettes, brightness, speed, effect direction, and per-channel gamma calibration.
+- Edit gradients and palettes, effect direction, and per-channel gamma calibration.
+- Set brightness for all knobs at once or per knob, with the LEDs updating as you drag, or turn a knob's LEDs **Off** completely.
+- Add an **Activity Flash**: a temporary effect while you turn a knob or press its button.
 - Use app-status lighting for running, muted, unmuted, and activity states. Each mute state (mic, device, app, app group) can run its own effect with its own left and right colors.
 - Match the official Turn Up look with **Blend Sweep**: all three LEDs stay lit and your left color sweeps across the arc as you turn the knob up. Imported Turn Up configs use it automatically.
 - Combine the active output-device color with physical knob position using **Dev+Pos** mode.
@@ -162,6 +166,7 @@ To connect, open **Tools → WebSocket Server Settings** in OBS, tick **Enable W
 - Set white balance per device and map light segments to screen edges, for example a rope light bent around a frame.
 - Place devices on a room layout and map screen regions spatially.
 - Control brightness, palettes, direction, temperature, device groups, and per-device participation.
+- Dim the whole room from a Turn Up knob or N3 encoder with the **Room Lights** target; turning it to 0 switches the lights off.
 - Support Govee LAN control, cloud-only devices, and compatible RGBIC segment effects.
 
 ### Reliability and performance
@@ -289,7 +294,7 @@ The version comes from `AmpUp.csproj`. For the in-app updater to recognize a rel
 
 ## Contributing
 
-Bug reports and feature requests are welcome in [GitHub Issues](https://github.com/audioslayer/ampup/issues). Before submitting a change, build both configurations and keep unrelated local edits out of the commit:
+Bug reports and feature requests are welcome in [GitHub Issues](https://github.com/audioslayer/ampup/issues), and you can ask questions on [Discord](https://discord.gg/QqVT2T4WQq). Before submitting a change, build both configurations and keep unrelated local edits out of the commit:
 
 ```powershell
 dotnet build AmpUp.sln -c Debug
@@ -300,5 +305,6 @@ dotnet build AmpUp.sln -c Release
 
 <p align="center">
   Built by <a href="https://github.com/audioslayer">audio</a><br />
+  <a href="https://discord.gg/QqVT2T4WQq">Join the Discord</a><br />
   <a href="https://www.buymeacoffee.com/audioslayer">Buy me a coffee</a>
 </p>
