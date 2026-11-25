@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased] - 1.4.9
+## [1.4.9] - 2026-11-24
 
 ### Added
 - Lights > Per Knob has an **Off** effect that turns that knob's LEDs off.
