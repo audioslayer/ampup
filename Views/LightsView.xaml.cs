@@ -1037,7 +1037,7 @@ public partial class LightsView : UserControl
         {
             if (_txtMuteBrightness != null && _sldMuteBrightness != null)
                 _txtMuteBrightness.Text = $"{(int)_sldMuteBrightness.Value}%";
-            if (_loading) return;
+            if (_loading || _sldMuteBrightness == null) return;
             App.Rgb?.SetMuteBrightness((int)_sldMuteBrightness.Value);
             QueueSave();
         };
