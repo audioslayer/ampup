@@ -162,6 +162,7 @@ namespace AmpUp.Controls
         // Per-effect colors — each tile gets its own personality
         public static readonly Dictionary<LightEffect, Color> EffectColors = new()
         {
+            { LightEffect.Off,          Color.FromRgb(0x88, 0x88, 0x88) }, // grey
             { LightEffect.SingleColor,  Color.FromRgb(0x64, 0xB5, 0xF6) }, // soft blue
             { LightEffect.ColorBlend,   Color.FromRgb(0xBA, 0x68, 0xC8) }, // purple
             { LightEffect.ColorBlendMute, Color.FromRgb(0xCE, 0x93, 0xD8) }, // whole-dial blend + mute
@@ -339,7 +340,11 @@ namespace AmpUp.Controls
                 mainPanel.Children.Add(_favoritesEmpty);
             }
 
-            AddCategory(mainPanel, "STATIC", new[]
+            // Off is a per-knob choice; Global and Room have their own on/off
+            var offTile = _showGlobal
+                ? Array.Empty<(LightEffect, string, string, bool)>()
+                : new[] { (LightEffect.Off, "○", "Off", false) };
+            AddCategory(mainPanel, "STATIC", offTile.Concat(new[]
             {
                 (LightEffect.SingleColor,  "●",   "Solid",    false),
                 (LightEffect.ColorBlend,   "◑",   "Blend",    false),
@@ -351,7 +356,7 @@ namespace AmpUp.Controls
                 (LightEffect.CycleFill,    "▂▅⟳", "CycleFill", false),
                 (LightEffect.RainbowFill,  "▂▅🌈","RbwFill",   false),
                 (LightEffect.GradientFill, "◐",   "Gradient", false),
-            });
+            }).ToArray());
 
             AddCategory(mainPanel, "ANIMATED", new[]
             {

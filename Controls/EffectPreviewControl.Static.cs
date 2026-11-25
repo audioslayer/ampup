@@ -6,6 +6,15 @@ namespace AmpUp.Controls
 {
     public partial class EffectPreviewControl
     {
+        private void RenderOff(Ctx c)
+        {
+            double r = Math.Min(c.W, c.H) * 0.28;
+            double d = r * 0.7071;
+            var pen = Pen(c.Color, 1.5, 0.8);
+            c.Dc.DrawEllipse(null, pen, new Point(c.Cx, c.Cy), r, r);
+            c.Dc.DrawLine(pen, new Point(c.Cx - d, c.Cy - d), new Point(c.Cx + d, c.Cy + d));
+        }
+
         private void RenderSingleColor(Ctx c)
         {
             double r = Math.Min(c.W, c.H) * 0.28;

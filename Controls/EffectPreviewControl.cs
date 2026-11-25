@@ -229,6 +229,7 @@ namespace AmpUp.Controls
             switch (EffectKind)
             {
                 // STATIC
+                case LightEffect.Off:             RenderOff(c);             break;
                 case LightEffect.SingleColor:     RenderSingleColor(c);     break;
                 case LightEffect.ColorBlend:      RenderColorBlend(c);      break;
                 case LightEffect.ColorBlendMute:  RenderColorBlendMute(c);  break;

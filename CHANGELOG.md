@@ -8,6 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased] - 1.4.9
 
+### Added
+- Lights > Per Knob has an **Off** effect that turns that knob's LEDs off.
+
 ### Changed
 - Lights > Per Knob has an all-knobs brightness slider in the page header; before, it was only on the Global tab. All Lights brightness and speed sliders now update the LEDs while you drag.
 - Lights > Activity Flash has a "?" explaining that it temporarily replaces the knob's effect, and the colors it uses now always show (as FLASH / FLASH 2 when only the flash uses them).

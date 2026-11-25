@@ -2587,6 +2587,7 @@ public partial class LightsView : UserControl
     // Effects that don't use any user colors (pure rainbow/HSV)
     private static readonly HashSet<LightEffect> EffectsNoColors = new()
     {
+        LightEffect.Off,
         LightEffect.RainbowFill, LightEffect.RainbowWave, LightEffect.RainbowCycle,
         LightEffect.RainbowWheel, LightEffect.RainbowScanner, LightEffect.Plasma,
     };
