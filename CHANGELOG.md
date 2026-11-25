@@ -22,6 +22,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Turning Room Lights down to 0 no longer saves 1% brightness, which left lights almost black when switched on another way.
 - N3 Room Lights encoders continue from the real room brightness instead of jumping to each Space's own last position.
 - Changing a Lights setting no longer undoes an LED brightness set by a knob or button.
+- The Discord invite in Settings works again (the old one had expired).
 - Waking the PC no longer overwrites the saved brightness of segment (RGBIC) Govee lights.
 
 ## [1.4.8] - 2026-11-21

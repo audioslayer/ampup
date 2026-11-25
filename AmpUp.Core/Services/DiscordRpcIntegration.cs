@@ -24,7 +24,7 @@ public sealed class DiscordRpcIntegration : IDisposable
         "Discord voice controls are unavailable because Discord restricts the required RPC voice scopes to approved partners.";
 
     // Where users ask to be added as a tester: friend request to aud10sayer on Discord.
-    public const string CommunityInviteUrl = "https://discord.gg/TDkfWSjqZ";
+    public const string CommunityInviteUrl = "https://discord.gg/QqVT2T4WQq";
     public const string TesterAccessMessage =
         "Discord voice controls are in tester preview. Discord only lets approved testers connect until AmpUp is fully approved.\n\n" +
         "To get access, send a friend request to aud10sayer on Discord asking for Amp Up tester access (see the Setup guide). Once you're added as a tester, click Connect again.";

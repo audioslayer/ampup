@@ -829,7 +829,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Border x:Name="DiscordCommunityTile" CornerRadius="12" MinHeight="150" Cursor="Hand" ClipToBounds="True"
-                                            Margin="0,0,7,0" ToolTip="discord.gg/TDkfWSjqZ">
+                                            Margin="0,0,7,0" ToolTip="discord.gg/QqVT2T4WQq">
                                         <Border.Background>
                                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                                 <GradientStop Color="#6C77FF" Offset="0" />
